@@ -12,7 +12,7 @@
 
 ### Lane A — 데이터 기반 (선행)
 
-- [ ] [task-001] (deep) 맥미니 Supabase 셀프호스팅(Docker) + 도메인/리버스프록시/TLS (E1) — @arden — `docker-compose.yml`, `Caddyfile`
+- [x] [task-001] (deep) 맥미니 Supabase 셀프호스팅(Docker) + Cloudflare Tunnel (E1) — @arden — `infra/supabase/`, `infra/cloudflared/`
 - [ ] [task-002] (deep) DB 스키마 + RLS + migration (teams/stadiums/games/restaurants/planb_places/profiles/stamps) (E1·E3·E10) — @arden — `supabase/migrations/`
 - [ ] [task-003] 시딩 도구: seed 스크립트 + 포맷 + 1구장 샘플 (E8) — @arden — `scripts/seed/`
 - [ ] [task-004] 10구장 콘텐츠 큐레이션·시딩 (가이드·맛집·플랜B, pick_type 태깅) (E8) — @arden — `scripts/seed/data/`

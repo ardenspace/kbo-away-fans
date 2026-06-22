@@ -1,0 +1,14 @@
+# task-001 — kbo Cloudflare Tunnel (E1, spec D2/D4/D5)
+# 실행: cloudflared tunnel --config infra/cloudflared/kbo-config.yml run kbo
+# credentials-file 은 ~/.cloudflared 의 kbo creds(json) — 절대 커밋 금지(.gitignore).
+tunnel: 91b64af0-7cbc-4001-982a-2292b936a729
+credentials-file: /Users/arden/.cloudflared/91b64af0-7cbc-4001-982a-2292b936a729.json
+
+ingress:
+  # API 경로만 외부 노출 → Kong(localhost:8300). Studio(/) 등 그 외는 404 (spec D5).
+  - hostname: kbo-api.ardenspace.com
+    path: ^/(rest|auth|storage|realtime|functions)/.*
+    service: http://localhost:8300
+  - hostname: kbo-api.ardenspace.com
+    service: http_status:404
+  - service: http_status:404
