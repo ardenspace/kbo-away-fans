@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- task-001 — kbo Cloudflare Tunnel LaunchAgent (재부팅/로그인 시 자동기동)
+     설치: cp 이 파일 ~/Library/LaunchAgents/ && launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.kbo.cloudflared.plist -->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.kbo.cloudflared</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/opt/homebrew/bin/cloudflared</string>
+    <string>--no-autoupdate</string>
+    <string>tunnel</string>
+    <string>--config</string>
+    <string>/Users/arden/code/kbo-away-fans/infra/cloudflared/kbo-config.yml</string>
+    <string>run</string>
+    <string>kbo</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>StandardOutPath</key>
+  <string>/Users/arden/Library/Logs/kbo-cloudflared.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/arden/Library/Logs/kbo-cloudflared.log</string>
+</dict>
+</plist>
