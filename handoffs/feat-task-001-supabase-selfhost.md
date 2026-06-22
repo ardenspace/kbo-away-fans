@@ -22,7 +22,7 @@
 ### 블로커
 - 없음. (남은 건 끝 검증 + 커밋)
 
-### 결정
+### 결정 (→ DECISIONS 2026-06-22 승격됨)
 - **override 머지 함정**: docker compose는 `ports`를 교체가 아니라 *concatenate* → override.yml 방식은 0.0.0.0 매핑(5432/8443)이 안 지워지고 중복 생김. → override 폐기, **vendored compose 직접 편집**으로 전환.
 - **db 직결 노출**(127.0.0.1:5434): supavisor 풀러 대신 db 직결을 크롤러/마이그레이션 경로로(spec D6). supavisor 호스트 노출 제거.
 - **Studio 비공개 방식**(spec D5 구체화): kong을 127.0.0.1:8300에 바인딩 + Step 4에서 cloudflared ingress를 API 경로(/rest /auth /storage /realtime /functions)만 allowlist → Studio(`/`)는 외부 미노출, 로컬 localhost:8300로만 접근.
