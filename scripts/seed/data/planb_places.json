@@ -7,6 +7,86 @@
     "lat": 37.5111,
     "lng": 127.0982,
     "source_url": "https://adventure.lotteworld.com",
-    "description": "우천취소 시 도보 10분. 실내 테마파크라 날씨 무관."
+    "description": "우천취소 시 도보 10분. 실내 테마파크라 날씨 무관. 연인·가족 원정에 제격."
+  },
+  {
+    "stadium_name": "고척스카이돔",
+    "name": "타임스퀘어 (영등포)",
+    "category": "쇼핑몰·영화관",
+    "address": "서울특별시 영등포구 영중로 15",
+    "lat": 37.5178,
+    "lng": 126.9027,
+    "source_url": "https://www.timessquare.co.kr",
+    "description": "고척돔은 실내라 우천취소 없지만 이동 시 영등포 타임스퀘어로. 지하철 1호선 영등포역 직결."
+  },
+  {
+    "stadium_name": "인천SSG랜더스필드",
+    "name": "인천 차이나타운·개항장 거리",
+    "category": "관광·실내식당",
+    "address": "인천광역시 중구 차이나타운로 일대",
+    "lat": 37.4754,
+    "lng": 126.6168,
+    "source_url": "https://www.icchinatown.or.kr",
+    "description": "우천취소 시 인천 역사지구 탐방. 자장면·짬뽕 맛집 + 개항장 카페 거리. 실내 공간 풍부."
+  },
+  {
+    "stadium_name": "사직야구장",
+    "name": "신세계 센텀시티",
+    "category": "쇼핑몰·백화점",
+    "address": "부산광역시 해운대구 센텀남대로 59",
+    "lat": 35.1697,
+    "lng": 129.1317,
+    "source_url": "https://www.shinsegae.com/store/main.do?storeCd=SC",
+    "description": "세계 최대 규모 백화점. 우천취소 시 해운대 방면으로. 실내 수영장·아이스링크·영화관 포함."
+  },
+  {
+    "stadium_name": "대구삼성라이온즈파크",
+    "name": "대구 동성로 대백프라자",
+    "category": "쇼핑몰·백화점",
+    "address": "대구광역시 중구 달구벌대로 2100",
+    "lat": 35.8705,
+    "lng": 128.5945,
+    "source_url": "https://map.naver.com/v5/search/대백프라자",
+    "description": "대구 최대 번화가 동성로 중심. 우천취소 시 쇼핑+식사. 지하 먹거리 풍부."
+  },
+  {
+    "stadium_name": "한화생명이글스파크",
+    "name": "대전 롯데백화점 (세이)",
+    "category": "쇼핑몰·백화점",
+    "address": "대전광역시 중구 중앙로 215",
+    "lat": 36.3253,
+    "lng": 127.4259,
+    "source_url": "https://map.naver.com/v5/search/대전%20롯데백화점",
+    "description": "대전역 도보 5분. 성심당 근처. 우천취소 시 쇼핑·영화. 지하 식품관도 알참."
+  },
+  {
+    "stadium_name": "광주기아챔피언스필드",
+    "name": "광주 롯데백화점 상무점",
+    "category": "쇼핑몰·백화점",
+    "address": "광주광역시 서구 상무대로 849",
+    "lat": 35.1514,
+    "lng": 126.8502,
+    "source_url": "https://map.naver.com/v5/search/광주%20롯데백화점%20상무",
+    "description": "상무지구 중심. 구장 도보 15분. 우천취소 시 영화·쇼핑. 지하 식당가도 풍성."
+  },
+  {
+    "stadium_name": "창원NC파크",
+    "name": "NC백화점 마산점",
+    "category": "쇼핑몰·백화점",
+    "address": "경상남도 창원시 마산합포구 합포로 232",
+    "lat": 35.1845,
+    "lng": 128.5664,
+    "source_url": "https://map.naver.com/v5/search/NC백화점%20마산",
+    "description": "NC 구단 모기업 계열 백화점. 우천취소 시 마산 시내로. 쇼핑·영화·식사 한 번에."
+  },
+  {
+    "stadium_name": "수원KT위즈파크",
+    "name": "수원화성 행궁 (비 와도 볼거리)",
+    "category": "역사·관광",
+    "address": "경기도 수원시 팔달구 행궁로 11",
+    "lat": 37.2847,
+    "lng": 127.0139,
+    "source_url": "https://www.suwonhwaseong.com",
+    "description": "유네스코 세계문화유산. 우천 시에도 행궁 건물 내부 관람 가능. 구장 도보 15분."
   }
 ]
