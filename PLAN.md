@@ -14,7 +14,7 @@
 
 - [x] [task-001] (deep) 맥미니 Supabase 셀프호스팅(Docker) + Cloudflare Tunnel (E1) — @arden — `infra/supabase/`, `infra/cloudflared/`
 - [ ] [task-002] (deep) DB 스키마 + RLS + migration (teams/stadiums/games/restaurants/planb_places/profiles/stamps) (E1·E3·E10) — @arden — `supabase/migrations/`
-- [ ] [task-003] 시딩 도구: seed 스크립트 + 포맷 + 1구장 샘플 (E8) — @arden — `scripts/seed/`
+- [x] [task-003] 시딩 도구: seed 스크립트 + 포맷 + 1구장 샘플 (E8) — @arden — `scripts/seed/`
 - [ ] [task-004] 10구장 콘텐츠 큐레이션·시딩 (가이드·맛집·플랜B, pick_type 태깅) (E8) — @arden — `scripts/seed/data/`
 - [ ] [task-005] (deep) 일정 크롤러 코어: 스크랩 + 파싱 + game_id upsert + dedup (E4) — @arden — `crawler/`
 - [ ] [task-006] 크롤러 운영: 2단 cron(경기일 1분) + 텔레그램 실패알림 + graceful (E4·E5) — @arden — `crawler/`
