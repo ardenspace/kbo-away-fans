@@ -1,0 +1,72 @@
+[
+  {
+    "name": "두산 베어스",
+    "short_name": "두산",
+    "abbr": "OB",
+    "primary_color": "#131230",
+    "secondary_color": "#C8102E"
+  },
+  {
+    "name": "LG 트윈스",
+    "short_name": "LG",
+    "abbr": "LG",
+    "primary_color": "#C8102E",
+    "secondary_color": "#000000"
+  },
+  {
+    "name": "키움 히어로즈",
+    "short_name": "키움",
+    "abbr": "KW",
+    "primary_color": "#002D6D",
+    "secondary_color": "#C8102E"
+  },
+  {
+    "name": "SSG 랜더스",
+    "short_name": "SSG",
+    "abbr": "SK",
+    "primary_color": "#CE0E2D",
+    "secondary_color": "#000000"
+  },
+  {
+    "name": "롯데 자이언츠",
+    "short_name": "롯데",
+    "abbr": "LT",
+    "primary_color": "#CE0E2D",
+    "secondary_color": "#003087"
+  },
+  {
+    "name": "삼성 라이온즈",
+    "short_name": "삼성",
+    "abbr": "SS",
+    "primary_color": "#0038A8",
+    "secondary_color": "#CE0E2D"
+  },
+  {
+    "name": "한화 이글스",
+    "short_name": "한화",
+    "abbr": "HH",
+    "primary_color": "#F37021",
+    "secondary_color": "#1A1A1A"
+  },
+  {
+    "name": "KIA 타이거즈",
+    "short_name": "KIA",
+    "abbr": "HT",
+    "primary_color": "#CE0E2D",
+    "secondary_color": "#000000"
+  },
+  {
+    "name": "NC 다이노스",
+    "short_name": "NC",
+    "abbr": "NC",
+    "primary_color": "#003A6C",
+    "secondary_color": "#B5A36A"
+  },
+  {
+    "name": "KT 위즈",
+    "short_name": "KT",
+    "abbr": "KT",
+    "primary_color": "#000000",
+    "secondary_color": "#CE0E2D"
+  }
+]
