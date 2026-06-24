@@ -21,7 +21,7 @@
 
 ### Lane B — 앱 코어 (task-002 이후)
 
-- [ ] [task-007] Flutter 스캐폴드: init + Supabase 클라이언트 + 네비 골격 (E1·E9) — @arden — `app/lib/`
+- [ ] [task-007] (deep) Flutter 스캐폴드: init + Supabase 클라이언트 + 네비 골격 (E1·E9) — @arden — `app/lib/`
 - [ ] [task-008] 팀별 테마 컬러 전환 (E9, T11) — @arden — `app/lib/theme/`
 - [ ] [task-009] (deep) 로그인: 이메일 + 카카오 OAuth (E2) — @arden — `app/lib/auth/`
 - [ ] [task-010] 응원팀 설정 → 원정 일정 화면 (필터 + on-demand 조회) (E2·E3·E4, T1) — @arden — `app/lib/features/schedule/`
