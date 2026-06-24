@@ -5,9 +5,18 @@ import 'router/router.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  const supabaseUrl = String.fromEnvironment('SUPABASE_URL');
+  const supabaseAnonKey = String.fromEnvironment('SUPABASE_ANON_KEY');
+  assert(
+    supabaseUrl.isNotEmpty && supabaseAnonKey.isNotEmpty,
+    'SUPABASE_URL / SUPABASE_ANON_KEY 가 비어 있습니다. '
+    'flutter run --dart-define=SUPABASE_URL=... --dart-define=SUPABASE_ANON_KEY=... 로 실행하세요.',
+  );
+
   await Supabase.initialize(
-    url: const String.fromEnvironment('SUPABASE_URL'),
-    publishableKey: const String.fromEnvironment('SUPABASE_ANON_KEY'),
+    url: supabaseUrl,
+    publishableKey: supabaseAnonKey,
   );
   runApp(const ProviderScope(child: KboAwayApp()));
 }

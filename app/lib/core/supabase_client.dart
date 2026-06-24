@@ -1,6 +1,7 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-final supabaseClientProvider = Provider<SupabaseClient>(
-  (ref) => Supabase.instance.client,
-);
+part 'supabase_client.g.dart';
+
+@Riverpod(keepAlive: true)
+SupabaseClient supabaseClient(Ref ref) => Supabase.instance.client;
