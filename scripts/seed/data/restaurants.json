@@ -1,0 +1,24 @@
+[
+  {
+    "stadium_name": "잠실야구장",
+    "name": "청기와타운 잠실점",
+    "pick_type": "editor",
+    "category": "갈비·고기",
+    "address": "서울특별시 송파구 올림픽로 14길 5",
+    "lat": 37.5108,
+    "lng": 127.0742,
+    "source_url": "https://m.place.naver.com/restaurant/37618400/home",
+    "description": "잠실야구장 도보 5분. 갈비·불고기 전문. 경기 전후 팀 단위 방문객 많음."
+  },
+  {
+    "stadium_name": "잠실야구장",
+    "name": "봉추찜닭 잠실역점",
+    "pick_type": "fan",
+    "category": "찜닭",
+    "address": "서울특별시 송파구 올림픽로 지하 300 (잠실역 지하상가)",
+    "lat": 37.5131,
+    "lng": 127.0996,
+    "source_url": "https://m.place.naver.com/restaurant/1234567890/home",
+    "description": "잠실역 지하상가 내. 경기 후 귀가 동선에 딱."
+  }
+]
