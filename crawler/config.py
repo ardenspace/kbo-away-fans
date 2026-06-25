@@ -18,6 +18,10 @@ class Config:
     # 예: postgres://postgres:<pw>@127.0.0.1:5434/postgres (.env.example 참조)
     DATABASE_URL = os.getenv("DATABASE_URL", "")
 
+    # 크롤 실패 알림용 (task-006, E5). 없으면 알림은 best-effort 로 스킵.
+    TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
+    TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
+
     def require_db(self) -> None:
         if not self.DATABASE_URL:
             raise RuntimeError("필수 env 누락: DATABASE_URL (.env 참조 — .env.example)")

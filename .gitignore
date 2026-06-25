@@ -15,3 +15,6 @@ backups/
 
 # task-005 크롤러
 crawler/.venv/
+
+# task-006 크롤러 운영 락 파일
+crawler/.ops.lock

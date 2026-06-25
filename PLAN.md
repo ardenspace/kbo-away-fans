@@ -17,7 +17,7 @@
 - [x] [task-003] 시딩 도구: seed 스크립트 + 포맷 + 1구장 샘플 (E8) — @arden — `scripts/seed/`
 - [x] [task-004] 10구장 콘텐츠 큐레이션·시딩 (가이드·맛집·플랜B, pick_type 태깅) (E8) — @arden — `scripts/seed/data/`
 - [x] [task-005] (deep) 일정 크롤러 코어: 스크랩 + 파싱 + game_id upsert + dedup (E4) — @arden — `crawler/`
-- [ ] [task-006] 크롤러 운영: 2단 cron(경기일 1분) + 텔레그램 실패알림 + graceful (E4·E5) — @arden — `crawler/`
+- [x] [task-006] 크롤러 운영: 2단 cron(경기일 1분) + 텔레그램 실패알림 + graceful (E4·E5) — @arden — `crawler/`
 
 ### Lane B — 앱 코어 (task-002 이후)
 
