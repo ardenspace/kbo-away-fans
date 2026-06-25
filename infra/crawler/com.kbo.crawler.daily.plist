@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- task-006 — KBO 크롤러 daily (2단주기 ⓐ): 매일 04:30 향후 14일 재크롤 (E4).
+     launchd 사용 이유: cron 의 macOS FDA 이슈 회피 (task-001 backup/cloudflared 선례).
+     설치: cp 이 파일 ~/Library/LaunchAgents/ && launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.kbo.crawler.daily.plist
+     (백업 04:00 다음에 돌도록 04:30) -->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.kbo.crawler.daily</string>
+  <key>WorkingDirectory</key>
+  <string>/Users/arden/code/kbo-away-fans</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/arden/code/kbo-away-fans/crawler/.venv/bin/python</string>
+    <string>-m</string>
+    <string>crawler.ops</string>
+    <string>--mode</string>
+    <string>daily</string>
+  </array>
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key>
+    <integer>4</integer>
+    <key>Minute</key>
+    <integer>30</integer>
+  </dict>
+  <key>StandardOutPath</key>
+  <string>/Users/arden/Library/Logs/kbo-crawler.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/arden/Library/Logs/kbo-crawler.log</string>
+</dict>
+</plist>

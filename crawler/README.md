@@ -35,6 +35,47 @@ crawler/.venv/bin/python -m crawler --from 2026-06-08 --to 2026-06-14
 
 의존성: `crawler/.venv` (requirements.txt — requests, supabase, python-dotenv).
 
+## 운영 (task-006 — cron 2단주기 + 텔레그램 알림 + graceful)
+
+단발 `pipeline.run()` 을 `crawler/ops.py` 가 무인 운영으로 감싼다.
+
+### 2단 주기 (E4)
+
+| 모드 | 주기 | 범위 | plist |
+|---|---|---|---|
+| `daily` | 매일 04:30 (1일 1회) | 오늘 ~ +14일 재크롤(reschedule/취소 reconcile) | `com.kbo.crawler.daily.plist` |
+| `gameday` | 매분(`StartInterval 60`) | 오늘분 — 단, **경기 윈도우**(첫경기 30분전 ~ 막경기 종료 1h후) 안에서만. 밖이면 즉시 no-op | `com.kbo.crawler.gameday.plist` |
+
+매분 깨워도 윈도우 밖이면 요청 0, 안이면 1요청뿐 → 차단 무관(E4). `fcntl.flock` 으로 daily·gameday 중복 실행 방지.
+
+### graceful + 알림 (E5)
+
+- `run()` 예외(네트워크·파싱·HTML 변경) → **DB 무변경 + exit 1 + 텔레그램 알림 1건**. 크롤이 죽어도 앱은 캐시된 DB 로 동작.
+- 성공·no-op 은 무알림(노이즈 0). 텔레그램 env 미설정/전송실패는 best-effort(크래시 안 함).
+
+### 설정 (.env — repo 루트)
+
+```dotenv
+# 크롤 실패 알림 (없으면 알림만 스킵, 크롤은 정상). 봇=@BotFather, chat_id=받을 대화 ID
+TELEGRAM_BOT_TOKEN=
+TELEGRAM_CHAT_ID=
+```
+
+### 실행 / 설치
+
+```bash
+# 수동 1회
+crawler/.venv/bin/python -m crawler.ops --mode daily
+crawler/.venv/bin/python -m crawler.ops --mode gameday
+
+# launchd 등록 (cron 대신 — task-001 backup/cloudflared 선례, macOS FDA 회피)
+cp infra/crawler/com.kbo.crawler.daily.plist   ~/Library/LaunchAgents/
+cp infra/crawler/com.kbo.crawler.gameday.plist ~/Library/LaunchAgents/
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.kbo.crawler.daily.plist
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.kbo.crawler.gameday.plist
+# 로그: ~/Library/Logs/kbo-crawler.log
+```
+
 ## 설계 메모
 
 - 소스 = KBO 공식(`GetScheduleList`), JSON 응답. 네이버는 폴백 후보(미사용).

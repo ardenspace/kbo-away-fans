@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- task-006 — KBO 크롤러 gameday (2단주기 ⓑ): 매분 깨우되 래퍼가 경기 윈도우
+     (첫경기 30분전 ~ 막경기 종료 1h후) 안에서만 크롤, 밖이면 즉시 no-op 종료 (E4).
+     매분 1요청뿐이라 차단 무관(실행계획 E4). flock 으로 daily 와 중복 방지.
+     launchd 사용 이유: cron 의 macOS FDA 이슈 회피 (task-001 선례).
+     설치: cp 이 파일 ~/Library/LaunchAgents/ && launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.kbo.crawler.gameday.plist -->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.kbo.crawler.gameday</string>
+  <key>WorkingDirectory</key>
+  <string>/Users/arden/code/kbo-away-fans</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/arden/code/kbo-away-fans/crawler/.venv/bin/python</string>
+    <string>-m</string>
+    <string>crawler.ops</string>
+    <string>--mode</string>
+    <string>gameday</string>
+  </array>
+  <key>StartInterval</key>
+  <integer>60</integer>
+  <key>StandardOutPath</key>
+  <string>/Users/arden/Library/Logs/kbo-crawler.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/arden/Library/Logs/kbo-crawler.log</string>
+</dict>
+</plist>

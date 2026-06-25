@@ -54,6 +54,21 @@ def load_stadiums_by_name(conn) -> dict[str, str]:
         return {r["name"]: str(r["id"]) for r in cur}
 
 
+def load_scheduled_at_on(conn, kst_date: dt.date) -> list[dt.datetime]:
+    """KST 기준 kst_date 에 열리는 경기들의 scheduled_at(UTC aware) 목록.
+
+    gameday 윈도우(첫경기 30분전 ~ 막경기 1h후) 판정용 (task-006). 취소/연기는 제외.
+    """
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT scheduled_at FROM games "
+            "WHERE (scheduled_at AT TIME ZONE 'Asia/Seoul')::date = %s "
+            "AND status NOT IN ('cancelled', 'postponed')",
+            (kst_date,),
+        )
+        return [r[0] for r in cur.fetchall()]
+
+
 def upsert_games(conn, rows: list[GameRow]) -> int:
     """game_id 충돌 시 갱신(reconcile). updated_at 갱신 포함. 적재 건수 반환."""
     if not rows:
