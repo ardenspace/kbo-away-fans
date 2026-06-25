@@ -30,3 +30,16 @@
 - **game_id = text UNIQUE**: 크롤러 upsert·dedup 키. 실제 형식은 task-005(크롤러)에서 확정.
 - **auth trigger**: `handle_new_user()` — 가입 시 `profiles` 자동 생성. task-009(카카오 OAuth) 때 자동 동작.
 - **migrate.sh = docker exec 방식**: 맥미니에 psql 네이티브 미설치 → `supabase-db` 컨테이너 psql 경유. `SUPABASE_DB_CONTAINER` env로 컨테이너명 변경 가능.
+
+---
+
+## 2026-06-25 · task-005 — 일정 크롤러 코어
+
+> 출처: [docs/tasks/task-005/spec.md](docs/tasks/task-005/spec.md), [handoffs/feat-task-005-crawler-core.md](handoffs/feat-task-005-crawler-core.md)
+
+- **일정 소스 = KBO 공식 `GetScheduleList`** (`POST /ws/Schedule.asmx/GetScheduleList`, `leId=1&srIdList=0,9,6&seasonId&gameMonth`). 스파이크 결과 viewstate 스크래핑이 아니라 **월 단위 JSON**(rows[].row[] 셀배열) 반환 → 파싱 안정. 네이버는 폴백 후보였으나 미사용. (E4 D1 확정)
+- **`game_id` = `YYYYMMDD + away_abbr + home_abbr + dh`** (예 `20260602HHOB0`). 소스 game_id 안 믿고 **자체 합성** → 소스 비종속(폴백 시도 동일 키), 더블헤더는 dh 0/1 로 분리해 자연 dedup. `teams.abbr`(OB/LG/SK/HT… 레거시 코드) 사용.
+- **구장 매핑 = 소스 구장 컬럼 별칭표** (홈팀 역참조 아님). 이유: 잠실 공용인데 stadiums 시드가 잠실=두산 1행뿐(LG 미시드) → 역참조 깨짐 + 소스가 구장 직접 제공. 짧은명(잠실)→공식명(잠실야구장). 미등록 구장(2군장·울산·청주 등)은 skip+로그(V1 YAGNI).
+- **팀 매핑 = `teams.short_name` 직접** (play 셀이 한글 short_name "한화/두산/키움" 사용). abbr 별칭(키움 WO≠KW)은 game_id 합성에만 국한.
+- **상태 정규화**: 끝셀 라벨 "취소"→`cancelled`, "연기"/"서스"→`postponed`, 그 외는 점수 유무로 `finished`/`scheduled`. KST→UTC 단일 지점 변환.
+- **DB 접근 = Postgres 직결(psycopg2, 127.0.0.1:5434)** — task-001 E1 "크롤러=Postgres 직결" 준수. postgres 슈퍼유저로 RLS 우회. 기존 `DATABASE_URL` 사용. (운영 cron/2단주기/텔레그램 알림/graceful 은 task-006.)
