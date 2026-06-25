@@ -12,3 +12,6 @@ infra/supabase/volumes/functions/
 infra/cloudflared/*.json
 infra/cloudflared/cert.pem
 backups/
+
+# task-005 크롤러
+crawler/.venv/
