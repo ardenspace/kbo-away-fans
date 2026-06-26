@@ -5,14 +5,6 @@ import '../../core/supabase_client.dart';
 
 part 'auth_providers.g.dart';
 
-/// Supabase 인증 상태 스트림. 로그인/로그아웃/토큰갱신 때마다 발화한다.
-/// 라우터 redirect 의 `refreshListenable` 이 이 스트림을 구독한다.
-@riverpod
-Stream<AuthState> authStateChanges(Ref ref) {
-  final client = ref.watch(supabaseClientProvider);
-  return client.auth.onAuthStateChange;
-}
-
 /// 로그인/가입/카카오/로그아웃 액션 + 진행상태(AsyncValue).
 ///
 /// 세션 자체는 supabase_flutter 가 들고 라우터가 `currentSession` 으로 게이팅한다.

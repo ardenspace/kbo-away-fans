@@ -8,48 +8,6 @@ part of 'auth_providers.dart';
 
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // ignore_for_file: type=lint, type=warning
-/// Supabase 인증 상태 스트림. 로그인/로그아웃/토큰갱신 때마다 발화한다.
-/// 라우터 redirect 의 `refreshListenable` 이 이 스트림을 구독한다.
-
-@ProviderFor(authStateChanges)
-final authStateChangesProvider = AuthStateChangesProvider._();
-
-/// Supabase 인증 상태 스트림. 로그인/로그아웃/토큰갱신 때마다 발화한다.
-/// 라우터 redirect 의 `refreshListenable` 이 이 스트림을 구독한다.
-
-final class AuthStateChangesProvider
-    extends
-        $FunctionalProvider<AsyncValue<AuthState>, AuthState, Stream<AuthState>>
-    with $FutureModifier<AuthState>, $StreamProvider<AuthState> {
-  /// Supabase 인증 상태 스트림. 로그인/로그아웃/토큰갱신 때마다 발화한다.
-  /// 라우터 redirect 의 `refreshListenable` 이 이 스트림을 구독한다.
-  AuthStateChangesProvider._()
-    : super(
-        from: null,
-        argument: null,
-        retry: null,
-        name: r'authStateChangesProvider',
-        isAutoDispose: true,
-        dependencies: null,
-        $allTransitiveDependencies: null,
-      );
-
-  @override
-  String debugGetCreateSourceHash() => _$authStateChangesHash();
-
-  @$internal
-  @override
-  $StreamProviderElement<AuthState> $createElement($ProviderPointer pointer) =>
-      $StreamProviderElement(pointer);
-
-  @override
-  Stream<AuthState> create(Ref ref) {
-    return authStateChanges(ref);
-  }
-}
-
-String _$authStateChangesHash() => r'643540e5ab042b2f72d19d52a7792dba4c63c1d8';
-
 /// 로그인/가입/카카오/로그아웃 액션 + 진행상태(AsyncValue).
 ///
 /// 세션 자체는 supabase_flutter 가 들고 라우터가 `currentSession` 으로 게이팅한다.
