@@ -3,6 +3,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../core/go_router_refresh_stream.dart';
 import '../core/supabase_client.dart';
 import '../features/auth/login_screen.dart';
+import '../features/places/places_screen.dart';
 import '../features/schedule/schedule_screen.dart';
 import '../features/stadium/stadium_screen.dart';
 import '../features/stamp/stamp_screen.dart';
@@ -35,6 +36,13 @@ GoRouter router(Ref ref) {
       GoRoute(
         path: '/stadium/:id',
         builder: (_, state) => StadiumScreen(id: state.pathParameters['id']!),
+      ),
+      GoRoute(
+        path: '/places/:stadiumId',
+        builder: (_, state) => PlacesScreen(
+          stadiumId: state.pathParameters['stadiumId']!,
+          initialTab: state.uri.queryParameters['tab'],
+        ),
       ),
       GoRoute(path: '/stamp', builder: (_, _) => const StampScreen()),
     ],

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import 'stadium.dart';
 import 'stadium_provider.dart';
@@ -42,6 +43,12 @@ class _Guide extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       children: [
         Text('${stadium.city} · ${stadium.address}', style: theme.textTheme.bodyMedium),
+        const SizedBox(height: 16),
+        FilledButton.tonalIcon(
+          onPressed: () => context.go('/places/${stadium.id}'),
+          icon: const Icon(Icons.restaurant),
+          label: const Text('주변 맛집·플랜B'),
+        ),
         const SizedBox(height: 20),
         _Section(icon: Icons.local_parking, title: '주차', content: stadium.parkingInfo),
         _Section(icon: Icons.event_seat, title: '좌석뷰', content: stadium.seatingInfo),
