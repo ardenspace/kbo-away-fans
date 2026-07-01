@@ -90,12 +90,55 @@ class _GameCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final gameOff = game.status == GameStatus.cancelled || game.status == GameStatus.postponed;
     return Card(
-      child: ListTile(
-        title: Text('vs ${game.homeTeamShortName}'),
-        subtitle: Text('${_formatDate(game.scheduledAt)} · ${game.stadiumName}'),
-        trailing: _StatusBadge(status: game.status),
-        onTap: () => context.go('/stadium/${game.stadiumId}'),
+      clipBehavior: Clip.antiAlias, // 하단 플랜B CTA 배경이 카드 둥근 모서리에 맞게 잘리도록
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ListTile(
+            title: Text('vs ${game.homeTeamShortName}'),
+            subtitle: Text('${_formatDate(game.scheduledAt)} · ${game.stadiumName}'),
+            trailing: _StatusBadge(status: game.status),
+            onTap: () => context.go('/stadium/${game.stadiumId}'),
+          ),
+          if (gameOff) _PlanbCta(game: game),
+        ],
+      ),
+    );
+  }
+}
+
+/// 취소/연기 경기 → 근처 플랜B(실내 대안)로 유도. task-012의 `/places/:sid?tab=planb` 딥링크 재사용.
+class _PlanbCta extends StatelessWidget {
+  const _PlanbCta({required this.game});
+
+  final Game game;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final verb = game.status == GameStatus.postponed ? '연기됐어요' : '취소됐어요';
+    return InkWell(
+      onTap: () => context.go('/places/${game.stadiumId}?tab=planb'),
+      child: Ink(
+        color: scheme.errorContainer,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            children: [
+              Icon(Icons.umbrella, size: 18, color: scheme.onErrorContainer),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  '경기가 $verb · 근처 플랜B 보기',
+                  style: TextStyle(color: scheme.onErrorContainer, fontWeight: FontWeight.w600),
+                ),
+              ),
+              Icon(Icons.chevron_right, size: 18, color: scheme.onErrorContainer),
+            ],
+          ),
+        ),
       ),
     );
   }
