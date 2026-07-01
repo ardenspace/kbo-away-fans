@@ -24,3 +24,7 @@
 
 ### 블로커
 - 상위 task-009 로그인 e2e 게이트 대기 중이나 task-013 코드는 스택으로 독립 진행.
+
+## 2026-07-01 · e2e 검증
+
+- ✅ **통과**: 검증용으로 NC 미래 원정 2경기를 flip(7/4=cancelled·7/5=postponed, 7/3=scheduled 대조군) → 취소=CTA "취소"·연기=CTA "연기"·예정=CTA 없음 확인 → CTA 탭 시 `/places/:sid?tab=planb` 이동. **검증 후 3경기 모두 `scheduled`로 데이터 복구 완료**(크롤 실데이터 오염 없음).

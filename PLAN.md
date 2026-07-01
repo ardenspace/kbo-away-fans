@@ -23,11 +23,11 @@
 
 - [x] [task-007] (deep) Flutter 스캐폴드: init + Supabase 클라이언트 + 네비 골격 (E1·E9) — @arden — `app/lib/`
 - [x] [task-008] 팀별 테마 컬러 전환 (E9, T11) — @arden — `app/lib/shared/theme/`
-- [ ] [task-009] (deep) 로그인: 이메일 + 카카오 OAuth (E2) — @arden — `app/lib/auth/`
-- [ ] [task-010] (deep) 응원팀 설정 → 원정 일정 화면 (필터 + on-demand 조회) (E2·E3·E4, T1) — @arden — `app/lib/features/schedule/`
-- [ ] [task-011] 구장 가이드 화면 (주차·좌석뷰·동선·편의점) (E8, T9) — @arden — `app/lib/features/stadium/`
-- [ ] [task-012] 맛집·플랜B 화면 (pick_type 배지 + 상세 출처 링크) (E8, T9) — @arden — `app/lib/features/places/`
-- [ ] [task-013] 우천취소 → 플랜B 유도 흐름 (E4) — @arden — `app/lib/features/planb/`
+- [x] [task-009] (deep) 로그인: 이메일 + 카카오 OAuth (E2) — @arden — `app/lib/auth/` — 이메일 e2e ✅ / 카카오는 비즈앱 전환 시 재개(블로커)
+- [x] [task-010] (deep) 응원팀 설정 → 원정 일정 화면 (필터 + on-demand 조회) (E2·E3·E4, T1) — @arden — `app/lib/features/schedule/`
+- [x] [task-011] 구장 가이드 화면 (주차·좌석뷰·동선·편의점) (E8, T9) — @arden — `app/lib/features/stadium/`
+- [x] [task-012] 맛집·플랜B 화면 (pick_type 배지 + 상세 출처 링크) (E8, T9) — @arden — `app/lib/features/places/`
+- [x] [task-013] 우천취소 → 플랜B 유도 흐름 (E4) — @arden — `app/lib/features/planb/`
 
 ### Lane C — 인터랙션·게임화 (task-007 이후)
 
