@@ -6,6 +6,7 @@ import '../features/auth/login_screen.dart';
 import '../features/schedule/schedule_screen.dart';
 import '../features/stadium/stadium_screen.dart';
 import '../features/stamp/stamp_screen.dart';
+import '../features/team/team_select_screen.dart';
 import 'home_screen.dart';
 
 part 'router.g.dart';
@@ -30,6 +31,7 @@ GoRouter router(Ref ref) {
       GoRoute(path: '/login', builder: (_, _) => const LoginScreen()),
       GoRoute(path: '/', builder: (_, _) => const HomeScreen()),
       GoRoute(path: '/schedule', builder: (_, _) => const ScheduleScreen()),
+      GoRoute(path: '/team-select', builder: (_, _) => const TeamSelectScreen()),
       GoRoute(
         path: '/stadium/:id',
         builder: (_, state) => StadiumScreen(id: state.pathParameters['id']!),
