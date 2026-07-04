@@ -70,3 +70,13 @@ version: 1
 - attempt 1: DONE → verifier PASS (light)
 - summary: flutter_naver_map ^1.4.4 = pure-Dart init(네이티브 키 슬롯 없음). main.dart:37 가드 init `if (!shouldDegradeMap(ncpMapClientId)) FlutterNaverMap().init(...)` — 미주입→스킵→crash 없음(R12, naver_map_config 재사용). 네이티브 토큰: iOS Info.plist:75 주입지점(--dart-define=NCP_MAP_CLIENT_ID) + deployment target 13.0(pbxproj, 플러그인 iOS12 요구 충족), Android Manifest:5 주입지점 + build.gradle.kts:24 minSdk=maxOf(flutter.minSdkVersion,23)(플러그인 ≥23 충족). 리터럴 키 0건, 백그라운드 위치 권한 미추가(기존 포그라운드만). Dart 테스트 신규 없음(네이티브 config — grep 단언+analyze 검증, init은 main()에서만 실행되어 위젯테스트 미노출; failed-first stash 스킵). 전체 127/127 green, analyze clean.
 - fact 정정: plan files 라인 "app/android/build.gradle" → 실제 앱레벨은 Kotlin DSL "app/android/app/build.gradle.kts"(minSdk 위치). 구현자가 올바른 파일 사용.
+
+## [phase 2] verified
+- Phase Verifier PASS: 전체 127/127 green, analyze clean. 필수 테스트 존재·green(마커모델 map_domain_test "마커 병합/방문 플래그/1:1", 경로시퀀스 map_domain_test "경로 좌표 시퀀스", 재진입 재발화 map_view_state_test:153 calls length 2 + ≥2 발화/≤1 미발화).
+- Shippable: home_screen.dart:51 context.go('/map')→router.dart:49 const MapView()→mapDataProvider(buildMapMarkers+buildStadiumRouteSequence)→surfaceBuilder. 라우트는 완성 MapView 빌드(골격 MapScreen 아님). Degrade end-to-end: main.dart:37 init 가드 스킵 + MapView.build(map_screen.dart:97) 미주입 시 안내텍스트 Scaffold 선반환, 네이티브 위젯 미생성·crash 없음(양쪽 동일 shouldDegradeMap/ncpMapClientId).
+- Seams OK: mapDataProvider가 stadiumRepository/stampRepository(Phase1)+2.1/2.2 도메인 시그니처 정합, resolveMyLocation이 currentLocationProvider(Phase1) 소비. map/router/main TODO/FIXME 0. Scope drift 없음(경로선/내위치 네이티브 오버레이 렌더는 실기기 수동확인으로 의도적 defer).
+- 비블로킹(재오픈 불요): (1) MapView 자체 degrade 분기는 직접 위젯테스트 없음(MapScreen degrade만 테스트) — 동일 가드 코드+config 술어 단위테스트로 안전. 원하면 MapView(clientId:'') 위젯테스트로 갭 클로즈 가능. (2) 저널 정정: MapView는 map_controller.dart가 아니라 map_screen.dart에 위치(map_controller.dart는 mapDataProvider/resolveMyLocation/observer). 라우터 import·배선은 정확.
+
+## [run] complete
+- run_status: complete. 전체 14 tasks(Phase1 1.1–1.7, Phase2 2.1–2.7) 전부 done+verified. 재시도 0, 재계획 0, halt 0. 최종 전체 127/127 green, analyze clean.
+- 남은 수동(dogfood, 자동 검증 범위 밖): (a) `python3 scripts/seed.py`로 원격 맥미니 DB stadiums count=10 확인(잠실 LG 행). (b) NCP 계정 개설→Mobile Dynamic Map Client ID 발급(docs/ops/ncp-maps-setup.md 절차: 발급/번들ID·패키지명 등록/한도설정/무료이용량 확인). (c) 실키 --dart-define 주입 후 실기기에서 /map 네이버맵·마커·내위치·경로 애니 렌더 + 도장 애니/햅틱 시각·촉각 품질 수동 확인.

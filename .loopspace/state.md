@@ -1,6 +1,6 @@
 # Loopspace State
 version: 1
-run_status: executing
+run_status: complete
 current_phase: 2
 current_task: 2.7
 
