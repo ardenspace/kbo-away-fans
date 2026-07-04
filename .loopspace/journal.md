@@ -43,3 +43,9 @@ version: 1
 ## [2.2] 경로 좌표 시퀀스 로직
 - attempt 1: DONE → verifier PASS (light)
 - summary: buildStadiumRouteSequence(map_domain.dart) — stadiumId→(lat,lng) 조인 → stampedAt 오름차순 정렬 → 좌표 매핑(미존재 skip) → 인접 동일좌표만 dedup(A→B→A 두번째 A 유지). 좌표 판정 2.1과 동일 (lat,lng) record. ≤1 방문→길이<2. stampedAt는 non-null(모델 확인). 7 신규 테스트, 전체 109/109 green, analyze clean, failed-first 기계 재증명(2.1 커밋본으로 stash→method not found→pop).
+
+## [2.3] NCP Client ID 배선 + ops 문서 + 미주입 degrade
+- attempt 1: DONE → verifier PASS (light)
+- summary: 순수 Dart naver_map_config.dart — `ncpMapClientId = String.fromEnvironment('NCP_MAP_CLIENT_ID')` 상수 + `shouldDegradeMap(clientId)=trim().isEmpty` 술어. main.dart가 SUPABASE_* 컨벤션대로 참조하되 미주입이어도 crash 없이 debug-only assert 경고만(Supabase init·스탬프 정상). docs/ops/ncp-maps-setup.md(task-009 패턴): 토큰 발급5/번들ID3/패키지명4/한도설정4/무료이용량3. 실키 하드코딩 0건(default=""). 4 신규 테스트, 전체 113/113 green, analyze clean. failed-first "Method not found: 'shouldDegradeMap'" 확인.
+- 검증 주의: verifier 서브에이전트가 스펜드 리밋(monthly spend limit)으로 중단 → 검증이 전부 기계적(테스트 green/red, grep 카운트, 시크릿 스캔, failed-first 타당성)이라 오케스트레이터가 메인 세션에서 잔여 기계 체크를 직접 완료(구현은 미작성, 독립성 유지). 판단 개입 없음.
+- 재사용 계약(2.4 의존): shouldDegradeMap(ncpMapClientId) → 지도 화면 degrade 분기; ncpMapClientId getter → 실제 네이버맵 초기화 값.
