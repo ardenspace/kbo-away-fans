@@ -1,4 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- task 1.2: 스탬프 발급·지도 표시용 포그라운드 위치 (ACCESS_BACKGROUND_LOCATION 은 선언하지 않는다) -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
     <application
         android:label="kbo_away_fans"
         android:name="${applicationName}"

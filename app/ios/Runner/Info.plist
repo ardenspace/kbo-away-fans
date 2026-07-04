@@ -66,6 +66,9 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<!-- task 1.2: 스탬프 발급·지도 표시용 포그라운드 위치 (백그라운드 위치 권한 없음) -->
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>직관 스탬프 발급 시 구장 근처인지 확인하고, 지도에 현재 위치를 표시하기 위해 위치 정보를 사용합니다.</string>
 	<!-- task-009: 카카오 GoTrue 웹 OAuth 콜백 딥링크 (kboaway://login-callback) -->
 	<key>CFBundleURLTypes</key>
 	<array>
