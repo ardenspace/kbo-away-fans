@@ -70,6 +70,17 @@ Stamp _stamp(String stadiumId) => Stamp(
   stampedAt: DateTime.utc(2026, 7, 4),
 );
 
+/// stamped_at 을 지정하는 스탬프 — 경로 시퀀스(정렬) 테스트용.
+/// lat/lng=0 은 의도적: 경로 좌표는 stamp 가 아닌 stadium.lat/lng 에서 온다.
+Stamp _stampAt(String stadiumId, DateTime stampedAt) => Stamp(
+  id: 'stamp-$stadiumId-${stampedAt.microsecondsSinceEpoch}',
+  userId: 'user-1',
+  stadiumId: stadiumId,
+  lat: 0,
+  lng: 0,
+  stampedAt: stampedAt,
+);
+
 void main() {
   group('마커 병합 — 동일 좌표(잠실 두 행)는 마커 1개 (R9)', () {
     test('10구장 → 마커 9개', () {
@@ -129,6 +140,106 @@ void main() {
       expect(suwon.name, '수원KT위즈파크');
       expect(suwon.lat, 37.2997);
       expect(suwon.lng, 127.0098);
+    });
+  });
+
+  group('경로 좌표 시퀀스 (R10)', () {
+    test('stamped_at 오름차순으로 정렬된 구장 좌표 시퀀스', () {
+      // 입력은 시간 역순으로 섞어 넣는다 — 방문일자 오름차순 재정렬을 검증.
+      final route = buildStadiumRouteSequence(
+        stadiums: _tenStadiums(),
+        stamps: [
+          _stampAt('s-busan', DateTime.utc(2026, 5, 3)),
+          _stampAt('s-suwon', DateTime.utc(2026, 5, 1)),
+          _stampAt('s-daegu', DateTime.utc(2026, 5, 2)),
+        ],
+      );
+      expect(route, [
+        (37.2997, 127.0098), // 수원 (5/1)
+        (35.8410, 128.6816), // 대구 (5/2)
+        (35.1940, 129.0615), // 부산 (5/3)
+      ]);
+    });
+
+    test('좌표는 stamp 가 아닌 stadium.lat/lng 에서 온다', () {
+      // _stampAt 의 lat/lng 는 0 — 그대로 나오면 안 된다.
+      final route = buildStadiumRouteSequence(
+        stadiums: _tenStadiums(),
+        stamps: [
+          _stampAt('s-suwon', DateTime.utc(2026, 5, 1)),
+          _stampAt('s-daegu', DateTime.utc(2026, 5, 2)),
+        ],
+      );
+      expect(route, [(37.2997, 127.0098), (35.8410, 128.6816)]);
+    });
+
+    test('연속 동일 좌표(잠실 두 칸 연속 방문)는 중복 제거된다', () {
+      final route = buildStadiumRouteSequence(
+        stadiums: _tenStadiums(),
+        stamps: [
+          _stampAt('s-suwon', DateTime.utc(2026, 5, 1)),
+          _stampAt('stadium-jamsil-ob', DateTime.utc(2026, 5, 2)),
+          _stampAt('stadium-jamsil-lg', DateTime.utc(2026, 5, 3)),
+        ],
+      );
+      // 수원 → 잠실 → (잠실 중복 제거) : 길이 2.
+      expect(route, [(37.2997, 127.0098), (_jamsilLat, _jamsilLng)]);
+    });
+
+    test('비연속으로 다시 같은 좌표(A→B→A)는 유지된다', () {
+      // 수원 좌표를 공유하는 두 번째 행을 추가해 A→B→A 를 만든다.
+      final stadiums = [
+        ..._tenStadiums(),
+        _stadium(
+          id: 's-suwon2',
+          name: '수원 임시',
+          lat: 37.2997,
+          lng: 127.0098,
+          teamId: 't-kt',
+          teamAbbr: 'KT',
+        ),
+      ];
+      final route = buildStadiumRouteSequence(
+        stadiums: stadiums,
+        stamps: [
+          _stampAt('s-suwon', DateTime.utc(2026, 5, 1)),
+          _stampAt('s-daegu', DateTime.utc(2026, 5, 2)),
+          _stampAt('s-suwon2', DateTime.utc(2026, 5, 3)),
+        ],
+      );
+      // s-suwon2 는 수원과 같은 좌표지만 대구를 사이에 두므로 유지.
+      expect(route, [
+        (37.2997, 127.0098),
+        (35.8410, 128.6816),
+        (37.2997, 127.0098),
+      ]);
+    });
+
+    test('방문 0칸 → 빈 시퀀스 ("경로 없음")', () {
+      final route = buildStadiumRouteSequence(
+        stadiums: _tenStadiums(),
+        stamps: const [],
+      );
+      expect(route, isEmpty);
+    });
+
+    test('방문 1칸 → 길이<2 시퀀스 ("경로 없음")', () {
+      final route = buildStadiumRouteSequence(
+        stadiums: _tenStadiums(),
+        stamps: [_stampAt('s-suwon', DateTime.utc(2026, 5, 1))],
+      );
+      expect(route.length, lessThan(2));
+    });
+
+    test('잠실 두 칸만 연속 방문 → dedup 후 길이1 → "경로 없음"', () {
+      final route = buildStadiumRouteSequence(
+        stadiums: _tenStadiums(),
+        stamps: [
+          _stampAt('stadium-jamsil-ob', DateTime.utc(2026, 5, 1)),
+          _stampAt('stadium-jamsil-lg', DateTime.utc(2026, 5, 2)),
+        ],
+      );
+      expect(route.length, lessThan(2));
     });
   });
 }

@@ -39,3 +39,7 @@ version: 1
 ## [2.1] 지도 마커 모델 — 잠실 병합 + 방문 플래그
 - attempt 1: DONE → verifier PASS (light)
 - summary: buildMapMarkers가 (lat,lng) record 키로 그룹핑(좌표 기반, 하드코딩 아님) → 10구장→9마커. 대표행=kJamsilCanonicalName 우선, isVisited=그룹 any 방문(OB만/LG만→true, 둘다 미방문→false로 하드코딩 아님 증명). 비잠실 1:1. 순수 Dart(네이티브·키 무의존). 7 신규 테스트, 전체 102/102 green, analyze clean, failed-first 기계 재증명.
+
+## [2.2] 경로 좌표 시퀀스 로직
+- attempt 1: DONE → verifier PASS (light)
+- summary: buildStadiumRouteSequence(map_domain.dart) — stadiumId→(lat,lng) 조인 → stampedAt 오름차순 정렬 → 좌표 매핑(미존재 skip) → 인접 동일좌표만 dedup(A→B→A 두번째 A 유지). 좌표 판정 2.1과 동일 (lat,lng) record. ≤1 방문→길이<2. stampedAt는 non-null(모델 확인). 7 신규 테스트, 전체 109/109 green, analyze clean, failed-first 기계 재증명(2.1 커밋본으로 stash→method not found→pop).

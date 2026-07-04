@@ -35,6 +35,37 @@ List<MapMarker> buildMapMarkers({
   ];
 }
 
+/// 내 스탬프 목록 + 구장 목록 → 방문 순서 구장 좌표 시퀀스 (R10).
+///
+/// 경로 애니메이션의 입력: 방문한 칸들을 [Stamp.stampedAt] 오름차순으로 이어
+/// 각 칸의 **구장 좌표**(stamp 좌표가 아닌 [StampStadium.lat]/[lng])로 매핑한다.
+///
+/// - 좌표 동일성은 [buildMapMarkers] 와 동일하게 `(lat, lng)` 로 판정한다.
+///   연속 동일 좌표(예: 잠실 두 칸 연속 방문)는 인접 중복만 제거한다 —
+///   비연속으로 다시 같은 좌표가 나오면(A→B→A) 유지한다.
+/// - stadium_id 가 구장 목록에 없으면 좌표를 얻을 수 없어 건너뛴다.
+/// - 결과 길이가 2 미만이면 "경로 없음"(방문 칸 ≤1) 을 뜻한다.
+List<(double, double)> buildStadiumRouteSequence({
+  required List<StampStadium> stadiums,
+  required List<Stamp> stamps,
+}) {
+  final coordOf = {for (final s in stadiums) s.id: (s.lat, s.lng)};
+
+  // stamped_at 오름차순. 동시각 tie 의 상대 순서는 규정하지 않는다
+  // (동일 좌표면 아래 연속 중복 제거로 흡수됨).
+  final ordered = [...stamps]
+    ..sort((a, b) => a.stampedAt.compareTo(b.stampedAt));
+
+  final sequence = <(double, double)>[];
+  for (final stamp in ordered) {
+    final coord = coordOf[stamp.stadiumId];
+    if (coord == null) continue; // 매칭 구장 없음 — 좌표를 만들 수 없다.
+    if (sequence.isNotEmpty && sequence.last == coord) continue; // 연속 중복 제거.
+    sequence.add(coord);
+  }
+  return sequence;
+}
+
 /// 동일 좌표 그룹 하나를 마커 1개로 병합한다.
 MapMarker _mergeGroup(List<StampStadium> rows, Set<String> visitedStadiumIds) {
   final representative = rows.firstWhere(
