@@ -14,3 +14,7 @@ version: 1
 - attempt 1: DONE → panel PASS (security PASS / test-integrity PASS / correctness PASS)
 - summary: StampRepository(insertStamp/myStamps)·StadiumRepository(listStadiums)·GamesRepository(teamAbbrsInGamesOn) 인터페이스 + Supabase 구현 + 공유 fakes. DuplicateStampException(23505) vs StampNetworkException 구분, user_id는 auth 세션에서만. 32 테스트 green, analyze clean.
 - note: 검증 1차 웨이브가 스펜드 리밋으로 1회 중단됨 → fresh 재dispatch로 완료 (검증 품질 영향 없음).
+
+## [1.4] 근접 판정 + 거리 계산 + 잠실 칸 배정 도메인
+- attempt 1: DONE → panel PASS (security PASS / test-integrity PASS / correctness PASS)
+- summary: 순수 Dart stamp_domain.dart — 하버사인(경계 inclusive), 최근접+"N.Nkm", 잠실 동률 tie-break→"잠실야구장", KST 달력일 변환(주입 시각), 잠실 칸 배정 ∩{OB,LG} 5시나리오. 두산 abbr="OB" (teams.json 확인). 전체 64 테스트 green.
