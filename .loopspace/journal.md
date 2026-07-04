@@ -23,3 +23,8 @@ version: 1
 - attempt 1: DONE → panel PASS (security PASS / test-integrity PASS / correctness PASS)
 - summary: @riverpod StampController Notifier + sealed StampIssueState. 위치=currentLocationProvider seam, 기준시각=신규 stampClockProvider seam(주입). 연타방지=첫 await 이전 동기적 StampIssuing 세팅. 잠실=canonical("잠실야구장") 행 id로 games 조회→resolveTargetSlots로 칸 확정, insert는 대상 칸별 1회 루프(부분실패 시 성공칸=성공/나머지=실패). 선판정 dup + 주입 UNIQUE(23505) 둘 다 StampDuplicated로 수렴. 21 테스트, 전체 85 green, analyze clean. correctness가 impl 2파일 stash→컴파일 fail→pop 복원으로 failed-first 기계 재증명.
 - 규약 결정(비블로킹): 잠실 games 조회 stadium_id는 명세 미고정 → name==kJamsilCanonicalName("잠실야구장", OB행) id로 조회(크롤러 별칭표 "잠실"→"잠실야구장" 매핑과 정합). games FK가 실제 LG행을 가리키면 그 한 줄만 조정.
+
+## [1.6] 스탬프북 화면 — 10칸 그리드 + 수집률 + 로딩/오류
+- attempt 1: DONE → verifier PASS (light)
+- summary: stampbookProvider(FutureProvider가 listStadiums+myStamps 병합)를 유일 렌더 소스로 AsyncValue.when 로딩/오류(StampbookError+재시도)/그리드 분기. 칸=Key(stamp-cell-<abbr>)+stampColor(방문=팀컬러 kTeamColors, 미방문=회색). "도장 찍기" 버튼 발급중 onPressed==null. 6 신규 테스트, 전체 91/91 green, analyze clean. failed-first 기계 재증명 통과.
+- note: riverpod 3.1.0 Override 미공개 export → 테스트가 내부 _IssuingController override로 StampIssuing 주입. busy state는 별도 CircularProgressIndicator라 해당 테스트 pump() 사용.
