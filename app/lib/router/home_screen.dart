@@ -46,6 +46,11 @@ class HomeScreen extends ConsumerWidget {
               onPressed: () => context.go('/stamp'),
               child: const Text('내 스탬프'),
             ),
+            const SizedBox(height: 12),
+            OutlinedButton(
+              onPressed: () => context.go('/map'),
+              child: const Text('원정 지도'),
+            ),
           ],
         ),
       ),
