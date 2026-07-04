@@ -35,3 +35,7 @@ version: 1
 
 ## [phase 1] verified
 - Phase Verifier PASS: 전체 95/95 green, analyze clean. 모든 acceptance 시나리오(발급성공/반경밖 N.Nkm/중복 선판정+UNIQUE/권한거부/서비스꺼짐/네트워크오류/잠실 칸배정/연타방지/10칸 그리드/도장 애니·햅틱 칸당1회) 테스트 존재. Seam 정합: stamp_screen(1.6)↔StampController(1.5)↔stamp_domain(1.4)+location(1.2)+repos(1.3), StampCelebrationLayer(1.7)가 동일 성공상태 구독. 홈 "내 스탬프"→/stamp 도달 배선 확인(router.dart:47, home_screen.dart:46). TODO/FIXME 없음.
+
+## [2.1] 지도 마커 모델 — 잠실 병합 + 방문 플래그
+- attempt 1: DONE → verifier PASS (light)
+- summary: buildMapMarkers가 (lat,lng) record 키로 그룹핑(좌표 기반, 하드코딩 아님) → 10구장→9마커. 대표행=kJamsilCanonicalName 우선, isVisited=그룹 any 방문(OB만/LG만→true, 둘다 미방문→false로 하드코딩 아님 증명). 비잠실 1:1. 순수 Dart(네이티브·키 무의존). 7 신규 테스트, 전체 102/102 green, analyze clean, failed-first 기계 재증명.

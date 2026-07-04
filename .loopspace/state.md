@@ -2,7 +2,7 @@
 version: 1
 run_status: executing
 current_phase: 2
-current_task: 2.1
+current_task: 2.2
 
 ## Project Facts
 - test: cd app && flutter test
@@ -20,7 +20,7 @@ current_task: 2.1
 | 1.5 | done    | 1        | heavy |
 | 1.6 | done    | 1        | light |
 | 1.7 | done    | 1        | light |
-| 2.1 | pending | 0        | light |
+| 2.1 | done    | 1        | light |
 | 2.2 | pending | 0        | light |
 | 2.3 | pending | 0        | light |
 | 2.4 | pending | 0        | heavy |
