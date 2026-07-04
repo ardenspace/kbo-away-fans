@@ -32,3 +32,6 @@ version: 1
 ## [1.7] 도장 애니메이션 + 햅틱 순차 재생
 - attempt 1: DONE → verifier PASS (light)
 - summary: StampStampAnimation(AnimationController+TweenSequence 오버슈트/낙하/기울기, initState HapticFeedback→onPlay→forward) + StampCelebrationLayer 오버레이가 성공 상태 ref.listen 큐잉→완료마다 다음 칸 순차 advance. 관측 seam=stampCelebrationObserverProvider. 단일=애니·햅틱 각 1회, 잠실 2칸=각 2회 칸순서(rec.played ['OB','LG']), 부분성공=성공칸만. 햅틱은 SystemChannels.platform mock으로 HapticFeedback.vibrate 실채널 카운트. Lottie/Rive 미추가(pubspec 파일단언). 전체 95/95 green, analyze clean, failed-first 기계 재증명.
+
+## [phase 1] verified
+- Phase Verifier PASS: 전체 95/95 green, analyze clean. 모든 acceptance 시나리오(발급성공/반경밖 N.Nkm/중복 선판정+UNIQUE/권한거부/서비스꺼짐/네트워크오류/잠실 칸배정/연타방지/10칸 그리드/도장 애니·햅틱 칸당1회) 테스트 존재. Seam 정합: stamp_screen(1.6)↔StampController(1.5)↔stamp_domain(1.4)+location(1.2)+repos(1.3), StampCelebrationLayer(1.7)가 동일 성공상태 구독. 홈 "내 스탬프"→/stamp 도달 배선 확인(router.dart:47, home_screen.dart:46). TODO/FIXME 없음.
