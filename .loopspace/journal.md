@@ -9,3 +9,8 @@ version: 1
 ## [1.2] 위치 provider 추상화 + 플랫폼 권한 설정
 - attempt 1: DONE → panel PASS (security PASS / test-integrity PASS / correctness PASS)
 - summary: LocationClient seam 뒤 geolocator, sealed LocationResult 4분기(Acquired/PermissionDenied/ServiceDisabled/Timeout) + kLocationFixTimeout(8s), iOS·Android 포그라운드 전용 권한 선언. 16 테스트 green, analyze clean, failed-first 기계 재증명.
+
+## [1.3] 데이터 계층 — stamp/stadium/games repository
+- attempt 1: DONE → panel PASS (security PASS / test-integrity PASS / correctness PASS)
+- summary: StampRepository(insertStamp/myStamps)·StadiumRepository(listStadiums)·GamesRepository(teamAbbrsInGamesOn) 인터페이스 + Supabase 구현 + 공유 fakes. DuplicateStampException(23505) vs StampNetworkException 구분, user_id는 auth 세션에서만. 32 테스트 green, analyze clean.
+- note: 검증 1차 웨이브가 스펜드 리밋으로 1회 중단됨 → fresh 재dispatch로 완료 (검증 품질 영향 없음).
