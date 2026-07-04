@@ -28,3 +28,7 @@ version: 1
 - attempt 1: DONE → verifier PASS (light)
 - summary: stampbookProvider(FutureProvider가 listStadiums+myStamps 병합)를 유일 렌더 소스로 AsyncValue.when 로딩/오류(StampbookError+재시도)/그리드 분기. 칸=Key(stamp-cell-<abbr>)+stampColor(방문=팀컬러 kTeamColors, 미방문=회색). "도장 찍기" 버튼 발급중 onPressed==null. 6 신규 테스트, 전체 91/91 green, analyze clean. failed-first 기계 재증명 통과.
 - note: riverpod 3.1.0 Override 미공개 export → 테스트가 내부 _IssuingController override로 StampIssuing 주입. busy state는 별도 CircularProgressIndicator라 해당 테스트 pump() 사용.
+
+## [1.7] 도장 애니메이션 + 햅틱 순차 재생
+- attempt 1: DONE → verifier PASS (light)
+- summary: StampStampAnimation(AnimationController+TweenSequence 오버슈트/낙하/기울기, initState HapticFeedback→onPlay→forward) + StampCelebrationLayer 오버레이가 성공 상태 ref.listen 큐잉→완료마다 다음 칸 순차 advance. 관측 seam=stampCelebrationObserverProvider. 단일=애니·햅틱 각 1회, 잠실 2칸=각 2회 칸순서(rec.played ['OB','LG']), 부분성공=성공칸만. 햅틱은 SystemChannels.platform mock으로 HapticFeedback.vibrate 실채널 카운트. Lottie/Rive 미추가(pubspec 파일단언). 전체 95/95 green, analyze clean, failed-first 기계 재증명.

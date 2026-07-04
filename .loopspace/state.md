@@ -19,7 +19,7 @@ current_task: 1.7
 | 1.4 | done    | 1        | heavy |
 | 1.5 | done    | 1        | heavy |
 | 1.6 | done    | 1        | light |
-| 1.7 | pending | 0        | light |
+| 1.7 | done    | 1        | light |
 | 2.1 | pending | 0        | light |
 | 2.2 | pending | 0        | light |
 | 2.3 | pending | 0        | light |

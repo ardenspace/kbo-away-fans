@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'stamp_controller.dart';
+import 'stamp_stamp_animation.dart';
 import 'stampbook_widgets.dart';
 
 class StampScreen extends ConsumerWidget {
@@ -26,25 +27,31 @@ class StampScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(title: const Text('스탬프북')),
-      body: Column(
+      // 발급 성공 시 도장 애니를 그리드 위에 얹어 순차 재생한다 (R8).
+      body: Stack(
         children: [
-          Expanded(
-            child: book.when(
-              loading: () =>
-                  const Center(child: CircularProgressIndicator()),
-              error: (_, _) => StampbookError(
-                onRetry: () => ref.invalidate(stampbookProvider),
+          Column(
+            children: [
+              Expanded(
+                child: book.when(
+                  loading: () =>
+                      const Center(child: CircularProgressIndicator()),
+                  error: (_, _) => StampbookError(
+                    onRetry: () => ref.invalidate(stampbookProvider),
+                  ),
+                  data: (view) => StampbookGrid(view: view),
+                ),
               ),
-              data: (view) => StampbookGrid(view: view),
-            ),
+              const SafeArea(
+                top: false,
+                child: Padding(
+                  padding: EdgeInsets.all(16),
+                  child: StampIssueButton(),
+                ),
+              ),
+            ],
           ),
-          const SafeArea(
-            top: false,
-            child: Padding(
-              padding: EdgeInsets.all(16),
-              child: StampIssueButton(),
-            ),
-          ),
+          const Positioned.fill(child: StampCelebrationLayer()),
         ],
       ),
     );
