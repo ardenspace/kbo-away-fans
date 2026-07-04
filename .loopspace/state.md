@@ -26,4 +26,4 @@ current_task: 2.7
 | 2.4 | done    | 1        | heavy |
 | 2.5 | done    | 1        | heavy |
 | 2.6 | done    | 1        | light |
-| 2.7 | pending | 0        | light |
+| 2.7 | done    | 1        | light |

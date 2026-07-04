@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_naver_map/flutter_naver_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'features/map/naver_map_config.dart';
@@ -28,6 +29,17 @@ Future<void> main() async {
     }
     return true;
   }());
+
+  // Client ID 실주입 지점: flutter_naver_map ^1.4.4 는 네이티브 파일에 키를 박지
+  // 않고 Dart 에서 초기화한다. 빌드 타임 --dart-define 값(ncpMapClientId)을 그대로
+  // 넘긴다 — 리터럴 키를 코드/네이티브 설정에 하드코딩하지 않는다. 미주입 시엔
+  // init 을 스킵해 crash 없이 지도 화면만 degrade 시킨다 (R12).
+  if (!shouldDegradeMap(ncpMapClientId)) {
+    await FlutterNaverMap().init(
+      clientId: ncpMapClientId,
+      onAuthFailed: (ex) => debugPrint('NAVER Map 인증 실패: $ex'),
+    );
+  }
 
   await Supabase.initialize(
     url: supabaseUrl,

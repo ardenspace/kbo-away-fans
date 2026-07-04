@@ -1,4 +1,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- task 2.7: flutter_naver_map(^1.4.4) NCP Maps Client ID 주입 지점.
+         이 플러그인은 매니페스트 meta-data 에 키를 박지 않고 Dart 에서
+         FlutterNaverMap().init(clientId: ...) 로 초기화한다. Client ID 는 빌드
+         타임 --dart-define=NCP_MAP_CLIENT_ID 로만 주입하며(lib/main.dart 참조)
+         이 매니페스트에 리터럴 키 값을 하드코딩하지 않는다.
+         최소 SDK(Android 6.0 / SDK 23) 는 app/build.gradle.kts 의 minSdk 참조. -->
     <!-- task 1.2: 스탬프 발급·지도 표시용 포그라운드 위치 (ACCESS_BACKGROUND_LOCATION 은 선언하지 않는다) -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>

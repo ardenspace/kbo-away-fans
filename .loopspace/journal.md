@@ -65,3 +65,8 @@ version: 1
 ## [2.6] 홈 "원정 지도" 버튼 + /map 라우트
 - attempt 1: DONE → verifier PASS (light)
 - summary: router.dart:49 GoRoute('/map')→const MapView()(완성 화면, all-default params라 라우트 빌드 가능 — 2.5 correctness의 dead-code 우려 해소: 골격 MapScreen이 아니라 MapView 연결). home_screen.dart:50-53 "원정 지도" OutlinedButton→context.go('/map'). map_route_test: 버튼 탭→currentConfiguration.uri.path=='/map' + MapView findsOneWidget + takeException null(단순 존재확인 아님). 기존 "내 스탬프"/"원정 일정 보기" 버튼·widget_test.dart 무회귀. 2 신규 테스트, 전체 127/127 green, analyze clean, 기계 failed-first(impl 2파일 stash→map_route 테스트 fail→pop) 확인.
+
+## [2.7] flutter_naver_map 네이티브 플랫폼 설정
+- attempt 1: DONE → verifier PASS (light)
+- summary: flutter_naver_map ^1.4.4 = pure-Dart init(네이티브 키 슬롯 없음). main.dart:37 가드 init `if (!shouldDegradeMap(ncpMapClientId)) FlutterNaverMap().init(...)` — 미주입→스킵→crash 없음(R12, naver_map_config 재사용). 네이티브 토큰: iOS Info.plist:75 주입지점(--dart-define=NCP_MAP_CLIENT_ID) + deployment target 13.0(pbxproj, 플러그인 iOS12 요구 충족), Android Manifest:5 주입지점 + build.gradle.kts:24 minSdk=maxOf(flutter.minSdkVersion,23)(플러그인 ≥23 충족). 리터럴 키 0건, 백그라운드 위치 권한 미추가(기존 포그라운드만). Dart 테스트 신규 없음(네이티브 config — grep 단언+analyze 검증, init은 main()에서만 실행되어 위젯테스트 미노출; failed-first stash 스킵). 전체 127/127 green, analyze clean.
+- fact 정정: plan files 라인 "app/android/build.gradle" → 실제 앱레벨은 Kotlin DSL "app/android/app/build.gradle.kts"(minSdk 위치). 구현자가 올바른 파일 사용.

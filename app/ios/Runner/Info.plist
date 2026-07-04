@@ -66,6 +66,14 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<!-- task 2.7: flutter_naver_map(^1.4.4) 네이티브 설정.
+	     · 최소 SDK: 이 플러그인은 iOS 12.0 이상을 요구한다. 실제 배포 타깃은
+	       Runner.xcodeproj/project.pbxproj 의 IPHONEOS_DEPLOYMENT_TARGET = 13.0
+	       으로 이 요구치를 충족한다 (>= iOS 12.0).
+	     · NCP Maps Client ID 주입 지점: 이 플러그인은 네이티브 파일에 키를 박지
+	       않고 Dart 에서 FlutterNaverMap().init(clientId: ...) 로 초기화한다.
+	       Client ID 는 빌드 타임 --dart-define=NCP_MAP_CLIENT_ID 로만 주입하며
+	       (lib/main.dart 참조) 이 plist 에 리터럴 키 값을 하드코딩하지 않는다. -->
 	<!-- task 1.2: 스탬프 발급·지도 표시용 포그라운드 위치 (백그라운드 위치 권한 없음) -->
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>직관 스탬프 발급 시 구장 근처인지 확인하고, 지도에 현재 위치를 표시하기 위해 위치 정보를 사용합니다.</string>

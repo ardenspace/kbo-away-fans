@@ -19,7 +19,9 @@ android {
         applicationId = "com.ardenspace.kbo_away_fans"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
+        // task 2.7: flutter_naver_map(^1.4.4) 는 Android 6.0(SDK 23) 이상을 요구한다.
+        // Flutter 기본값이 더 높으면 그대로 쓰되, 최소한 23 은 보장한다.
+        minSdk = maxOf(flutter.minSdkVersion, 23)
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
