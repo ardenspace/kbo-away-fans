@@ -10,7 +10,10 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../stamp/location_provider.dart';
+import 'map_controller.dart';
 import 'map_models.dart';
 import 'map_view.dart';
 import 'naver_map_config.dart';
@@ -51,5 +54,114 @@ class MapScreen extends StatelessWidget {
       );
     }
     return Scaffold(body: mapViewBuilder(context, markers));
+  }
+}
+
+/// 지도 라이브 화면 — 마커·경로 데이터 조회 + 내위치/권한 + 경로 애니 트리거 (R9·R10).
+///
+/// 골격([MapScreen])이 정적 마커 pass-through/degrade 만 담당하는 데 비해, 이 화면은
+/// provider 를 구독해 view-state 를 구성한다:
+///  - 마커·경로: [mapDataProvider] (AsyncValue) — 조회 실패면 빈 지도가 아니라
+///    오류+재시도([MapErrorView]). 로딩은 인디케이터.
+///  - 내 위치: [currentLocationProvider] 1회 조회 → [resolveMyLocation] 로 파생.
+///    위치 실패(권한 거부/서비스 꺼짐)는 마커·경로를 막지 않고 내위치만 off + 안내.
+///  - 경로 애니 트리거: 방문 ≥2(경로 길이 ≥2) 로 진입할 때마다 1회 발화한다.
+///    이 위젯이 마운트될 때 상태가 초기화되므로 재진입(재마운트)마다 다시 발화한다.
+///
+/// `/map` 라우트 등록은 Task 2.6, 네이티브 플랫폼 설정은 Task 2.7 범위.
+class MapView extends ConsumerStatefulWidget {
+  const MapView({
+    super.key,
+    this.clientId = ncpMapClientId,
+    this.surfaceBuilder = buildNaverMapSurface,
+  });
+
+  /// NCP Maps Client ID. 미주입(빈 값)이면 degrade 안내로 렌더한다 (R12).
+  final String clientId;
+
+  /// 지도 표면 builder seam. 기본값은 실제 네이버맵 경로([buildNaverMapSurface]);
+  /// 위젯 테스트는 fake builder 를 주입해 view-state 전달값을 검증한다.
+  final MapSurfaceBuilder surfaceBuilder;
+
+  @override
+  ConsumerState<MapView> createState() => _MapViewState();
+}
+
+class _MapViewState extends ConsumerState<MapView> {
+  /// 이 마운트에서 경로 애니 트리거를 이미 발화했는지 — 같은 진입 내 중복 발화 방지.
+  /// 재진입은 새 State 라 false 로 초기화되어 다시 발화한다 (R10).
+  bool _animationFired = false;
+
+  @override
+  Widget build(BuildContext context) {
+    if (shouldDegradeMap(widget.clientId)) {
+      return const Scaffold(
+        body: Center(
+          child: Padding(
+            padding: EdgeInsets.all(24),
+            child: Text(mapUnavailableMessage, textAlign: TextAlign.center),
+          ),
+        ),
+      );
+    }
+
+    final dataAsync = ref.watch(mapDataProvider);
+    final locationAsync = ref.watch(currentLocationProvider);
+
+    return Scaffold(
+      body: dataAsync.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (_, _) => MapErrorView(
+          onRetry: () => ref.invalidate(mapDataProvider),
+        ),
+        data: (data) {
+          _maybeFireRouteAnimation(data.route);
+          final myLocation = locationAsync.maybeWhen(
+            data: resolveMyLocation,
+            orElse: () => const MapMyLocation(enabled: false),
+          );
+          return widget.surfaceBuilder(
+            context,
+            MapSurfaceData(
+              markers: data.markers,
+              route: data.route,
+              myLocation: myLocation,
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  /// 방문 ≥2(경로 길이 ≥2)면 이 진입에서 1회 트리거를 발화한다 (R10).
+  void _maybeFireRouteAnimation(List<(double, double)> route) {
+    if (_animationFired || route.length < 2) return;
+    _animationFired = true;
+    final observer = ref.read(mapRouteAnimationObserverProvider);
+    WidgetsBinding.instance.addPostFrameCallback((_) => observer?.call(route));
+  }
+}
+
+/// 마커·경로 조회 실패 상태 — 빈 지도 대신 오류 안내 + 재시도 (R9).
+class MapErrorView extends StatelessWidget {
+  const MapErrorView({super.key, required this.onRetry});
+
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text('지도를 불러오지 못했어요'),
+          const SizedBox(height: 12),
+          FilledButton.tonal(
+            onPressed: onRetry,
+            child: const Text('다시 시도'),
+          ),
+        ],
+      ),
+    );
   }
 }

@@ -10,10 +10,19 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_naver_map/flutter_naver_map.dart';
 
 import 'map_models.dart';
+import 'map_view.dart';
 
 /// [MapViewBuilder] 의 프로덕션 구현 — 실제 네이버맵 경로.
 Widget buildNaverMapView(BuildContext context, List<MapMarker> markers) =>
     NaverMapView(markers: markers);
+
+/// `MapSurfaceBuilder` 의 프로덕션 구현 — 마커만 실제 네이버맵에 얹는다.
+///
+/// 경로 선/내 위치 오버레이의 실제 네이티브 렌더링은 수동 확인 대상(R10) 이라
+/// 이 골격에서는 마커까지 전달한다. view-state(경로 좌표·내위치)는 [MapSurfaceData]
+/// 로 이미 계산돼 넘어오므로, 네이티브 오버레이 배선은 이 파일에만 국한된다.
+Widget buildNaverMapSurface(BuildContext context, MapSurfaceData data) =>
+    NaverMapView(markers: data.markers);
 
 /// flutter_naver_map `NaverMap` 을 감싸 마커를 얹는 지도 표면.
 ///
