@@ -18,3 +18,8 @@ version: 1
 ## [1.4] 근접 판정 + 거리 계산 + 잠실 칸 배정 도메인
 - attempt 1: DONE → panel PASS (security PASS / test-integrity PASS / correctness PASS)
 - summary: 순수 Dart stamp_domain.dart — 하버사인(경계 inclusive), 최근접+"N.Nkm", 잠실 동률 tie-break→"잠실야구장", KST 달력일 변환(주입 시각), 잠실 칸 배정 ∩{OB,LG} 5시나리오. 두산 abbr="OB" (teams.json 확인). 전체 64 테스트 green.
+
+## [1.5] 발급 컨트롤러 — 상태머신 + 실패 분기 + 연타/중복 방지
+- attempt 1: DONE → panel PASS (security PASS / test-integrity PASS / correctness PASS)
+- summary: @riverpod StampController Notifier + sealed StampIssueState. 위치=currentLocationProvider seam, 기준시각=신규 stampClockProvider seam(주입). 연타방지=첫 await 이전 동기적 StampIssuing 세팅. 잠실=canonical("잠실야구장") 행 id로 games 조회→resolveTargetSlots로 칸 확정, insert는 대상 칸별 1회 루프(부분실패 시 성공칸=성공/나머지=실패). 선판정 dup + 주입 UNIQUE(23505) 둘 다 StampDuplicated로 수렴. 21 테스트, 전체 85 green, analyze clean. correctness가 impl 2파일 stash→컴파일 fail→pop 복원으로 failed-first 기계 재증명.
+- 규약 결정(비블로킹): 잠실 games 조회 stadium_id는 명세 미고정 → name==kJamsilCanonicalName("잠실야구장", OB행) id로 조회(크롤러 별칭표 "잠실"→"잠실야구장" 매핑과 정합). games FK가 실제 LG행을 가리키면 그 한 줄만 조정.
