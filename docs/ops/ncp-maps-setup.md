@@ -39,6 +39,30 @@
 
 ## 4. 주입 & 검증
 
+값은 `.env` 로 런타임 로딩하는 게 아니다 — 코드가 `String.fromEnvironment`(컴파일
+타임 상수)로 읽으므로 **빌드 시 `--dart-define` 으로 주입**해야 한다. 매번 3개를
+치는 대신 JSON 파일 하나로 묶는다.
+
+`app/dart_define.local.json` (실키; `.gitignore` 처리됨, 커밋 금지):
+
+```json
+{
+  "SUPABASE_URL": "https://...supabase.co",
+  "SUPABASE_ANON_KEY": "...",
+  "NCP_MAP_CLIENT_ID": "<발급받은 Client ID>"
+}
+```
+
+> 형식은 커밋된 `app/dart_define.example.json` 참고. 로컬 파일만 실값으로 채운다.
+
+```bash
+# app/ 에서
+flutter run --dart-define-from-file=dart_define.local.json
+```
+
+`--dart-define` 을 개별로 넘기던 아래 방식과 동작은 완전히 동일하다(여전히 컴파일
+타임 주입):
+
 ```bash
 flutter run \
   --dart-define=SUPABASE_URL=... \
