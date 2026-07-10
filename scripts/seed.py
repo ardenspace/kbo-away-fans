@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""시드 스크립트: scripts/seed/data/*.json → supabase-db upsert (멱등)
+"""시드 스크립트: scripts/seed/data/*.json → kbo-supabase-db upsert (멱등)
 
 사용법:
   python3 scripts/seed.py
@@ -10,7 +10,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-CONTAINER = "supabase-db"
+CONTAINER = "kbo-supabase-db"
 DATA_DIR = Path(__file__).parent / "seed" / "data"
 
 

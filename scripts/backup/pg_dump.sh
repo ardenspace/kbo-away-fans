@@ -6,7 +6,7 @@ export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
 
 BACKUP_DIR="${BACKUP_DIR:-/Users/arden/code/kbo-away-fans/backups}"
 KEEP="${KEEP:-14}"           # 최신 N개 보존
-CONTAINER="${CONTAINER:-supabase-db}"
+CONTAINER="${CONTAINER:-kbo-supabase-db}"
 
 mkdir -p "$BACKUP_DIR"
 ts="$(date +%Y%m%d-%H%M%S)"

@@ -23,6 +23,6 @@
 
 ```bash
 python3 scripts/seed.py
-docker exec supabase-db psql -U postgres -d postgres \
+docker exec kbo-supabase-db psql -U postgres -d postgres \
   -c "SELECT s.name, COUNT(r.id) FROM public.stadiums s LEFT JOIN public.restaurants r ON r.stadium_id=s.id GROUP BY s.name ORDER BY s.name;"
 ```

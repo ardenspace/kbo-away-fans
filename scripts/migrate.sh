@@ -5,7 +5,7 @@ set -euo pipefail
 # psql 네이티브 미설치 환경: docker exec 경유
 # 사용법: bash scripts/migrate.sh [--container <name>]
 
-CONTAINER="${SUPABASE_DB_CONTAINER:-supabase-db}"
+CONTAINER="${SUPABASE_DB_CONTAINER:-kbo-supabase-db}"
 DIR="$(cd "$(dirname "$0")/.." && pwd)/supabase/migrations"
 
 if ! docker inspect "$CONTAINER" &>/dev/null; then

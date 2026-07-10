@@ -52,7 +52,7 @@ ls -lt backups/                                     # 덤프 (gitignore, 최신 
 
 ### 백업 복구
 ```bash
-gzcat backups/kbo-pg-<ts>.sql.gz | docker exec -i supabase-db psql -U postgres -d postgres
+gzcat backups/kbo-pg-<ts>.sql.gz | docker exec -i kbo-supabase-db psql -U postgres -d postgres
 ```
 
 ### 자동기동 (재부팅 내성)

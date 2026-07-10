@@ -50,7 +50,7 @@
 - `.env`: `ENABLE_EMAIL_AUTOCONFIRM=true`(→ GOTRUE_MAILER_AUTOCONFIRM), `ADDITIONAL_REDIRECT_URLS` 에 `kboaway://login-callback` 추가, 카카오 키 변수(`KAKAO_CLIENT_ID`/`KAKAO_SECRET`) 추가(.env 는 gitignore, 예시는 `.env.example`/문서).
 - `docker-compose.yml` auth 서비스에 `GOTRUE_EXTERNAL_KAKAO_ENABLED/CLIENT_ID/SECRET/REDIRECT_URI` 추가. redirect_uri = `https://kbo-api.ardenspace.com/auth/v1/callback`.
 - cloudflared ingress 는 `/auth` 이미 allowlist(task-001) — 튠넬 변경 불필요.
-- 적용: `supabase-auth`(gotrue) 컨테이너 재기동.
+- 적용: `kbo-supabase-auth`(gotrue) 컨테이너 재기동.
 
 ### 네이티브 딥링크 설정
 - Android `AndroidManifest.xml`: launch activity 에 `kboaway://login-callback` intent-filter.

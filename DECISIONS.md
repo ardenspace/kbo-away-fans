@@ -29,7 +29,7 @@
 - **구장 가이드 = stadiums 컬럼**: `parking_info`, `seating_info`, `route_info`, `convenience_info` 4컬럼 직접 추가. 별도 테이블 JOIN 없이 단순화.
 - **game_id = text UNIQUE**: 크롤러 upsert·dedup 키. 실제 형식은 task-005(크롤러)에서 확정.
 - **auth trigger**: `handle_new_user()` — 가입 시 `profiles` 자동 생성. task-009(카카오 OAuth) 때 자동 동작.
-- **migrate.sh = docker exec 방식**: 맥미니에 psql 네이티브 미설치 → `supabase-db` 컨테이너 psql 경유. `SUPABASE_DB_CONTAINER` env로 컨테이너명 변경 가능.
+- **migrate.sh = docker exec 방식**: 맥미니에 psql 네이티브 미설치 → `kbo-supabase-db` 컨테이너 psql 경유. `SUPABASE_DB_CONTAINER` env로 컨테이너명 변경 가능.
 
 ---
 

@@ -34,7 +34,7 @@
 - [ ] **Step 4 — 네이티브 딥링크**: AndroidManifest intent-filter(scheme `kboaway`, host `login-callback`) + iOS Info.plist `CFBundleURLTypes`.
   - 검증: `flutter build apk --debug`(또는 `flutter analyze` + 빌드) 깨짐 없음. 롤백: 네이티브 파일 revert.
 
-- [ ] **Step 5 — GoTrue 인프라**: `.env` 에 `ENABLE_EMAIL_AUTOCONFIRM=true`, `ADDITIONAL_REDIRECT_URLS=kboaway://login-callback`, 카카오 키 변수. `docker-compose.yml` auth 서비스에 `GOTRUE_EXTERNAL_KAKAO_ENABLED/CLIENT_ID/SECRET/REDIRECT_URI`(=`https://kbo-api.ardenspace.com/auth/v1/callback`). `.env.example` 동기. 맥미니 `supabase-auth` 재기동.
+- [ ] **Step 5 — GoTrue 인프라**: `.env` 에 `ENABLE_EMAIL_AUTOCONFIRM=true`, `ADDITIONAL_REDIRECT_URLS=kboaway://login-callback`, 카카오 키 변수. `docker-compose.yml` auth 서비스에 `GOTRUE_EXTERNAL_KAKAO_ENABLED/CLIENT_ID/SECRET/REDIRECT_URI`(=`https://kbo-api.ardenspace.com/auth/v1/callback`). `.env.example` 동기. 맥미니 `kbo-supabase-auth` 재기동.
   - 검증: `curl -s https://kbo-api.ardenspace.com/auth/v1/settings | jq` → `external.kakao:true`, `mailer_autoconfirm:true`. 롤백: env diff revert + 재기동.
   - 메모: 카카오 CLIENT_ID/SECRET 는 @arden 콘솔 발급 후 주입 — 키 도착 전엔 이메일 autoconfirm·allowlist 만 먼저 적용 가능.
 
