@@ -31,17 +31,28 @@
 
 ### Lane C — 인터랙션·게임화 (task-007 이후)
 
-- [ ] [task-014] (deep) GPS 스탬프 코어: 근접 발급 + 중복방지 + 클라우드 동기화 (E7·E3, T4~T6) — @arden — `app/lib/features/stamp/`
-- [ ] [task-015] 스탬프 도장 애니메이션 (E9) — @arden — `app/lib/features/stamp/`
-- [ ] [task-016] (deep) 네이버맵 연동 + 위치 표시 (E6) — @arden — `app/lib/features/map/`
-- [ ] [task-017] 지도 경로 애니메이션 (방문 구장 잇기) (E6, T10) — @arden — `app/lib/features/map/`
+> task-014~017은 기존 pslog PLAN 이후 Loopspace Phase 1/2로 구현·검증 완료. 상세 실행 기록은 `.loopspace/state.md`, `.loopspace/journal.md` 참조.
+
+- [x] [task-014] (deep) GPS 스탬프 코어: 근접 발급 + 중복방지 + 클라우드 동기화 (E7·E3, T4~T6) — @arden — `app/lib/features/stamp/` — Loopspace Phase 1.1~1.6
+- [x] [task-015] 스탬프 도장 애니메이션 + 햅틱 순차 재생 (E9) — @arden — `app/lib/features/stamp/` — Loopspace Phase 1.7
+- [x] [task-016] (deep) 네이버맵 연동 + 위치 표시 + 미주입 degrade (E6) — @arden — `app/lib/features/map/` — Loopspace Phase 2.1~2.7
+- [x] [task-017] 지도 경로 애니메이션 입력/트리거 (방문 구장 잇기) (E6, T10) — @arden — `app/lib/features/map/` — Loopspace Phase 2.2·2.5
+
+## 구현 상태 요약
+
+- pslog 계획의 V1 기능은 코드상 대부분 구현 완료.
+- 자동 검증: `cd app && flutter test` 기준 127개 테스트 통과, `flutter analyze` clean 기록은 `.loopspace/journal.md`에 있음.
+- 남은 것은 코드 작성보다 실기기/운영 dogfood 검증: 원격 DB seed 확인, NCP Maps Client ID 실키 주입, 실제 지도/위치/스탬프 UX 확인, launchd 크롤러 운영 로그 확인.
+- 세부 수동 체크리스트: `docs/DOGFOOD-CHECKLIST.md`.
 
 ## 병렬 가능
 
 - 선행: task-001 → task-002 (다른 lane이 의존)
 - task-002 이후: **lane A**(task-003·004 시딩 ∥ task-005·006 크롤러) ∥ **lane B**(task-007 → 008/009/010/011/012/013)
-- task-007 이후: **lane C**(task-014·015 ∥ task-016·017)
+- task-007 이후: **lane C**(task-014·015 ∥ task-016·017) — 완료
 
 ## 다음
 
-각 task 는 `pslog-workflow` 스킬로 코드화. deep task 는 brief 대신 spec→plan 게이트.
+1. `docs/DOGFOOD-CHECKLIST.md` 순서대로 실기기/운영 검증.
+2. dogfood 결과로 UX·데이터·운영 결함을 분리해 작은 task 로 재개.
+3. 장기 개선안: 홈/콘텐츠 화면에 서버 주도 섹션 레이어(`app_sections` 등)를 추가 검토.

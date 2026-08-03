@@ -77,3 +77,40 @@
 - **맛집·플랜B = 별도 라우트 `/places/:stadiumId` + 탭 2개(맛집|플랜B)**. 구장 화면 내 섹션 아님 — 이유: task-013 우천취소→플랜B 딥링크를 `?tab=planb`로 깔끔히 재사용. 구장 화면은 가이드에 집중.
 - **출처 노출 = `source_url` 외부 브라우저(url_launcher)**. 원출처 신뢰·저작권 안전.
 - **우천취소 CTA = 취소/연기 카드 내부 인라인 행**(별도 배너/다이얼로그 아님) — 어느 경기가 취소인지 맥락과 붙어야 명확. 트리거 = `cancelled` + `postponed` 둘 다(status에 우천 구분 필드 없음 → "경기 안 열림"으로 동일 취급).
+
+---
+
+## 2026-08-03 · loopspace phase-1 — GPS 스탬프 + 스탬프북 + 도장 애니메이션
+
+> 출처: `.loopspace/journal.md` Phase 1, `app/lib/features/stamp/*`
+
+- **위치 계층 = provider seam 뒤 포그라운드 1회 조회**. `currentLocationProvider`가 위치 획득/권한 거부/서비스 꺼짐/타임아웃 4분기를 sealed 타입으로 반환한다. 백그라운드 위치 추적이나 좌표 영속화는 하지 않는다.
+- **스탬프 판정 = 순수 도메인 함수**. 하버사인 거리 계산, 반경 경계 inclusive, 최근접 구장 거리 `N.Nkm` 안내, KST 달력일 변환은 `stamp_domain.dart`에 둬서 플러그인·실기기 없이 테스트한다.
+- **잠실 = 같은 좌표의 두 칸(OB/LG)**. seed에는 잠실 OB 행과 LG 합성 행이 공존한다. UI/안내 대표명은 `잠실야구장`을 우선하고, 스탬프 발급은 당일 잠실 경기 팀 교집합 `{OB,LG}`로 칸을 좁힌다. 맞대결·무경기·교집합 없음이면 두 칸 모두 대상.
+- **발급 컨트롤러 = 상태머신**. 진행 중 재진입은 첫 await 전 `StampIssuing`으로 막는다. 선판정 중복과 DB UNIQUE 위반은 모두 중복 상태로 수렴한다. 잠실 등 복수 대상은 칸별 insert를 수행하고 일부 실패 시 부분 성공 상태로 분리한다.
+- **스탬프북 = 구장 10칸 + 클라우드 진실원천**. `listStadiums + myStamps` 병합 결과만 렌더한다. 조회 실패는 빈 그리드가 아니라 오류+재시도 UI로 보인다.
+- **도장 애니메이션 = 성공 칸별 순차 재생 + 햅틱**. Lottie/Rive 의존 없이 Flutter 애니메이션으로 구현하고 observer seam으로 테스트한다.
+
+---
+
+## 2026-08-03 · loopspace phase-2 — 네이버맵 + 원정 지도
+
+> 출처: `.loopspace/journal.md` Phase 2, `app/lib/features/map/*`, `docs/ops/ncp-maps-setup.md`
+
+- **지도 SDK = `flutter_naver_map`**. Client ID는 `NCP_MAP_CLIENT_ID` dart-define으로만 주입한다. 리터럴 키는 코드/네이티브 설정에 넣지 않는다.
+- **지도 미주입 = 화면 단위 degrade**. `NCP_MAP_CLIENT_ID`가 빈 값/공백이면 네이티브 지도 위젯을 만들지 않고 안내 텍스트를 렌더한다. 앱 전체와 스탬프 기능은 계속 동작한다.
+- **지도 데이터 = 구장 + 내 스탬프 병합 view-state**. `mapDataProvider`가 `stadiumRepository`와 `stampRepository`를 읽고, 조회 실패 시 빈 지도가 아니라 오류+재시도 UI를 보여준다.
+- **마커 = 좌표 기반 병합**. 같은 `(lat,lng)` 행은 마커 1개로 합친다. 잠실 OB/LG 두 행은 9번째/10번째 칸이지만 지도에서는 대표명 `잠실야구장` 마커 1개로 표시하고, 두 행 중 하나라도 방문했으면 visited 처리한다.
+- **경로 입력 = stamped_at 오름차순 구장 좌표 시퀀스**. 스탬프 좌표가 아니라 구장 좌표를 사용한다. 인접 동일 좌표만 dedup하여 잠실 연속 방문은 한 점으로 흡수하되, 비연속 재방문 좌표는 유지한다.
+- **경로 애니메이션 = route 길이 ≥2 진입 시 1회 트리거**. 같은 화면 마운트에서는 중복 발화하지 않고, `/map` 재진입으로 새로 마운트되면 다시 발화한다. 실제 네이버맵 overlay 품질은 실기기 dogfood에서 확인한다.
+- **플랫폼 설정 = dart-define 전달 지점만**. iOS/Android 네이티브 파일에는 dart-define 주입 경로와 최소 SDK/deployment target만 둔다. 백그라운드 위치 권한은 추가하지 않았다.
+
+---
+
+## 2026-08-03 · project-state — 문서 진실원천 정리
+
+> 출처: `README.md`, `PLAN.md`, `.loopspace/state.md`, `.loopspace/journal.md`
+
+- **상태 판단 우선순위**: 실제 코드·테스트 결과 → `.loopspace/state.md`/`journal.md` → `DECISIONS.md` → `PLAN.md`/`docs/EXECUTION-PLAN.md` → task/handoff 문서.
+- **자동 검증 완료와 dogfood 검증을 분리**한다. Flutter 테스트와 analyze가 통과해도, 원격 DB seed·NCP 실키·실기기 GPS·네이버맵 렌더·launchd 운영은 별도 수동 체크리스트로 확인한다.
+- **장기 개선 방향**: 현재 도메인 코어(팀/경기/구장/맛집/플랜B/스탬프/지도)는 유지하고, 홈/콘텐츠 노출은 서버 주도 섹션 레이어(`app_sections` + Flutter section renderer)로 추가 검토한다.
