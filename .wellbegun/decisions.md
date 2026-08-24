@@ -36,3 +36,10 @@
 - [2026-08-24] [S] check-hardcoded-values 보강: Color.fromARGB/fromRGBO, 간접 hex(0xFF 접두 8자리 리터럴), 3자리 축약 hex(a-f 문자 포함일 때만 — `#123` 이슈 번호 오탐 방지), raw Curves.* 검출 추가; 일반 width/height 숫자 리터럴은 오탐 과다로 의도적 미검출, 검사 범위는 spec대로 lib/ 유지
 - [2026-08-24] [S] check-registry-sync 는 레지스트리의 표 행(`|` 시작 줄)만 양방향 매칭 — 산문 속 백틱 언급을 등록으로 오인하던 허점 봉합; REGISTRY.md/CLAUDE.md 메타 파일은 로스터 등록 면제
 - [2026-08-24] [S] PostToolUse 명령은 `${CLAUDE_PROJECT_DIR:-.}` + 스크립트 존재 가드로 감싸 스크립트 없는 환경에서도 exit 0 — 세션이 깨지지 않게; PostToolUse 대상은 spec Enforcement plan대로 check-hardcoded-values만(registry-sync는 pre-commit 전용)
+- [2026-08-24] [M] 콘텐츠 소비 계층은 `lib/content/`(models·loader·cache·providers, 비 UI 공용) — 여러 feature 가 공유할 위치라 features/ 밖에 둠; 의존성으로 http·path_provider 추가
+- [2026-08-24] [M] 팀 테마 조회는 teams.json 의 `themeKey` 를 계약상 포인터로 사용 — 모델 파싱에서 themeKey ∉ TeamThemes.byId 면 문서 전체를 계약 위반으로 거부해, TeamThemeScope.forTeam 의 미지 id null 캐스트 크래시를 로더/모델 계층에서 차단(팀·구장 id enum 도 동일하게 파싱 시 검증)
+- [2026-08-24] [M] 로더는 네트워크 우선, 검증(schemaVersion+계약) 통과본만 캐시 갱신 — 실패 사유(network/unsupportedSchemaVersion/contractViolation)를 담아 sealed ContentResult(fresh/fromCache/unavailable)로 반환, "캐시 유지+갱신 거부"가 결과 타입으로 관찰됨
+- [2026-08-24] [M] 로컬 캐시는 파일 저장(문서 종류별 1파일, 임시 파일+rename 원자 교체, 만료 없음) — 네트워크 우선이라 캐시는 최후 폴백이며 플러그인 없이 단위 테스트 가능; hive/shared_preferences 불채택
+- [2026-08-24] [M] 앱 쪽 계약 검증 범위는 필수 필드·타입·enum·값 범위·개수·교차 id 참조까지, 미지의 추가 키는 무시 — additionalProperties 강제는 파이프라인 validate 소유, 앱은 소비 안전성만 책임
+- [2026-08-24] [S] dev 콘텐츠 소스는 로컬 정적 서버(`python3 -m http.server 8787 --directory content-pipeline/data`), URL 상수는 `lib/content/content_config.dart` 의 kContentBaseUrl 하나 — asset 번들 이중 소스를 만들지 않아 "URL 상수 하나로 전환" 계약 유지, 실호스팅 연결은 5.3
+- [2026-08-24] [S] 로더 단위 테스트의 정상 픽스처는 `content-pipeline/data/*.json` 실물을 그대로 읽음 — 파이프라인 산출물과 앱 파서 간 드리프트를 테스트가 즉시 잡게
