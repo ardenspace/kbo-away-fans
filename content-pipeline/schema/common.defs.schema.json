@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schema.kbo-away-fans.dev/common.defs.schema.json",
+  "title": "공유 정의 — 팀/구장 안정 id",
+  "description": "팀 id 10개와 구장 id 9개의 원본 로스터. 이 id들은 스탬프 인증 대비 불변 식별자로 취급한다(변경은 schemaVersion 마이그레이션급).",
+  "$defs": {
+    "teamId": {
+      "description": "1군 10개 팀의 안정 id",
+      "enum": [
+        "lg",
+        "doosan",
+        "kiwoom",
+        "ssg",
+        "kt",
+        "kia",
+        "samsung",
+        "lotte",
+        "nc",
+        "hanwha"
+      ]
+    },
+    "stadiumId": {
+      "description": "1군 정규 홈구장 9곳의 안정 id (잠실은 LG/두산 공유)",
+      "enum": [
+        "jamsil",
+        "gocheok",
+        "munhak",
+        "suwon",
+        "daejeon",
+        "daegu",
+        "sajik",
+        "changwon",
+        "gwangju"
+      ]
+    },
+    "slug": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$",
+      "minLength": 1
+    },
+    "nonEmptyString": {
+      "type": "string",
+      "minLength": 1
+    },
+    "latitude": {
+      "type": "number",
+      "minimum": 33,
+      "maximum": 39
+    },
+    "longitude": {
+      "type": "number",
+      "minimum": 124,
+      "maximum": 132
+    }
+  }
+}

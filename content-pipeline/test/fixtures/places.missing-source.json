@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "places": [
+    {
+      "id": "jamsil-sample-gukbap",
+      "stadiumId": "jamsil",
+      "name": "샘플 국밥집 (샘플 데이터)",
+      "category": "food",
+      "indoor": true,
+      "lat": 37.511,
+      "lng": 127.086
+    }
+  ]
+}

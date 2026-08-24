@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schema.kbo-away-fans.dev/stadiums.schema.json",
+  "title": "stadiums.json — 구장 9곳 계약",
+  "type": "object",
+  "required": ["schemaVersion", "stadiums"],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "description": "계약 버전. 계약이 바뀌면 이 값을 올리고 앱 하위 호환을 확인한다.",
+      "const": 1
+    },
+    "stadiums": {
+      "type": "array",
+      "minItems": 9,
+      "maxItems": 9,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/stadium" }
+    }
+  },
+  "$defs": {
+    "stadium": {
+      "type": "object",
+      "required": ["id", "name", "city", "lat", "lng", "homeTeams"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "description": "스탬프 인증 대비 불변 식별자",
+          "$ref": "common.defs.schema.json#/$defs/stadiumId"
+        },
+        "name": { "$ref": "common.defs.schema.json#/$defs/nonEmptyString" },
+        "city": { "$ref": "common.defs.schema.json#/$defs/nonEmptyString" },
+        "lat": { "$ref": "common.defs.schema.json#/$defs/latitude" },
+        "lng": { "$ref": "common.defs.schema.json#/$defs/longitude" },
+        "homeTeams": {
+          "description": "홈팀 목록 — 잠실만 2팀, 나머지는 1팀",
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 2,
+          "uniqueItems": true,
+          "items": { "$ref": "common.defs.schema.json#/$defs/teamId" }
+        }
+      }
+    }
+  }
+}

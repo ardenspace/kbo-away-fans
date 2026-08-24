@@ -15,3 +15,8 @@
 - [2026-08-24] [M] 번들 id org는 dev.arden (dev.arden.kbo_away_fans) — 스토어 배포 전이라 변경 비용이 낮은 시점에 임시 확정
 - [2026-08-24] [S] lint 기준선은 flutter_lints + strict-casts/inference/raw-types + 소수 추가 규칙(prefer_single_quotes 등) — analyze 경고 0을 유지 가능한 선에서 엄격하게
 - [2026-08-24] [S] 루트 위젯(KboAwayFansApp)을 lib/app.dart로 분리 — smoke test가 main() 부작용 없이 루트 위젯만 펌프할 수 있게
+- [2026-08-24] [M] 콘텐츠 계약 검증기는 Node.js + ajv(JSON Schema draft 2020-12), content-pipeline/package.json 로컬 의존성 — 표준 검증기라 스키마와 검증 동작의 드리프트가 없고, 이후 파이프라인 공통 레이어(1.5)도 같은 런타임을 쓸 수 있음
+- [2026-08-24] [M] 스키마는 계약 4개 + common.defs(팀 10·구장 9 안정 id enum) 분할 — 팀/구장 id를 한 파일에서 원본 관리해 계약 간 참조 불일치를 스키마 수준에서 차단
+- [2026-08-24] [M] 구장 안정 id는 지명 슬러그 9종(jamsil/gocheok/munhak/suwon/daejeon/daegu/sajik/changwon/gwangju), 팀 id는 구단 슬러그 10종 — 구단명 변경에도 안정적인 지명/약칭 기반, 출시 전이라 변경 비용 낮은 시점에 확정
+- [2026-08-24] [M] schemaVersion은 각 스키마에서 const 1로 고정 — 버전 불일치가 곧 검증 실패가 되어 별도 버전 비교 코드 없이 계약 위반으로 잡힘; 계약 변경 시 const를 올림
+- [2026-08-24] [M] places.category는 enum 5종(food/cafe/escape_room/activity/landmark)으로 시작 — 필터 칩과 1:1 대응을 계약으로 보장, 카테고리 추가는 스키마 수정으로만 가능

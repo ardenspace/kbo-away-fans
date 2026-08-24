@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "places": [
+    {
+      "id": "jamsil-sample-gukbap",
+      "stadiumId": "jamsil",
+      "name": "샘플 국밥집 (샘플 데이터)",
+      "category": "food",
+      "indoor": true,
+      "source": "curated",
+      "lat": 37.511,
+      "lng": 127.086,
+      "address": "서울 송파구 어딘가 1-1",
+      "shoutout": "잠실 직관 10년차 원정팬 추천"
+    },
+    {
+      "id": "jamsil-sample-escape",
+      "stadiumId": "jamsil",
+      "name": "샘플 방탈출 카페 (샘플 데이터)",
+      "category": "escape_room",
+      "indoor": true,
+      "source": "curated",
+      "lat": 37.5139,
+      "lng": 127.1006,
+      "description": "우천 취소 플랜B로 좋은 실내 코스"
+    },
+    {
+      "id": "sajik-sample-landmark",
+      "stadiumId": "sajik",
+      "name": "샘플 전망 명소 (샘플 데이터)",
+      "category": "landmark",
+      "indoor": false,
+      "source": "curated",
+      "lat": 35.1976,
+      "lng": 129.0554
+    }
+  ]
+}

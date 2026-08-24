@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schema.kbo-away-fans.dev/schedule.schema.json",
+  "title": "schedule.json — 경기 일정 계약",
+  "type": "object",
+  "required": ["schemaVersion", "generatedAt", "games"],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "description": "계약 버전. 계약이 바뀌면 이 값을 올리고 앱 하위 호환을 확인한다.",
+      "const": 1
+    },
+    "generatedAt": {
+      "description": "크롤러 산출 시각 (ISO 8601, 오프셋 포함)",
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})$"
+    },
+    "games": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/game" }
+    }
+  },
+  "$defs": {
+    "game": {
+      "type": "object",
+      "required": ["id", "date", "startTime", "homeTeamId", "awayTeamId", "stadiumId", "status"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "common.defs.schema.json#/$defs/nonEmptyString" },
+        "date": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "startTime": {
+          "description": "현지(KST) 시작 시각 HH:MM",
+          "type": "string",
+          "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$"
+        },
+        "homeTeamId": { "$ref": "common.defs.schema.json#/$defs/teamId" },
+        "awayTeamId": { "$ref": "common.defs.schema.json#/$defs/teamId" },
+        "stadiumId": { "$ref": "common.defs.schema.json#/$defs/stadiumId" },
+        "status": {
+          "description": "경기 상태 — 우천 취소는 rain_canceled 로 구분",
+          "enum": ["scheduled", "canceled", "rain_canceled"]
+        }
+      }
+    }
+  }
+}

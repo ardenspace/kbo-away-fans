@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schema.kbo-away-fans.dev/teams.schema.json",
+  "title": "teams.json — 팀 10개 계약",
+  "type": "object",
+  "required": ["schemaVersion", "teams"],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "description": "계약 버전. 계약이 바뀌면 이 값을 올리고 앱 하위 호환을 확인한다.",
+      "const": 1
+    },
+    "teams": {
+      "type": "array",
+      "minItems": 10,
+      "maxItems": 10,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/team" }
+    }
+  },
+  "$defs": {
+    "team": {
+      "type": "object",
+      "required": ["id", "name", "shortName", "themeKey"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "common.defs.schema.json#/$defs/teamId" },
+        "name": { "$ref": "common.defs.schema.json#/$defs/nonEmptyString" },
+        "shortName": { "$ref": "common.defs.schema.json#/$defs/nonEmptyString" },
+        "themeKey": {
+          "description": "lib/design/team_themes.dart 의 테마 토큰 키",
+          "$ref": "common.defs.schema.json#/$defs/slug"
+        }
+      }
+    }
+  }
+}

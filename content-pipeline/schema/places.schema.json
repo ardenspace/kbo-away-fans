@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schema.kbo-away-fans.dev/places.schema.json",
+  "title": "places.json — 추천 장소 계약",
+  "type": "object",
+  "required": ["schemaVersion", "places"],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "description": "계약 버전. 계약이 바뀌면 이 값을 올리고 앱 하위 호환을 확인한다.",
+      "const": 1
+    },
+    "places": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/place" }
+    }
+  },
+  "$defs": {
+    "place": {
+      "type": "object",
+      "required": ["id", "stadiumId", "name", "category", "indoor", "source", "lat", "lng"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "common.defs.schema.json#/$defs/slug" },
+        "stadiumId": { "$ref": "common.defs.schema.json#/$defs/stadiumId" },
+        "name": { "$ref": "common.defs.schema.json#/$defs/nonEmptyString" },
+        "category": {
+          "description": "추천 목록 필터 칩과 1:1 대응",
+          "enum": ["food", "cafe", "escape_room", "activity", "landmark"]
+        },
+        "indoor": {
+          "description": "실내 여부 — 우천 플랜B 필터 근거",
+          "type": "boolean"
+        },
+        "source": {
+          "description": "UGC 대비 예약 필드 — MVP에서는 curated 고정. 값 추가는 schemaVersion 마이그레이션급.",
+          "const": "curated"
+        },
+        "lat": { "$ref": "common.defs.schema.json#/$defs/latitude" },
+        "lng": { "$ref": "common.defs.schema.json#/$defs/longitude" },
+        "address": { "$ref": "common.defs.schema.json#/$defs/nonEmptyString" },
+        "description": { "$ref": "common.defs.schema.json#/$defs/nonEmptyString" },
+        "shoutout": {
+          "description": "샤라웃 출처 문구 — PlaceCard 뱃지에 그대로 노출",
+          "$ref": "common.defs.schema.json#/$defs/nonEmptyString"
+        }
+      }
+    }
+  }
+}
