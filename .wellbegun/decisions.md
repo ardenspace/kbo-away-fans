@@ -27,3 +27,8 @@
 - [2026-08-24] [M] check-registry-sync.sh 는 양방향 검사(폴더 파일→로스터 행, 로스터의 백틱 경로→실제 파일) + 짝 2개(lib/ui/shared ↔ 그 REGISTRY.md, content-pipeline/common ↔ content-pipeline/REGISTRY.md) — acceptance의 "행과 파일 일치"를 그대로 검사하고 참조 스크립트는 한 방향만 봄
 - [2026-08-24] [S] TeamThemeScope 는 InheritedWidget + of/maybeOf + forTeam(teamId) 편의 생성자 — 프레임워크 표준 주입 메커니즘, 소비 컴포넌트(DdayHeader/CategoryChip)는 maybeOf 로 스코프 밖 폴백을 가짐
 - [2026-08-24] [S] ScratchCard 골격은 탭 즉시 공개(AnimatedContainer 전환) — 긁기 연출(CustomPainter/shader)은 discretion 영역으로 이후 내부만 교체
+- [2026-08-24] [M] 파이프라인 단위 테스트는 Node 내장 node:test 러너(`npm --prefix content-pipeline test`) — 의존성 추가 없이 validate.mjs와 같은 런타임, 테스트는 content-pipeline/test/*.test.mjs
+- [2026-08-24] [M] fetch 재시도 정책은 기본 재시도 3회·시도당 타임아웃 10s·지수 백오프 500ms 기점, 재시도 대상은 네트워크 오류/타임아웃/429/5xx (그 외 4xx는 즉시 반환) — 크롤 대상 차단을 피하면서 일시 장애만 흡수하는 보수적 기본값, 호출부 옵션으로 조정 가능
+- [2026-08-24] [M] 로그 포맷은 JSON Lines({ts,level,script,event,...fields})를 stderr로 — stdout은 산출 데이터용으로 비워 두고, 구조화 필드라 CI 로그 검색이 쉬움
+- [2026-08-24] [S] deploy 스텁은 spec 레지스트리 위치(content-pipeline/deploy.mjs)에 두고 "검증 통과 후 배포 대상 미정으로 exit 2" 계약만 고정 — CI가 실수로 호출해도 조용히 성공하지 않게 하고, 호스팅 결정(discretion) 시 내부만 교체
+- [2026-08-24] [S] validate.mjs 단위 테스트는 CLI를 자식 프로세스로 실행해 종료 코드를 검증 — 검증자가 실제로 실행하는 계약(exit code) 그대로를 테스트하고 기존 코드를 리팩토링하지 않음

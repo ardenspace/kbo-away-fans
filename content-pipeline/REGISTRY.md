@@ -7,11 +7,16 @@
 
 | name | purpose (one line) | location | use when |
 |---|---|---|---|
+| Fetch 공통 | HTTP 요청·재시도(기본 3회, 지수 백오프)·타임아웃(10s)·User-Agent 한곳 | `content-pipeline/common/fetch.mjs` | 모든 외부 요청 |
 | 스키마 검증 | 산출 JSON이 계약(schemaVersion 포함)을 지키는지 빌드 시 검증 | `content-pipeline/common/validate.mjs` | 모든 JSON 산출 직전 |
+| 로깅 | 크롤 성공/실패 구조화 로그 (JSON Lines → stderr) | `content-pipeline/common/log.mjs` | 모든 스크립트 (console.* 대신) |
+| 배포 스텝 (스텁) | 검증 통과한 JSON을 호스팅으로 올리는 단일 경로 — 호스팅 미정이라 검증 후 exit 2 | `content-pipeline/deploy.mjs` | 모든 콘텐츠 갱신 (구현은 호스팅 결정 후) |
 <!-- 공통 레이어가 실제로 만들어질 때 행을 추가한다. -->
 
 ## 폴더 구조
 - `common/` — fetch·검증·로깅 등 모든 스크립트가 공유하는 레이어
+- `deploy.mjs` — 배포 스텝의 단일 진입점 (현재 스텁)
+- `test/` — 공통 레이어 단위 테스트 (`node:test`, `*.test.mjs`)
 - `schema/` — 콘텐츠 JSON 계약의 원본 (JSON Schema, draft 2020-12)
   - `teams` / `stadiums` / `places` / `schedule` 4개 계약 + `common.defs`(팀 10·구장 9 안정 id 로스터)
   - 계약 변경은 마이그레이션급: 해당 스키마의 `schemaVersion` const를 올리고 앱 하위 호환 확인
@@ -39,3 +44,12 @@ node content-pipeline/common/validate.mjs content-pipeline/test/fixtures/places.
 ```
 
 `npm --prefix content-pipeline run validate` 도 전체 검증과 동일하다.
+
+## 단위 테스트 실행 명령
+공통 레이어(fetch 재시도·타임아웃, 로그 포맷, validate 픽스처 실패 판정, deploy 스텁) 전체:
+
+```sh
+npm --prefix content-pipeline test
+```
+
+(내부적으로 `content-pipeline/` 에서 `node --test` 를 실행해 `test/*.test.mjs` 를 전부 돌린다. 의존성 설치는 위의 `npm ci --prefix content-pipeline` 1회면 충분 — 테스트 러너는 Node 내장 `node:test`.)
