@@ -58,3 +58,9 @@
 - [2026-08-25] [S] schedule 문서를 못 얻은 홈은 로드 중 스피너/실패 안내+재시도(ref.invalidate) — 시즌 종료 빈 상태와 의미가 다르므로 문구를 분리
 - [2026-08-25] [S] 원정 미리보기는 목적지 구장의 추천 장소 최대 3곳을 PlaceCard 로, 장소가 없으면 준비 중 문구 — 개수는 discretion 명시 항목
 - [2026-08-25] [S] team_select 위젯 테스트는 홈이 소비하는 콘텐츠 provider 4종을 모두 override (schedule 은 빈 일정 고정) — 실제 파일/네트워크 IO 는 widget test fake async 에서 완료되지 않아 pumpAndSettle 이 멈추는 것을 차단하고 현재 시각 의존 제거
+- [2026-08-25] [M] category enum ↔ 한국어 문구 매핑은 `lib/ui/shared/category_labels.dart` 의 kCategoryLabels 단일 맵(+ categoryLabelOf, 누락 시 assert) — 칩·카드·시트·미리보기가 전부 이 맵을 소비해 문구 사본 분산을 차단, REGISTRY 행 동시 추가
+- [2026-08-25] [M] 추천 필터는 순수 함수 filterPlaces(stadiumId 필수, category?·indoorOnly?) 하나로 — 화면과 분리돼 구장/카테고리+실내/빈 결과가 위젯 없이 단위 테스트되고, 미리보기 등 다른 소비처도 같은 규칙 사용 가능
+- [2026-08-25] [S] 추천 목록 정렬은 places.json 문서 순서(큐레이션 순서) 그대로 — 거리·평점 데이터가 아직 없어 임의 정렬을 만들지 않음 (discretion 명시 항목)
+- [2026-08-25] [S] 실내 필터는 카테고리 칩 행 끝의 '실내만' 토글 칩으로, CategoryChip 재사용 — 별도 스위치 UI 없이 한 줄에서 조합 필터 완결
+- [2026-08-25] [S] 추천 목록 진입점은 홈 원정 미리보기 헤더의 '전체 보기' 버튼 → StadiumPlacesScreen(stadiumId, 그 경기 홈팀 themeKey) push — 미리보기와 같은 구장 맥락·홈팀 테마가 이어짐
+- [2026-08-25] [S] "다시 시도"는 invalidateContent(ref) 단일 경로로 콘텐츠 provider 4종을 함께 무효화 — scheduleProvider 만 invalidate 하면 부분 복구 시 teams/stadiums/places 가 실패값으로 남아 홈이 raw id 로 저하 렌더되는 비일관성(실측)을 바로잡음; 홈·추천 목록 양쪽이 같은 경로 사용

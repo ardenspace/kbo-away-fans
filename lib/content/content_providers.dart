@@ -62,3 +62,27 @@ final scheduleProvider =
   final loader = await ref.watch(contentLoaderProvider.future);
   return loader.loadSchedule();
 });
+
+/// [ContentResult] 를 문서로 평탄화 — fresh/캐시는 데이터, 그 외 null.
+///
+/// 소비 화면들이 같은 규칙으로 "문서를 얻었는가"를 판정하는 단일 지점.
+T? contentDataOf<T>(AsyncValue<ContentResult<T>> async) => switch (async) {
+      AsyncData(:final value) => switch (value) {
+          ContentFresh(:final data) || ContentFromCache(:final data) => data,
+          ContentUnavailable() => null,
+        },
+      _ => null,
+    };
+
+/// 콘텐츠 provider 4종을 한꺼번에 무효화 — "다시 시도"의 단일 경로.
+///
+/// 문서별로 골라 invalidate 하면 부분 복구 시 나머지가 실패값으로 남아
+/// 화면이 raw id 로 저하 렌더되는 비일관성이 생긴다. 재시도는 항상 4종을
+/// 함께 다시 로드한다 (성공해 있던 문서는 재검증 후 그대로 fresh).
+void invalidateContent(WidgetRef ref) {
+  ref
+    ..invalidate(teamsProvider)
+    ..invalidate(stadiumsProvider)
+    ..invalidate(placesProvider)
+    ..invalidate(scheduleProvider);
+}

@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../content/content_loader.dart';
 import '../../content/content_providers.dart';
 import '../../content/models.dart';
 import '../../design/tokens.dart';
+import '../../ui/shared/category_labels.dart';
 import '../../ui/shared/dday_header.dart';
 import '../../ui/shared/place_card.dart';
 import '../../ui/shared/team_theme_scope.dart';
+import '../places/stadium_places_screen.dart';
 import '../team_select/team_select_screen.dart';
 import 'next_away_game.dart';
 
@@ -26,12 +27,12 @@ class HomeScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final teamsDoc = _dataOf(ref.watch(teamsProvider));
-    final stadiumsDoc = _dataOf(ref.watch(stadiumsProvider));
-    final placesDoc = _dataOf(ref.watch(placesProvider));
+    final teamsDoc = contentDataOf(ref.watch(teamsProvider));
+    final stadiumsDoc = contentDataOf(ref.watch(stadiumsProvider));
+    final placesDoc = contentDataOf(ref.watch(placesProvider));
 
     final scheduleAsync = ref.watch(scheduleProvider);
-    final scheduleDoc = _dataOf(scheduleAsync);
+    final scheduleDoc = contentDataOf(scheduleAsync);
     final next = scheduleDoc == null
         ? null
         : findNextAwayGame(
@@ -48,30 +49,14 @@ class HomeScreen extends ConsumerWidget {
       places: placesDoc,
       next: next,
       scheduleLoading: scheduleDoc == null && scheduleAsync is AsyncLoading,
-      onRetrySchedule: () => ref.invalidate(scheduleProvider),
+      // 재시도는 콘텐츠 4종을 함께 다시 로드 — 부분 복구로 홈이
+      // raw id 저하 렌더되는 비일관성을 막는다.
+      onRetrySchedule: () => invalidateContent(ref),
     );
     if (team == null) return scaffold;
     return TeamThemeScope.forTeam(teamId: team.themeKey, child: scaffold);
   }
 }
-
-/// [ContentResult] 를 문서로 평탄화 — fresh/캐시는 데이터, 그 외 null.
-T? _dataOf<T>(AsyncValue<ContentResult<T>> async) => switch (async) {
-      AsyncData(:final value) => switch (value) {
-          ContentFresh(:final data) || ContentFromCache(:final data) => data,
-          ContentUnavailable() => null,
-        },
-      _ => null,
-    };
-
-/// 미리보기 카드의 카테고리 표시 문구 (필터 칩 로스터와 1:1).
-const Map<PlaceCategory, String> _categoryLabels = {
-  PlaceCategory.food: '맛집',
-  PlaceCategory.cafe: '카페',
-  PlaceCategory.escapeRoom: '방탈출',
-  PlaceCategory.activity: '액티비티',
-  PlaceCategory.landmark: '명소',
-};
 
 /// 미리보기에 보이는 장소 개수 상한 (discretion).
 const int _previewPlaceCount = 3;
@@ -146,8 +131,9 @@ class _HomeScaffold extends StatelessWidget {
     return switch (next) {
       null => _scheduleFallback(),
       NoUpcomingAwayGame() => const DdayHeader.empty(),
-      AwayGameToday(:final game) => _gameFace(game, dDay: 0),
-      AwayGameUpcoming(:final game, :final dDay) => _gameFace(game, dDay: dDay),
+      AwayGameToday(:final game) => _gameFace(context, game, dDay: 0),
+      AwayGameUpcoming(:final game, :final dDay) =>
+        _gameFace(context, game, dDay: dDay),
     };
   }
 
@@ -191,13 +177,13 @@ class _HomeScaffold extends StatelessWidget {
 
   /// 오늘([dDay] == 0) 또는 미래 원정 경기의 얼굴 — 헤더 + 원정 미리보기.
   /// 그 경기 **홈팀** 테마의 중첩 스코프로 감싼다.
-  Widget _gameFace(Game game, {required int dDay}) {
+  Widget _gameFace(BuildContext context, Game game, {required int dDay}) {
     final stadium = stadiums?.byId(game.stadiumId);
     final content = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         DdayHeader(dDay: dDay, matchLabel: _matchLabel(game, stadium)),
-        ..._preview(game, stadium),
+        ..._preview(context, game, stadium),
       ],
     );
 
@@ -219,8 +205,8 @@ class _HomeScaffold extends StatelessWidget {
         '$where · vs $opponent · ${game.startTime}';
   }
 
-  /// 다음 원정 미리보기 — 목적지 구장의 추천 장소 몇 곳.
-  List<Widget> _preview(Game game, Stadium? stadium) {
+  /// 다음 원정 미리보기 — 목적지 구장의 추천 장소 몇 곳 + 추천 목록 진입.
+  List<Widget> _preview(BuildContext context, Game game, Stadium? stadium) {
     final previewPlaces =
         (places?.forStadium(game.stadiumId) ?? const <Place>[])
             .take(_previewPlaceCount)
@@ -229,14 +215,37 @@ class _HomeScaffold extends StatelessWidget {
     return [
       Padding(
         padding: const EdgeInsets.symmetric(horizontal: SpaceTokens.lg),
-        child: Text(
-          '${stadium?.city ?? ''} 원정 미리보기'.trim(),
-          style: const TextStyle(
-            fontFamily: TypeTokens.fontFamily,
-            fontSize: TypeTokens.heading,
-            fontWeight: TypeTokens.weightBold,
-            color: ColorTokens.textPrimary,
-          ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                '${stadium?.city ?? ''} 원정 미리보기'.trim(),
+                style: const TextStyle(
+                  fontFamily: TypeTokens.fontFamily,
+                  fontSize: TypeTokens.heading,
+                  fontWeight: TypeTokens.weightBold,
+                  color: ColorTokens.textPrimary,
+                ),
+              ),
+            ),
+            // 추천 목록(step 3.1) 진입점 — 그 경기 홈팀 테마를 이어받는다.
+            TextButton(
+              onPressed: () {
+                final teamsDoc = teams;
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => StadiumPlacesScreen(
+                      stadiumId: game.stadiumId,
+                      themeKey: teamsDoc == null
+                          ? null
+                          : themeKeyForGame(game, teamsDoc),
+                    ),
+                  ),
+                );
+              },
+              child: const Text('전체 보기'),
+            ),
+          ],
         ),
       ),
       const SizedBox(height: SpaceTokens.sm),
@@ -263,7 +272,7 @@ class _HomeScaffold extends StatelessWidget {
             ),
             child: PlaceCard(
               name: place.name,
-              categoryLabel: _categoryLabels[place.category]!,
+              categoryLabel: categoryLabelOf(place.category),
               shoutoutSource: place.shoutout,
             ),
           ),
