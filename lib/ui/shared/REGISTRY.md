@@ -10,7 +10,7 @@
 | name | purpose (one line) | location | use when |
 |---|---|---|---|
 | `TeamThemeScope` | 팀 테마 토큰을 하위 트리에 주입하는 테마 전환 지점 | `lib/ui/shared/team_theme_scope.dart` | 구장/팀 맥락 화면 전체 |
-| `DdayHeader` | 다음 원정 경기 D-day와 경기 정보 헤더 (기본 얼굴) | `lib/ui/shared/dday_header.dart` | 홈 화면 상단 |
+| `DdayHeader` | 다음 원정 경기 헤더 (기본 얼굴) — 오늘/D-day/빈 상태(`.empty`) 세 상태 렌더 | `lib/ui/shared/dday_header.dart` | 홈 화면 상단 |
 | `PlaceCard` | 추천 장소 카드 (샤라웃 출처 뱃지 포함) | `lib/ui/shared/place_card.dart` | 추천 목록·미리보기 어디든 |
 | `ScratchCard` | "오늘 뭐하지?" 긁기 랜덤 추천 카드 | `lib/ui/shared/scratch_card.dart` | 추천 목록의 마지막 항목 |
 | `StadiumMapView` | flutter_naver_map 래퍼 — 마커·모션·길안내 딥링크를 한곳에 | `lib/ui/shared/stadium_map_view.dart` | 앱 내 모든 지도 표시 |

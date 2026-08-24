@@ -39,3 +39,26 @@ final teamsProvider = FutureProvider<ContentResult<TeamsDocument>>((ref) async {
   final loader = await ref.watch(contentLoaderProvider.future);
   return loader.loadTeams();
 });
+
+/// stadiums.json 로드 결과 — 경기 라벨의 구장 이름·구장 맥락이 여기서 온다.
+final stadiumsProvider =
+    FutureProvider<ContentResult<StadiumsDocument>>((ref) async {
+  final loader = await ref.watch(contentLoaderProvider.future);
+  return loader.loadStadiums();
+});
+
+/// places.json 로드 결과 — 원정 미리보기·추천 목록이 여기서 온다.
+final placesProvider =
+    FutureProvider<ContentResult<PlacesDocument>>((ref) async {
+  final loader = await ref.watch(contentLoaderProvider.future);
+  return loader.loadPlaces();
+});
+
+/// schedule.json 로드 결과 — 홈의 다음 원정 경기 계산이 여기서 온다.
+/// 실패 시 [ContentUnavailable] 이 그대로 노출되며, 소비 화면이
+/// 재시도(ref.invalidate)를 제공한다.
+final scheduleProvider =
+    FutureProvider<ContentResult<ScheduleDocument>>((ref) async {
+  final loader = await ref.watch(contentLoaderProvider.future);
+  return loader.loadSchedule();
+});

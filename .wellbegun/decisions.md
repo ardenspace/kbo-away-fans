@@ -49,3 +49,12 @@
 - [2026-08-24] [M] 테마 적용은 홈을 TeamThemeScope.forTeam(team.themeKey) 로 감싸 구현, teams 문서를 못 얻은 홈은 스코프 없이 기본 토큰(maybeOf 폴백)으로 렌더 — 미지 themeKey 는 모델 계층에서 이미 거부되므로 스코프는 항상 유효 키만 받음
 - [2026-08-24] [S] 팀 변경 진입점은 홈 앱바의 아이콘 버튼 → 같은 TeamSelectScreen 을 변경 모드(isChange)로 push, 선택 즉시 저장 후 pop — 별도 설정 화면은 아직 불필요
 - [2026-08-24] [S] 온보딩 팀 목록은 SingleChildScrollView+Column (지연 빌드 없는 전량 렌더) — 10개 고정이라 성능 무의미하고 "10팀 모두 렌더" 검증이 트리에서 직접 가능
+- [2026-08-25] [M] 다음 원정 경기 = awayTeamId 가 선택 팀이고 status 가 scheduled 인 경기만 (취소·우천취소는 "갈 경기"가 아니라 제외), 같은 날짜 복수면 시작 시각 빠른 쪽 — 취소 경기로 D-day 를 세우면 빈 상태·다음 경기 안내가 틀어짐
+- [2026-08-25] [S] "오늘" 판정은 KST(UTC+9 고정, DST 없음) 달력 날짜 기준, 시작 시각이 지나도 그날 자정까지 "오늘" — schedule.json 의 date 가 KST 계약이고 경기 당일엔 하루 종일 원정 콘텐츠가 유효
+- [2026-08-25] [M] "현재 시각"은 clockProvider(Provider<DateTime Function()>, 기본 DateTime.now)로 주입 — D-day 단위·위젯 테스트가 고정 시각으로 결정적이 됨
+- [2026-08-25] [M] DdayHeader 빈 상태는 named constructor(DdayHeader.empty)로 확장, 기존 (dDay, matchLabel) 시그니처는 그대로 — 공유 컴포넌트 기존 사용처(테스트 포함) 무파손, REGISTRY 행 설명 동기 갱신
+- [2026-08-25] [M] 홈 테마 이중 구조: 앱 골격(앱바)은 응원 팀 테마, D-day 헤더·미리보기 영역만 그 경기 홈팀 테마의 중첩 TeamThemeScope — acceptance "홈팀 기준 구장 테마"를 잠실 2홈팀 케이스 포함 충족하면서 "내 팀" 정체성 유지
+- [2026-08-25] [M] schedule/stadiums/places provider 를 teamsProvider 와 같은 패턴(FutureProvider<ContentResult<T>>)으로 추가 — 문서별 독립 실패/캐시 폴백이 화면에서 그대로 관찰됨
+- [2026-08-25] [S] schedule 문서를 못 얻은 홈은 로드 중 스피너/실패 안내+재시도(ref.invalidate) — 시즌 종료 빈 상태와 의미가 다르므로 문구를 분리
+- [2026-08-25] [S] 원정 미리보기는 목적지 구장의 추천 장소 최대 3곳을 PlaceCard 로, 장소가 없으면 준비 중 문구 — 개수는 discretion 명시 항목
+- [2026-08-25] [S] team_select 위젯 테스트는 홈이 소비하는 콘텐츠 provider 4종을 모두 override (schedule 은 빈 일정 고정) — 실제 파일/네트워크 IO 는 widget test fake async 에서 완료되지 않아 pumpAndSettle 이 멈추는 것을 차단하고 현재 시각 의존 제거

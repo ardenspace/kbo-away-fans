@@ -24,19 +24,43 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   late TeamsDocument teamsDoc;
+  late StadiumsDocument stadiumsDoc;
+  late PlacesDocument placesDoc;
 
   setUpAll(() {
-    final root = jsonDecode(
-      File('content-pipeline/data/teams.json').readAsStringSync(),
-    ) as Map<String, Object?>;
-    teamsDoc = TeamsDocument.fromJson(root);
+    Map<String, Object?> readJson(String path) =>
+        jsonDecode(File(path).readAsStringSync()) as Map<String, Object?>;
+    teamsDoc = TeamsDocument.fromJson(
+      readJson('content-pipeline/data/teams.json'),
+    );
+    stadiumsDoc = StadiumsDocument.fromJson(
+      readJson('content-pipeline/data/stadiums.json'),
+    );
+    placesDoc = PlacesDocument.fromJson(
+      readJson('content-pipeline/data/places.json'),
+    );
   });
 
   Widget app() {
+    // 홈이 소비하는 콘텐츠 provider 4종을 모두 override 한다 — 실제
+    // 파일/네트워크 IO 는 widget test 의 fake async 안에서 완료되지 않아
+    // pumpAndSettle 이 멈춘다. schedule 은 빈 일정(시즌 종료 빈 상태)으로
+    // 고정해 이 테스트를 "현재 시각"과 무관하게 만든다.
+    final emptySchedule =
+        ScheduleDocument(generatedAt: DateTime.utc(2026), games: const []);
     return ProviderScope(
       overrides: [
         teamsProvider.overrideWith(
           (ref) async => ContentFresh<TeamsDocument>(teamsDoc),
+        ),
+        stadiumsProvider.overrideWith(
+          (ref) async => ContentFresh<StadiumsDocument>(stadiumsDoc),
+        ),
+        placesProvider.overrideWith(
+          (ref) async => ContentFresh<PlacesDocument>(placesDoc),
+        ),
+        scheduleProvider.overrideWith(
+          (ref) async => ContentFresh<ScheduleDocument>(emptySchedule),
         ),
       ],
       child: const KboAwayFansApp(),
