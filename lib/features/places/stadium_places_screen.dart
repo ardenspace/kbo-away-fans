@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -8,15 +10,19 @@ import '../../ui/shared/category_chip.dart';
 import '../../ui/shared/category_labels.dart';
 import '../../ui/shared/place_card.dart';
 import '../../ui/shared/place_detail_sheet.dart';
+import '../../ui/shared/scratch_card.dart';
 import '../../ui/shared/team_theme_scope.dart';
 import 'place_filter.dart';
+import 'scratch_pick.dart';
 
-/// 구장 추천 목록 화면 (step 3.1).
+/// 구장 추천 목록 화면 (step 3.1 + 3.2).
 ///
 /// [stadiumId] 구장의 추천 장소를 카테고리 칩 + 실내 필터로 보여준다.
 /// - 칩 선택은 [filterPlaces] 를 거쳐 목록에 즉시 반영된다.
 /// - 샤라웃 장소는 [PlaceCard] 의 출처 뱃지로 구분된다.
 /// - 필터 결과 0건이면 명시적 빈 상태 문구를 띄운다.
+/// - 목록 마지막 항목은 [ScratchCard]: 긁으면 현재 필터 풀에서
+///   [pickScratchPlace] 로 뽑은 랜덤 장소가 드러난다. 풀이 비면 카드도 없다.
 /// - [themeKey] 가 있으면 화면 전체를 그 팀 테마([TeamThemeScope])로 감싼다
 ///   (홈에서 진입 시 그 경기 홈팀 테마를 이어받는 근거).
 class StadiumPlacesScreen extends ConsumerStatefulWidget {
@@ -43,6 +49,15 @@ class _StadiumPlacesScreenState extends ConsumerState<StadiumPlacesScreen> {
 
   /// 실내만 보기 (우천 플랜B 필터).
   bool _indoorOnly = false;
+
+  /// 긁기 카드 랜덤 소스 (선택 규칙 자체는 [pickScratchPlace] 가 단위 테스트 커버).
+  final Random _random = Random();
+
+  /// 현재 긁기 카드에 숨겨진 장소 — 필터 풀에서 벗어나면 재선택된다.
+  Place? _scratchPick;
+
+  /// 필터 변경으로 재선택될 때 카드(커버) 상태를 리셋하는 키 카운터.
+  int _scratchRound = 0;
 
   @override
   Widget build(BuildContext context) {
@@ -129,6 +144,8 @@ class _StadiumPlacesScreenState extends ConsumerState<StadiumPlacesScreen> {
       category: _category,
       indoorOnly: _indoorOnly,
     );
+    _syncScratchPick(filtered);
+    final scratchPick = _scratchPick;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -144,10 +161,21 @@ class _StadiumPlacesScreenState extends ConsumerState<StadiumPlacesScreen> {
                     SpaceTokens.lg,
                     SpaceTokens.xxl,
                   ),
-                  itemCount: filtered.length,
+                  itemCount:
+                      filtered.length + (scratchPick == null ? 0 : 1),
                   separatorBuilder: (_, _) =>
                       const SizedBox(height: SpaceTokens.md),
                   itemBuilder: (context, index) {
+                    if (scratchPick != null && index == filtered.length) {
+                      return ScratchCard(
+                        key: ValueKey('scratch-round-$_scratchRound'),
+                        hiddenLabel: scratchPick.name,
+                        hiddenSublabel: categoryLabelOf(scratchPick.category),
+                        onRescratch: () => setState(() {
+                          _scratchPick = pickScratchPlace(filtered, _random);
+                        }),
+                      );
+                    }
                     final place = filtered[index];
                     return PlaceCard(
                       name: place.name,
@@ -164,6 +192,23 @@ class _StadiumPlacesScreenState extends ConsumerState<StadiumPlacesScreen> {
         ),
       ],
     );
+  }
+
+  /// 긁기 카드의 숨김 장소를 현재 필터 풀과 동기화한다.
+  ///
+  /// - 풀이 비면 카드 비노출(null).
+  /// - 기존 pick 이 풀을 벗어나면 재선택하고, 라운드 키를 올려 커버를 리셋한다.
+  /// - 재긁기(onRescratch)의 재선택은 카드가 스스로 커버를 리셋하므로
+  ///   라운드는 그대로 둔다.
+  void _syncScratchPick(List<Place> pool) {
+    if (pool.isEmpty) {
+      _scratchPick = null;
+      return;
+    }
+    final current = _scratchPick;
+    if (current != null && pool.any((p) => p.id == current.id)) return;
+    _scratchPick = pickScratchPlace(pool, _random);
+    _scratchRound++;
   }
 
   /// 카테고리 칩 로스터('전체' + enum 5종) + 실내 필터 칩.

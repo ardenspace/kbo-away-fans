@@ -1,5 +1,7 @@
 /// Step 3.1 추천 목록 위젯 테스트 — PlaceCard 뱃지 렌더,
 /// 칩 탭 → 목록 즉시 갱신, 빈 카테고리의 명시적 빈 상태.
+/// Step 3.2 — 목록 마지막의 ScratchCard: 긁으면 현재 필터 풀 안의
+/// 장소가 드러나고, 풀이 비면 카드가 아예 렌더되지 않는다.
 ///
 /// stadiums 픽스처는 `content-pipeline/data/stadiums.json` 실물을 파싱해
 /// 주입하고(계약 드리프트 방지), places 는 필터 시나리오가 결정적이도록
@@ -18,6 +20,7 @@ import 'package:kbo_away_fans/content/models.dart';
 import 'package:kbo_away_fans/features/places/stadium_places_screen.dart';
 import 'package:kbo_away_fans/ui/shared/category_chip.dart';
 import 'package:kbo_away_fans/ui/shared/place_card.dart';
+import 'package:kbo_away_fans/ui/shared/scratch_card.dart';
 
 Place place({
   required String id,
@@ -102,6 +105,24 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  /// 카드 위·아래 두 줄을 가로로 끝까지 긁는다 (커버리지 임계를 확실히 넘김).
+  Future<void> scratchAcross(WidgetTester tester, Finder finder) async {
+    final rect = tester.getRect(finder);
+    for (final fraction in [0.25, 0.75]) {
+      final start = Offset(rect.left + 1, rect.top + rect.height * fraction);
+      final gesture = await tester.startGesture(start);
+      var traveled = 0.0;
+      while (traveled < rect.width - 2) {
+        await gesture.moveBy(const Offset(20, 0));
+        traveled += 20;
+        await tester.pump();
+      }
+      await gesture.up();
+      await tester.pump();
+    }
+    await tester.pumpAndSettle();
+  }
+
   testWidgets('구장 장소만 뜨고, 샤라웃 장소의 PlaceCard 에 출처 뱃지가 렌더된다',
       (tester) async {
     await tester.pumpWidget(screen());
@@ -164,5 +185,45 @@ void main() {
     await tapChip(tester, '맛집');
     expect(find.text('이 조건에 맞는 장소가 아직 없어요'), findsNothing);
     expect(find.byType(PlaceCard), findsOneWidget);
+  });
+
+  testWidgets('목록 마지막 ScratchCard 를 긁으면 현재 필터 풀 안의 장소가 드러난다',
+      (tester) async {
+    await tester.pumpWidget(screen());
+    await tester.pumpAndSettle();
+
+    // '카페' 필터 → 풀이 [잠실 카페] 하나뿐이라 랜덤 결과가 결정적이다.
+    await tapChip(tester, '카페');
+    expect(find.byType(ScratchCard), findsOneWidget);
+
+    // 긁기 전에는 카드 안에 장소 정보가 없다 (목록의 PlaceCard 와 별개).
+    Finder inScratchCard(String text) => find.descendant(
+          of: find.byType(ScratchCard),
+          matching: find.text(text),
+        );
+    expect(inScratchCard('잠실 카페'), findsNothing);
+    expect(inScratchCard('오늘 뭐하지? 긁어 보기'), findsOneWidget);
+
+    await scratchAcross(tester, find.byType(ScratchCard));
+
+    expect(inScratchCard('잠실 카페'), findsOneWidget);
+    expect(inScratchCard('카페'), findsOneWidget);
+  });
+
+  testWidgets('필터 풀이 비면 ScratchCard 도 렌더되지 않는다', (tester) async {
+    await tester.pumpWidget(screen());
+    await tester.pumpAndSettle();
+
+    // 잠실 풀이 있으면 카드가 있다.
+    expect(find.byType(ScratchCard), findsOneWidget);
+
+    // 장소 0건 카테고리 → 빈 상태 + 카드 비노출.
+    await tapChip(tester, '방탈출');
+    expect(find.byType(PlaceCard), findsNothing);
+    expect(find.byType(ScratchCard), findsNothing);
+
+    // 풀이 돌아오면 카드도 돌아온다.
+    await tapChip(tester, '전체');
+    expect(find.byType(ScratchCard), findsOneWidget);
   });
 }

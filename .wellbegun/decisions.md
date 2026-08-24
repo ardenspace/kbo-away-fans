@@ -64,3 +64,7 @@
 - [2026-08-25] [S] 실내 필터는 카테고리 칩 행 끝의 '실내만' 토글 칩으로, CategoryChip 재사용 — 별도 스위치 UI 없이 한 줄에서 조합 필터 완결
 - [2026-08-25] [S] 추천 목록 진입점은 홈 원정 미리보기 헤더의 '전체 보기' 버튼 → StadiumPlacesScreen(stadiumId, 그 경기 홈팀 themeKey) push — 미리보기와 같은 구장 맥락·홈팀 테마가 이어짐
 - [2026-08-25] [S] "다시 시도"는 invalidateContent(ref) 단일 경로로 콘텐츠 provider 4종을 함께 무효화 — scheduleProvider 만 invalidate 하면 부분 복구 시 teams/stadiums/places 가 실패값으로 남아 홈이 raw id 로 저하 렌더되는 비일관성(실측)을 바로잡음; 홈·추천 목록 양쪽이 같은 경로 사용
+- [2026-08-25] [M] ScratchCard 긁기 구현은 CustomPainter — saveLayer+BlendMode.clear 스트로크로 커버를 지우고, 10×4 그리드 커버리지 비율 ≥ 0.55 에서 공개(커버 페이드 MotionTokens.base/standard, 프롬프트 페이드 fast/standard) — shader 불채택: 의존성 없이 위젯 테스트로 검증 가능하고 discretion 범위(구현 방식) 내
+- [2026-08-25] [M] ScratchCard props 는 하위 호환 확장: hiddenLabel·onRevealed 시그니처 유지 + hiddenSublabel·onRescratch 추가 — 재긁기 탭 시 카드가 커버·긁기 상태를 스스로 리셋한 뒤 onRescratch 로 소유자가 숨김 내용을 갈아끼움(범용 동작은 공유 컴포넌트, 내용 선택은 소유자 경계), REGISTRY 행 설명 동기 갱신
+- [2026-08-25] [M] 랜덤 장소 선택은 순수 함수 pickScratchPlace(pool, Random 주입) — 화면은 pick 이 현재 필터 풀을 벗어날 때만 재선택하고 그때 라운드 키(ValueKey)로 커버를 리셋, 풀이 비면 목록 항목 자체를 만들지 않아 카드 비노출이 트리에서 관찰됨
+- [2026-08-25] [S] 재긁기 풀은 현재 필터 풀 그대로(직전 장소 재등장 허용 — acceptance 는 "다를 수 있다"만 요구), 브러시 반경은 SpaceTokens.xl 재사용, 그리드 밀도·임계 비율은 연출 수치가 아닌 판정 파라미터로 위젯 내 상수
