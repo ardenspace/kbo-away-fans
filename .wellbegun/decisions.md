@@ -68,3 +68,9 @@
 - [2026-08-25] [M] ScratchCard props 는 하위 호환 확장: hiddenLabel·onRevealed 시그니처 유지 + hiddenSublabel·onRescratch 추가 — 재긁기 탭 시 카드가 커버·긁기 상태를 스스로 리셋한 뒤 onRescratch 로 소유자가 숨김 내용을 갈아끼움(범용 동작은 공유 컴포넌트, 내용 선택은 소유자 경계), REGISTRY 행 설명 동기 갱신
 - [2026-08-25] [M] 랜덤 장소 선택은 순수 함수 pickScratchPlace(pool, Random 주입) — 화면은 pick 이 현재 필터 풀을 벗어날 때만 재선택하고 그때 라운드 키(ValueKey)로 커버를 리셋, 풀이 비면 목록 항목 자체를 만들지 않아 카드 비노출이 트리에서 관찰됨
 - [2026-08-25] [S] 재긁기 풀은 현재 필터 풀 그대로(직전 장소 재등장 허용 — acceptance 는 "다를 수 있다"만 요구), 브러시 반경은 SpaceTokens.xl 재사용, 그리드 밀도·임계 비율은 연출 수치가 아닌 판정 파라미터로 위젯 내 상수
+- [2026-08-25] [M] 네이버 클라우드 클라이언트 ID 는 `--dart-define=NAVER_MAP_CLIENT_ID` 주입, main 의 StadiumMapView.ensureInitialized 가 읽어 SDK 초기화 — 미주입·초기화 실패면 조용히 건너뛰고 모든 지도가 자리 표시 폴백으로 렌더돼 키 없이 빌드·analyze·테스트가 통과(실 키 연결·실기기 확인은 5.3)
+- [2026-08-25] [M] StadiumMapView 실 SDK 연결 props 는 중심 좌표+`StadiumMapMarker` 값 객체 목록(+initialZoom) — SDK 타입(NMarker/NLatLng)을 래퍼 밖으로 새지 않게 하는 경계, 기존 stadiumId props 사용처는 자기 위젯 테스트뿐이라 변경 비용 낮음
+- [2026-08-25] [M] 길안내는 nmap://route/public(대중교통)+appname 딥링크 우선, 실패 시 map.naver.com/p/directions 웹 폴백; URL 빌더·공유 페이로드는 SDK 무관 `lib/ui/shared/map_links.dart` 순수 함수로 분리해 좌표·이름 인코딩을 단위 테스트 — launcher 는 주입 가능(UriLauncher)해 폴백 순서도 테스트됨
+- [2026-08-25] [M] 공유 페이로드는 "[카테고리] 이름 + 네이버지도 검색 링크(map.naver.com/p/search/이름)" 텍스트를 share_plus ShareParams.text 하나로 — 좌표 없는 이름 검색 링크가 웹에서 가장 안정적으로 열림
+- [2026-08-25] [S] 지도 진입은 PlaceMapScreen(장소+구장 마커, 중심은 두 좌표의 중점, 기본 줌 14, 하단 길안내 버튼) push, 시트 액션은 지도/길안내/공유 3버튼 + 주소·소개 표시 — 시트 레이아웃·줌 수치는 discretion 명시 항목
+- [2026-08-25] [S] nmap 스킴 가시성 등록 — AndroidManifest `<queries>`(nmap·https)와 iOS LSApplicationQueriesSchemes(nmap), url_launcher 가 앱 미설치를 판별할 수 있게

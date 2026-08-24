@@ -13,8 +13,9 @@
 | `DdayHeader` | 다음 원정 경기 헤더 (기본 얼굴) — 오늘/D-day/빈 상태(`.empty`) 세 상태 렌더 | `lib/ui/shared/dday_header.dart` | 홈 화면 상단 |
 | `PlaceCard` | 추천 장소 카드 (샤라웃 출처 뱃지 포함) | `lib/ui/shared/place_card.dart` | 추천 목록·미리보기 어디든 |
 | `ScratchCard` | "오늘 뭐하지?" 긁기 카드 — 긁기 진행이 임계에 닿으면 숨김 내용(hiddenLabel/hiddenSublabel) 공개, onRescratch 로 재긁기 지원 | `lib/ui/shared/scratch_card.dart` | 추천 목록의 마지막 항목 |
-| `StadiumMapView` | flutter_naver_map 래퍼 — 마커·모션·길안내 딥링크를 한곳에 | `lib/ui/shared/stadium_map_view.dart` | 앱 내 모든 지도 표시 |
-| `PlaceDetailSheet` | 장소 상세 바텀시트 (지도 진입·OS 공유 진입점) | `lib/ui/shared/place_detail_sheet.dart` | 장소 카드 탭 시 |
+| `StadiumMapView` | flutter_naver_map 래퍼 — SDK 코드(import 포함)는 이 파일 안에만, 마커는 `StadiumMapMarker` 값 객체로 받고 키 미주입 시 자리 표시 폴백 | `lib/ui/shared/stadium_map_view.dart` | 앱 내 모든 지도 표시 |
+| `map_links` | 네이버지도 길안내 딥링크(nmap://)·웹 폴백·장소 링크·공유 페이로드 빌더 + `launchNaverMapRoute` (SDK 무관) | `lib/ui/shared/map_links.dart` | 지도 링크·길안내·공유 문구가 필요한 모든 곳 |
+| `PlaceDetailSheet` | 장소 상세 바텀시트 (지도 진입·길안내·OS 공유 진입점) | `lib/ui/shared/place_detail_sheet.dart` | 장소 카드 탭 시 |
 | `CategoryChip` | 맛집/방탈출/카페 등 카테고리 필터 칩 | `lib/ui/shared/category_chip.dart` | 추천 목록 필터 |
 | `kCategoryLabels` | places category enum ↔ 한국어 문구의 단일 매핑 (+ `categoryLabelOf`) | `lib/ui/shared/category_labels.dart` | 카테고리 문구가 필요한 모든 곳 |
 | `WeatherBackdrop` | 날씨 연동 배경 연출 (비 애니메이션 → 플랜B 유도) | `lib/ui/shared/weather_backdrop.dart` | 홈·추천 화면 배경 |

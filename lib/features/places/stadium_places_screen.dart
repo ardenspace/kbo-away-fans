@@ -2,17 +2,20 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../content/content_providers.dart';
 import '../../content/models.dart';
 import '../../design/tokens.dart';
 import '../../ui/shared/category_chip.dart';
 import '../../ui/shared/category_labels.dart';
+import '../../ui/shared/map_links.dart';
 import '../../ui/shared/place_card.dart';
 import '../../ui/shared/place_detail_sheet.dart';
 import '../../ui/shared/scratch_card.dart';
 import '../../ui/shared/team_theme_scope.dart';
 import 'place_filter.dart';
+import 'place_map_screen.dart';
 import 'scratch_pick.dart';
 
 /// 구장 추천 목록 화면 (step 3.1 + 3.2).
@@ -181,16 +184,58 @@ class _StadiumPlacesScreenState extends ConsumerState<StadiumPlacesScreen> {
                       name: place.name,
                       categoryLabel: categoryLabelOf(place.category),
                       shoutoutSource: place.shoutout,
-                      onTap: () => PlaceDetailSheet.show(
-                        context,
-                        name: place.name,
-                        categoryLabel: categoryLabelOf(place.category),
-                      ),
+                      onTap: () => _showDetailSheet(place),
                     );
                   },
                 ),
         ),
       ],
+    );
+  }
+
+  /// 장소 상세 시트 — 지도 진입·길안내 딥링크·OS 공유의 진입점 (step 3.3).
+  void _showDetailSheet(Place place) {
+    PlaceDetailSheet.show(
+      context,
+      name: place.name,
+      categoryLabel: categoryLabelOf(place.category),
+      address: place.address,
+      description: place.description,
+      onOpenMap: () => _openMap(place),
+      onDirections: () => launchNaverMapRoute(
+        name: place.name,
+        lat: place.lat,
+        lng: place.lng,
+      ),
+      onShare: () => _share(place),
+    );
+  }
+
+  /// 시트를 닫고 앱 내 지도 화면(구장·장소 마커)으로 진입한다.
+  void _openMap(Place place) {
+    final stadium =
+        contentDataOf(ref.read(stadiumsProvider))?.byId(widget.stadiumId);
+    Navigator.of(context).pop();
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => PlaceMapScreen(
+          place: place,
+          stadium: stadium,
+          themeKey: widget.themeKey,
+        ),
+      ),
+    );
+  }
+
+  /// OS 공유 시트 — 장소 이름 + 지도 링크 페이로드.
+  Future<void> _share(Place place) {
+    return SharePlus.instance.share(
+      ShareParams(
+        text: buildMapSharePayload(
+          name: place.name,
+          categoryLabel: categoryLabelOf(place.category),
+        ),
+      ),
     );
   }
 

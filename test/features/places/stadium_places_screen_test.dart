@@ -2,6 +2,9 @@
 /// 칩 탭 → 목록 즉시 갱신, 빈 카테고리의 명시적 빈 상태.
 /// Step 3.2 — 목록 마지막의 ScratchCard: 긁으면 현재 필터 풀 안의
 /// 장소가 드러나고, 풀이 비면 카드가 아예 렌더되지 않는다.
+/// Step 3.3 — 카드 탭 → PlaceDetailSheet 노출 → '지도에서 보기' →
+/// 지도 화면(테스트 환경은 SDK 미초기화라 mock 자리 표시 래퍼)에
+/// 구장·장소 마커가 뜬다.
 ///
 /// stadiums 픽스처는 `content-pipeline/data/stadiums.json` 실물을 파싱해
 /// 주입하고(계약 드리프트 방지), places 는 필터 시나리오가 결정적이도록
@@ -17,10 +20,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kbo_away_fans/content/content_loader.dart';
 import 'package:kbo_away_fans/content/content_providers.dart';
 import 'package:kbo_away_fans/content/models.dart';
+import 'package:kbo_away_fans/features/places/place_map_screen.dart';
 import 'package:kbo_away_fans/features/places/stadium_places_screen.dart';
 import 'package:kbo_away_fans/ui/shared/category_chip.dart';
 import 'package:kbo_away_fans/ui/shared/place_card.dart';
+import 'package:kbo_away_fans/ui/shared/place_detail_sheet.dart';
 import 'package:kbo_away_fans/ui/shared/scratch_card.dart';
+import 'package:kbo_away_fans/ui/shared/stadium_map_view.dart';
 
 Place place({
   required String id,
@@ -208,6 +214,39 @@ void main() {
 
     expect(inScratchCard('잠실 카페'), findsOneWidget);
     expect(inScratchCard('카페'), findsOneWidget);
+  });
+
+  testWidgets('카드 탭 → 상세 시트 노출 → 지도 진입 시 구장·장소 마커(mock 래퍼)',
+      (tester) async {
+    await tester.pumpWidget(screen());
+    await tester.pumpAndSettle();
+
+    // 카드 탭 → PlaceDetailSheet 노출 (세 액션 포함).
+    await tester.tap(find.widgetWithText(PlaceCard, '잠실 국밥집'));
+    await tester.pumpAndSettle();
+    expect(find.byType(PlaceDetailSheet), findsOneWidget);
+    expect(find.text('지도에서 보기'), findsOneWidget);
+    expect(find.text('길안내'), findsOneWidget);
+    expect(find.text('공유'), findsOneWidget);
+
+    // '지도에서 보기' → 시트가 닫히고 지도 화면으로 진입.
+    await tester.tap(find.text('지도에서 보기'));
+    await tester.pumpAndSettle();
+    expect(find.byType(PlaceDetailSheet), findsNothing);
+    expect(find.byType(PlaceMapScreen), findsOneWidget);
+
+    // 테스트 환경은 SDK 미초기화 → mock(자리 표시) 래퍼 위에
+    // 구장·장소 마커 라벨이 뜬다.
+    final mapView = find.byType(StadiumMapView);
+    expect(mapView, findsOneWidget);
+    expect(
+      find.descendant(of: mapView, matching: find.text('잠실 국밥집')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: mapView, matching: find.text('잠실야구장')),
+      findsOneWidget,
+    );
   });
 
   testWidgets('필터 풀이 비면 ScratchCard 도 렌더되지 않는다', (tester) async {
