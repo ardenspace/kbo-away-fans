@@ -9,6 +9,7 @@ import 'package:path_provider/path_provider.dart';
 
 import 'content_cache.dart';
 import 'content_loader.dart';
+import 'models.dart';
 
 /// 앱 전역 HTTP 클라이언트 (테스트에서는 override 로 mock 주입).
 final httpClientProvider = Provider<http.Client>((ref) {
@@ -29,4 +30,12 @@ final contentCacheProvider = FutureProvider<ContentCache>((ref) async {
 final contentLoaderProvider = FutureProvider<ContentLoader>((ref) async {
   final cache = await ref.watch(contentCacheProvider.future);
   return ContentLoader(client: ref.watch(httpClientProvider), cache: cache);
+});
+
+/// teams.json 로드 결과 — 온보딩·홈의 팀 목록/테마 포인터(themeKey)가
+/// 여기서 온다. 실패 시 [ContentUnavailable] 이 그대로 노출되며,
+/// 소비 화면이 재시도(ref.invalidate)를 제공한다.
+final teamsProvider = FutureProvider<ContentResult<TeamsDocument>>((ref) async {
+  final loader = await ref.watch(contentLoaderProvider.future);
+  return loader.loadTeams();
 });

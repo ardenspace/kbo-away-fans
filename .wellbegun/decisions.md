@@ -43,3 +43,9 @@
 - [2026-08-24] [M] 앱 쪽 계약 검증 범위는 필수 필드·타입·enum·값 범위·개수·교차 id 참조까지, 미지의 추가 키는 무시 — additionalProperties 강제는 파이프라인 validate 소유, 앱은 소비 안전성만 책임
 - [2026-08-24] [S] dev 콘텐츠 소스는 로컬 정적 서버(`python3 -m http.server 8787 --directory content-pipeline/data`), URL 상수는 `lib/content/content_config.dart` 의 kContentBaseUrl 하나 — asset 번들 이중 소스를 만들지 않아 "URL 상수 하나로 전환" 계약 유지, 실호스팅 연결은 5.3
 - [2026-08-24] [S] 로더 단위 테스트의 정상 픽스처는 `content-pipeline/data/*.json` 실물을 그대로 읽음 — 파이프라인 산출물과 앱 파서 간 드리프트를 테스트가 즉시 잡게
+- [2026-08-24] [M] 응원 팀 저장은 shared_preferences 단일 키(`selected_team_id`, 값은 common.defs teamId) — 문서형 콘텐츠 캐시와 달리 스칼라 prefs 라 표준 플러그인이 최소 비용, 미지/오염 값은 읽기 시 null 취급해 온보딩으로 복귀
+- [2026-08-24] [M] 온보딩 팀 목록은 teams.json(teamsProvider, 콘텐츠 로더 경유) — 앱 내 하드코딩 로스터 이중화 대신 계약상 포인터(themeKey)를 그대로 소비, 로드 실패 시 명시적 실패 상태 + 재시도(ref.invalidate)
+- [2026-08-24] [M] 첫 화면 분기는 루트 게이트 위젯(RootGate: 선택 상태 로딩→스플래시 / 없음·읽기오류→온보딩 / 있음→홈) — 라우터 패키지 없이 위젯 분기 + Navigator.push 로 phase 2–3 범위 충분
+- [2026-08-24] [M] 테마 적용은 홈을 TeamThemeScope.forTeam(team.themeKey) 로 감싸 구현, teams 문서를 못 얻은 홈은 스코프 없이 기본 토큰(maybeOf 폴백)으로 렌더 — 미지 themeKey 는 모델 계층에서 이미 거부되므로 스코프는 항상 유효 키만 받음
+- [2026-08-24] [S] 팀 변경 진입점은 홈 앱바의 아이콘 버튼 → 같은 TeamSelectScreen 을 변경 모드(isChange)로 push, 선택 즉시 저장 후 pop — 별도 설정 화면은 아직 불필요
+- [2026-08-24] [S] 온보딩 팀 목록은 SingleChildScrollView+Column (지연 빌드 없는 전량 렌더) — 10개 고정이라 성능 무의미하고 "10팀 모두 렌더" 검증이 트리에서 직접 가능
