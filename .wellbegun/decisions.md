@@ -20,3 +20,6 @@
 - [2026-08-24] [M] 구장 안정 id는 지명 슬러그 9종(jamsil/gocheok/munhak/suwon/daejeon/daegu/sajik/changwon/gwangju), 팀 id는 구단 슬러그 10종 — 구단명 변경에도 안정적인 지명/약칭 기반, 출시 전이라 변경 비용 낮은 시점에 확정
 - [2026-08-24] [M] schemaVersion은 각 스키마에서 const 1로 고정 — 버전 불일치가 곧 검증 실패가 되어 별도 버전 비교 코드 없이 계약 위반으로 잡힘; 계약 변경 시 const를 올림
 - [2026-08-24] [M] places.category는 enum 5종(food/cafe/escape_room/activity/landmark)으로 시작 — 필터 칩과 1:1 대응을 계약으로 보장, 카테고리 추가는 스키마 수정으로만 가능
+- [2026-08-24] [M] 팀 테마 조회 API는 TeamThemes.byId 상수 맵(키 = common.defs teamId 10종) + TeamTheme 값 객체(primary/onPrimary/secondary/onSecondary) — 스키마의 안정 id를 그대로 키로 써서 계약과 코드의 드리프트를 차단
+- [2026-08-24] [M] check-hardcoded-values.sh 검출 범위는 hex 색(Color(0x..), #rrggbb)과 치수 리터럴(EdgeInsets/Radius·BorderRadius.circular/SizedBox/fontSize의 숫자), lib/design/·생성 파일(.g/.freezed) 제외 — Duration 리터럴은 치수가 아니고 타임아웃 등 비모션 용도와 구분 불가라 제외
+- [2026-08-24] [S] type.fontFamily 토큰은 null(플랫폼 기본)로 시작 — 커스텀 폰트 번들 전에 이름만 박으면 조용히 폴백돼 오히려 해로움, 디자인 단계에서 번들과 함께 교체
