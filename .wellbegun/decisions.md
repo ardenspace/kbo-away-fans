@@ -23,3 +23,7 @@
 - [2026-08-24] [M] 팀 테마 조회 API는 TeamThemes.byId 상수 맵(키 = common.defs teamId 10종) + TeamTheme 값 객체(primary/onPrimary/secondary/onSecondary) — 스키마의 안정 id를 그대로 키로 써서 계약과 코드의 드리프트를 차단
 - [2026-08-24] [M] check-hardcoded-values.sh 검출 범위는 hex 색(Color(0x..), #rrggbb)과 치수 리터럴(EdgeInsets/Radius·BorderRadius.circular/SizedBox/fontSize의 숫자), lib/design/·생성 파일(.g/.freezed) 제외 — Duration 리터럴은 치수가 아니고 타임아웃 등 비모션 용도와 구분 불가라 제외
 - [2026-08-24] [S] type.fontFamily 토큰은 null(플랫폼 기본)로 시작 — 커스텀 폰트 번들 전에 이름만 박으면 조용히 폴백돼 오히려 해로움, 디자인 단계에서 번들과 함께 교체
+- [2026-08-24] [M] StadiumMapView 골격은 flutter_naver_map 의존성 없이 자리 표시 렌더 — SDK 연결(클라이언트 ID·플랫폼 설정)은 지도 step의 일이고, 래퍼 API 뒤라 내부 교체 비용이 낮음
+- [2026-08-24] [M] check-registry-sync.sh 는 양방향 검사(폴더 파일→로스터 행, 로스터의 백틱 경로→실제 파일) + 짝 2개(lib/ui/shared ↔ 그 REGISTRY.md, content-pipeline/common ↔ content-pipeline/REGISTRY.md) — acceptance의 "행과 파일 일치"를 그대로 검사하고 참조 스크립트는 한 방향만 봄
+- [2026-08-24] [S] TeamThemeScope 는 InheritedWidget + of/maybeOf + forTeam(teamId) 편의 생성자 — 프레임워크 표준 주입 메커니즘, 소비 컴포넌트(DdayHeader/CategoryChip)는 maybeOf 로 스코프 밖 폴백을 가짐
+- [2026-08-24] [S] ScratchCard 골격은 탭 즉시 공개(AnimatedContainer 전환) — 긁기 연출(CustomPainter/shader)은 discretion 영역으로 이후 내부만 교체
