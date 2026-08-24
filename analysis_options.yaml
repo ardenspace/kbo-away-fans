@@ -4,6 +4,11 @@
 include: package:flutter_lints/flutter.yaml
 
 analyzer:
+  # iOS Swift Package Manager 가 build/ios/SourcePackages 아래로 의존성
+  # 소스(예: firebase example)를 체크아웃하면 분석 대상에 끌려 들어온다 —
+  # 빌드 산출물은 lint 기준선 대상이 아니다.
+  exclude:
+    - build/**
   language:
     strict-casts: true
     strict-inference: true

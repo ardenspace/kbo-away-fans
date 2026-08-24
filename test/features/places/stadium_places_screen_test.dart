@@ -5,6 +5,9 @@
 /// Step 3.3 — 카드 탭 → PlaceDetailSheet 노출 → '지도에서 보기' →
 /// 지도 화면(테스트 환경은 SDK 미초기화라 mock 자리 표시 래퍼)에
 /// 구장·장소 마커가 뜬다.
+/// Step 3.4 — mock 분석 래퍼로 성공 지표 계측 검증: 카드 탭 → place_tap
+/// 정확히 1회, 지도 진입 → map_open 정확히 1회, 파라미터는
+/// 구장 id·카테고리뿐.
 ///
 /// stadiums 픽스처는 `content-pipeline/data/stadiums.json` 실물을 파싱해
 /// 주입하고(계약 드리프트 방지), places 는 필터 시나리오가 결정적이도록
@@ -17,6 +20,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kbo_away_fans/analytics/analytics.dart';
 import 'package:kbo_away_fans/content/content_loader.dart';
 import 'package:kbo_away_fans/content/content_providers.dart';
 import 'package:kbo_away_fans/content/models.dart';
@@ -27,6 +31,8 @@ import 'package:kbo_away_fans/ui/shared/place_card.dart';
 import 'package:kbo_away_fans/ui/shared/place_detail_sheet.dart';
 import 'package:kbo_away_fans/ui/shared/scratch_card.dart';
 import 'package:kbo_away_fans/ui/shared/stadium_map_view.dart';
+
+import '../../analytics/recording_analytics.dart';
 
 Place place({
   required String id,
@@ -90,7 +96,7 @@ void main() {
     ],
   );
 
-  Widget screen() {
+  Widget screen({RecordingAnalytics? analytics}) {
     return ProviderScope(
       overrides: [
         stadiumsProvider.overrideWith(
@@ -99,6 +105,8 @@ void main() {
         placesProvider.overrideWith(
           (ref) async => ContentFresh<PlacesDocument>(placesDoc),
         ),
+        // 계측이 실 백엔드로 새지 않게 항상 기록용 mock 래퍼로 갈아끼운다.
+        analyticsProvider.overrideWithValue(analytics ?? RecordingAnalytics()),
       ],
       child: const MaterialApp(
         home: StadiumPlacesScreen(stadiumId: 'jamsil'),
@@ -247,6 +255,36 @@ void main() {
       find.descendant(of: mapView, matching: find.text('잠실야구장')),
       findsOneWidget,
     );
+  });
+
+  testWidgets('카드 탭 → place_tap 1회, 지도 진입 → map_open 1회 (mock 래퍼)',
+      (tester) async {
+    final analytics = RecordingAnalytics();
+    await tester.pumpWidget(screen(analytics: analytics));
+    await tester.pumpAndSettle();
+    expect(analytics.events, isEmpty);
+
+    // 카드 탭 → place_tap 정확히 1회 (map_open 은 아직 0회).
+    await tester.tap(find.widgetWithText(PlaceCard, '잠실 국밥집'));
+    await tester.pumpAndSettle();
+    expect(analytics.countOf('place_tap'), 1);
+    expect(analytics.countOf('map_open'), 0);
+    expect(
+      analytics.events.single.params,
+      {'stadium_id': 'jamsil', 'category': 'food'},
+    );
+
+    // 지도 진입 → map_open 정확히 1회 (place_tap 은 그대로 1회).
+    await tester.tap(find.text('지도에서 보기'));
+    await tester.pumpAndSettle();
+    expect(find.byType(PlaceMapScreen), findsOneWidget);
+    expect(analytics.countOf('place_tap'), 1);
+    expect(analytics.countOf('map_open'), 1);
+    expect(
+      analytics.events.last.params,
+      {'stadium_id': 'jamsil', 'category': 'food'},
+    );
+    expect(analytics.events, hasLength(2));
   });
 
   testWidgets('필터 풀이 비면 ScratchCard 도 렌더되지 않는다', (tester) async {

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../../analytics/analytics.dart';
 import '../../content/content_providers.dart';
 import '../../content/models.dart';
 import '../../design/tokens.dart';
@@ -194,7 +195,13 @@ class _StadiumPlacesScreenState extends ConsumerState<StadiumPlacesScreen> {
   }
 
   /// 장소 상세 시트 — 지도 진입·길안내 딥링크·OS 공유의 진입점 (step 3.3).
+  ///
+  /// 성공 지표 계측: 카드 탭이 곧 `place_tap` (step 3.4).
   void _showDetailSheet(Place place) {
+    ref.read(analyticsProvider).logPlaceTap(
+          stadiumId: widget.stadiumId,
+          category: place.category.contractValue,
+        );
     PlaceDetailSheet.show(
       context,
       name: place.name,
@@ -212,7 +219,13 @@ class _StadiumPlacesScreenState extends ConsumerState<StadiumPlacesScreen> {
   }
 
   /// 시트를 닫고 앱 내 지도 화면(구장·장소 마커)으로 진입한다.
+  ///
+  /// 성공 지표 계측: 이 전이가 곧 `map_open` (step 3.4).
   void _openMap(Place place) {
+    ref.read(analyticsProvider).logMapOpen(
+          stadiumId: widget.stadiumId,
+          category: place.category.contractValue,
+        );
     final stadium =
         contentDataOf(ref.read(stadiumsProvider))?.byId(widget.stadiumId);
     Navigator.of(context).pop();

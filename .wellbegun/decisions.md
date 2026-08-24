@@ -74,3 +74,8 @@
 - [2026-08-25] [M] 공유 페이로드는 "[카테고리] 이름 + 네이버지도 검색 링크(map.naver.com/p/search/이름)" 텍스트를 share_plus ShareParams.text 하나로 — 좌표 없는 이름 검색 링크가 웹에서 가장 안정적으로 열림
 - [2026-08-25] [S] 지도 진입은 PlaceMapScreen(장소+구장 마커, 중심은 두 좌표의 중점, 기본 줌 14, 하단 길안내 버튼) push, 시트 액션은 지도/길안내/공유 3버튼 + 주소·소개 표시 — 시트 레이아웃·줌 수치는 discretion 명시 항목
 - [2026-08-25] [S] nmap 스킴 가시성 등록 — AndroidManifest `<queries>`(nmap·https)와 iOS LSApplicationQueriesSchemes(nmap), url_launcher 가 앱 미설치를 판별할 수 있게
+- [2026-08-25] [M] 분석 래퍼는 `lib/analytics/analytics.dart` 단일 파일 — AnalyticsClient 베이스(단일 검증 경로 `log` + 추상 `send`) + FirebaseAnalyticsClient + analyticsProvider(Provider 주입, 테스트는 기록용 fake 로 override); firebase_core/firebase_analytics import 는 이 파일 안에만 (lib/content 처럼 비 UI 공용 계층이라 lib/ui/shared 로스터 대상 아님)
+- [2026-08-25] [M] 분석 화이트리스트는 이벤트 이름 {place_tap, map_open}·파라미터 키 {stadium_id, category} 상수 셋 — 벗어나면 래퍼가 ArgumentError 로 전송 자체를 차단해 "개인 식별 정보 없음"이 코드 경로로 강제됨 (진단 이벤트 추가는 로스터 수정으로만 가능)
+- [2026-08-25] [M] Firebase 미초기화 no-op 방식: main 의 ensureInitialized 가 Firebase.initializeApp 을 try/catch — 설정 파일(google-services.json / GoogleService-Info.plist) 없음·초기화 실패 시 백엔드 null 로 남아 이벤트를 조용히 버리고, 전송은 fire-and-forget(catchError 흡수)이라 실패가 UI 흐름을 막지 않음 — 설정 없이 빌드·analyze·테스트 전부 통과
+- [2026-08-25] [S] 이벤트 발생 지점은 추천 목록 화면의 전이 코드 한 곳씩 — place_tap 은 카드 탭(_showDetailSheet 진입), map_open 은 지도 화면 push 전이(_openMap) — 성공 지표 "추천 탭 → 지도 진입"의 두 끝점과 1:1
+- [2026-08-25] [S] analysis_options 에 `build/**` exclude 추가 — iOS SPM 이 firebase 의존성 소스(example 포함)를 build/ios/SourcePackages 로 체크아웃하면서 analyze 에 끌려 들어와 경고 0 기준선이 깨지는 것을 차단 (빌드 산출물은 lint 대상 아님)

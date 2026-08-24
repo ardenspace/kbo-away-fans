@@ -7,6 +7,8 @@ environment:
   sdk: ^3.12.2
 
 dependencies:
+  firebase_analytics: ^12.5.0
+  firebase_core: ^4.14.0
   flutter:
     sdk: flutter
   flutter_naver_map: ^1.4.4
