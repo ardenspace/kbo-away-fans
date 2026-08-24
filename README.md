@@ -17,3 +17,15 @@ flutter pub get
 flutter analyze   # 경고 0 유지
 flutter test
 ```
+
+### 클론 후 1회: pre-commit 훅 설치
+
+git hook은 클론으로 전파되지 않으므로 저장소 내 훅 경로를 지정한다:
+
+```sh
+git config core.hooksPath scripts/hooks
+```
+
+이후 커밋마다 `check-hardcoded-values.sh`(토큰 밖 raw 디자인 값)와
+`check-registry-sync.sh`(공유 폴더 ↔ REGISTRY.md 로스터 동기화)가 실행되어 위반 커밋을 막는다.
+Claude Code 세션에서는 `.claude/settings.json`의 PostToolUse 훅이 편집 직후에도 같은 검사를 돌린다.

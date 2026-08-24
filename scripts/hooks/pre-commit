@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# pre-commit — 레지스트리 규칙의 커밋 시점 백스톱 (wellbegun enforcement, step 1.6).
+# 설치: git config core.hooksPath scripts/hooks  (클론 후 1회 — README "개발" 절 참조)
+# 검사 대상은 작업 트리 전체 (스테이징 여부와 무관): 위반이 남아 있으면 커밋을 막는다.
+set -u
+repo_root=$(git rev-parse --show-toplevel) || exit 1
+
+fail=0
+for check in check-hardcoded-values.sh check-registry-sync.sh; do
+  script="$repo_root/scripts/hooks/$check"
+  [ -f "$script" ] || continue
+  bash "$script" || fail=1
+done
+
+if [ "$fail" -ne 0 ]; then
+  echo "pre-commit: 위 위반을 고친 뒤 다시 커밋하십시오." >&2
+  exit 1
+fi
+exit 0

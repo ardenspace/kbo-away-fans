@@ -13,11 +13,16 @@ read -ra dirs <<< "${SEARCH_DIRS:-lib}"
 
 patterns=(
   'Color\(0x[0-9a-fA-F]+'                            # raw hex 색 생성자
+  'Color\.from(ARGB|RGBO)\('                         # ARGB/RGBO 색 생성자
+  '0x[fF]{2}[0-9a-fA-F]{6}'                          # 간접 hex (const int c = 0xFF...; alpha FF 접두)
   '#[0-9a-fA-F]{6}'                                  # 문자열/주석 속 hex 색
+  # 3자리 축약 hex — a-f 문자가 하나 이상일 때만 (#123 같은 이슈 번호 오탐 방지)
+  '#([0-9][0-9][a-fA-F]|[0-9][a-fA-F][0-9a-fA-F]|[a-fA-F][0-9a-fA-F][0-9a-fA-F])([^0-9a-fA-F]|$)'
   'EdgeInsets\.(all|only|symmetric|fromLTRB)\([^)]*[0-9]'
   '(BorderRadius|Radius)\.circular\([^)]*[0-9]'
   'SizedBox\([^)]*: *[0-9]'
   'fontSize: *[0-9]'
+  'Curves\.[a-zA-Z]'                                 # raw 커브 — motion.* 토큰 경유 강제
 )
 regex=$(IFS='|'; echo "${patterns[*]}")
 

@@ -32,3 +32,7 @@
 - [2026-08-24] [M] 로그 포맷은 JSON Lines({ts,level,script,event,...fields})를 stderr로 — stdout은 산출 데이터용으로 비워 두고, 구조화 필드라 CI 로그 검색이 쉬움
 - [2026-08-24] [S] deploy 스텁은 spec 레지스트리 위치(content-pipeline/deploy.mjs)에 두고 "검증 통과 후 배포 대상 미정으로 exit 2" 계약만 고정 — CI가 실수로 호출해도 조용히 성공하지 않게 하고, 호스팅 결정(discretion) 시 내부만 교체
 - [2026-08-24] [S] validate.mjs 단위 테스트는 CLI를 자식 프로세스로 실행해 종료 코드를 검증 — 검증자가 실제로 실행하는 계약(exit code) 그대로를 테스트하고 기존 코드를 리팩토링하지 않음
+- [2026-08-24] [M] pre-commit wiring은 저장소 내 `scripts/hooks/pre-commit` + `git config core.hooksPath scripts/hooks` (클론 후 1회, README에 명시) — .git/hooks 복사와 달리 훅 본문이 버전 관리되고 설치가 명령 한 줄
+- [2026-08-24] [S] check-hardcoded-values 보강: Color.fromARGB/fromRGBO, 간접 hex(0xFF 접두 8자리 리터럴), 3자리 축약 hex(a-f 문자 포함일 때만 — `#123` 이슈 번호 오탐 방지), raw Curves.* 검출 추가; 일반 width/height 숫자 리터럴은 오탐 과다로 의도적 미검출, 검사 범위는 spec대로 lib/ 유지
+- [2026-08-24] [S] check-registry-sync 는 레지스트리의 표 행(`|` 시작 줄)만 양방향 매칭 — 산문 속 백틱 언급을 등록으로 오인하던 허점 봉합; REGISTRY.md/CLAUDE.md 메타 파일은 로스터 등록 면제
+- [2026-08-24] [S] PostToolUse 명령은 `${CLAUDE_PROJECT_DIR:-.}` + 스크립트 존재 가드로 감싸 스크립트 없는 환경에서도 exit 0 — 세션이 깨지지 않게; PostToolUse 대상은 spec Enforcement plan대로 check-hardcoded-values만(registry-sync는 pre-commit 전용)
