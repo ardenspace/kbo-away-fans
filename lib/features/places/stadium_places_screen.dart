@@ -74,15 +74,23 @@ class _StadiumPlacesScreenState extends ConsumerState<StadiumPlacesScreen> {
         ? _placesFallback(loading: placesAsync is AsyncLoading)
         : _placesBody(placesDoc);
 
-    final scaffold = Scaffold(
+    final themeKey = widget.themeKey;
+    if (themeKey == null) return _scaffold(context, stadium, body);
+    return TeamThemeScope.forTeam(
+      teamId: themeKey,
+      // 앱바가 스코프 안쪽 context 로 테마를 읽도록 Builder 를 끼운다.
+      child: Builder(
+        builder: (context) => _scaffold(context, stadium, body),
+      ),
+    );
+  }
+
+  Widget _scaffold(BuildContext context, Stadium? stadium, Widget body) {
+    return Scaffold(
       backgroundColor: ColorTokens.background,
       appBar: _appBar(context, stadium),
       body: body,
     );
-
-    final themeKey = widget.themeKey;
-    if (themeKey == null) return scaffold;
-    return TeamThemeScope.forTeam(teamId: themeKey, child: scaffold);
   }
 
   PreferredSizeWidget _appBar(BuildContext context, Stadium? stadium) {

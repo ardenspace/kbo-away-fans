@@ -24,6 +24,8 @@ import 'package:kbo_away_fans/analytics/analytics.dart';
 import 'package:kbo_away_fans/content/content_loader.dart';
 import 'package:kbo_away_fans/content/content_providers.dart';
 import 'package:kbo_away_fans/content/models.dart';
+import 'package:kbo_away_fans/design/team_themes.dart';
+import 'package:kbo_away_fans/design/tokens.dart';
 import 'package:kbo_away_fans/features/places/place_map_screen.dart';
 import 'package:kbo_away_fans/features/places/stadium_places_screen.dart';
 import 'package:kbo_away_fans/ui/shared/category_chip.dart';
@@ -96,7 +98,7 @@ void main() {
     ],
   );
 
-  Widget screen({RecordingAnalytics? analytics}) {
+  Widget screen({RecordingAnalytics? analytics, String? themeKey}) {
     return ProviderScope(
       overrides: [
         stadiumsProvider.overrideWith(
@@ -108,8 +110,8 @@ void main() {
         // 계측이 실 백엔드로 새지 않게 항상 기록용 mock 래퍼로 갈아끼운다.
         analyticsProvider.overrideWithValue(analytics ?? RecordingAnalytics()),
       ],
-      child: const MaterialApp(
-        home: StadiumPlacesScreen(stadiumId: 'jamsil'),
+      child: MaterialApp(
+        home: StadiumPlacesScreen(stadiumId: 'jamsil', themeKey: themeKey),
       ),
     );
   }
@@ -285,6 +287,26 @@ void main() {
       {'stadium_id': 'jamsil', 'category': 'food'},
     );
     expect(analytics.events, hasLength(2));
+  });
+
+  testWidgets('themeKey 전달 시 앱바가 그 팀 primary 로 렌더된다', (tester) async {
+    await tester.pumpWidget(screen(themeKey: 'lotte'));
+    await tester.pumpAndSettle();
+
+    final theme = TeamThemes.byId['lotte']!;
+    final appBar = tester.widget<AppBar>(find.byType(AppBar));
+    expect(appBar.backgroundColor, theme.primary);
+    expect(appBar.foregroundColor, theme.onPrimary);
+  });
+
+  testWidgets('themeKey 가 없으면 앱바는 기본 토큰(surface)으로 렌더된다',
+      (tester) async {
+    await tester.pumpWidget(screen());
+    await tester.pumpAndSettle();
+
+    final appBar = tester.widget<AppBar>(find.byType(AppBar));
+    expect(appBar.backgroundColor, ColorTokens.surface);
+    expect(appBar.foregroundColor, ColorTokens.textPrimary);
   });
 
   testWidgets('필터 풀이 비면 ScratchCard 도 렌더되지 않는다', (tester) async {
