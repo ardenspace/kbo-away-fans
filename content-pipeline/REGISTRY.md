@@ -52,7 +52,7 @@ node content-pipeline/common/validate.mjs content-pipeline/test/fixtures/places.
 `npm --prefix content-pipeline run validate` 도 전체 검증과 동일하다.
 
 ## 단위 테스트 실행 명령
-공통 레이어(fetch 재시도·타임아웃, 로그 포맷, validate 픽스처 실패 판정, deploy 스텁) 전체:
+공통 레이어(fetch 재시도·타임아웃, 로그 포맷, validate 픽스처 실패 판정, deploy 검증 게이트·gh-pages push) 전체:
 
 ```sh
 npm --prefix content-pipeline test
