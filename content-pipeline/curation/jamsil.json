@@ -1,5 +1,6 @@
 {
-  "schemaVersion": 1,
+  "//": "잠실야구장(시범 구장) 큐레이션 입력 — 워크플로·품질 규칙·재검수 목록은 content-pipeline/CURATION.md 참조. 이 파일을 고친 뒤 `node content-pipeline/build-places.mjs` 로 검증·병합한다.",
+  "stadiumId": "jamsil",
   "places": [
     {
       "id": "jamsil-bunong",

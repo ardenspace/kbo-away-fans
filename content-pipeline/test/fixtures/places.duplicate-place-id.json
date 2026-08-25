@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "places": [
+    {
+      "id": "jamsil-dupe",
+      "stadiumId": "jamsil",
+      "name": "중복 id A",
+      "category": "food",
+      "indoor": true,
+      "source": "curated",
+      "lat": 37.51,
+      "lng": 127.08
+    },
+    {
+      "id": "jamsil-dupe",
+      "stadiumId": "jamsil",
+      "name": "중복 id B (id 만 같고 내용은 다름 — uniqueItems 로는 못 잡음)",
+      "category": "cafe",
+      "indoor": false,
+      "source": "curated",
+      "lat": 37.52,
+      "lng": 127.09
+    }
+  ]
+}

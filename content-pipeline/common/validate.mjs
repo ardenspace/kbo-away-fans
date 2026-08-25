@@ -38,18 +38,26 @@ function entityOf(filePath) {
 
 // 스키마(JSON Schema)로 표현할 수 없는 의미 검사 — 엔티티별 추가 규칙.
 // 스키마 검증을 통과한 데이터에만 돌며, 위반 메시지 배열을 반환한다(빈 배열 = 통과).
+//
+// 앱 파서(lib/content/models.dart)는 4개 문서 전부에서 id 중복 문서를 거부한다 —
+// 여기서 같은 규칙을 강제해 검증 통과본이 앱에서 조용히 거부되는 드리프트를 막는다.
+// (JSON Schema 의 uniqueItems 는 객체 전체 비교라 "id 만 같고 나머지가 다른"
+// 중복을 잡지 못한다.)
+function duplicateIds(items, label) {
+  const seen = new Set();
+  const dupes = new Set();
+  for (const item of items) {
+    if (seen.has(item.id)) dupes.add(item.id);
+    seen.add(item.id);
+  }
+  return [...dupes].map((id) => `${label} id 중복: "${id}" (앱 파서가 문서 전체를 거부함)`);
+}
+
 const SEMANTIC_CHECKS = {
-  // 앱 파서(lib/content/models.dart)는 game id 중복 문서를 거부한다 —
-  // 여기서 같은 규칙을 강제해 검증 통과본이 앱에서 조용히 거부되는 드리프트를 막는다.
-  schedule(data) {
-    const seen = new Set();
-    const dupes = new Set();
-    for (const game of data.games) {
-      if (seen.has(game.id)) dupes.add(game.id);
-      seen.add(game.id);
-    }
-    return [...dupes].map((id) => `game id 중복: "${id}" (앱 파서가 문서 전체를 거부함)`);
-  },
+  teams: (data) => duplicateIds(data.teams, 'team'),
+  stadiums: (data) => duplicateIds(data.stadiums, 'stadium'),
+  places: (data) => duplicateIds(data.places, 'place'),
+  schedule: (data) => duplicateIds(data.games, 'game'),
 };
 
 function main(argv) {

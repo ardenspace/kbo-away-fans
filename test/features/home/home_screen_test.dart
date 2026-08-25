@@ -120,9 +120,9 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('D-5'), findsOneWidget);
-    // 목적지(잠실) 장소 미리보기 — 픽스처 places.json 의 잠실 장소가 뜬다.
+    // 목적지(잠실) 장소 미리보기 — 실데이터 places.json 의 잠실 장소가 뜬다.
     expect(
-      find.text('샘플 국밥집 (샘플 데이터)', skipOffstage: false),
+      find.text('부농정육식당', skipOffstage: false),
       findsOneWidget,
     );
   });
