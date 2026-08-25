@@ -4,6 +4,14 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+// Firebase Analytics 활성화: android/app/google-services.json 을 넣으면
+// 다음 빌드부터 Google Services plugin 이 적용돼 이벤트가 실제 전송된다.
+// json 이 없으면 plugin 을 아예 적용하지 않아 빌드는 그대로 통과하고
+// 앱은 no-op 분석 모드로 남는다 (lib/analytics/analytics.dart 참조).
+if (file("google-services.json").exists()) {
+    apply(plugin = "com.google.gms.google-services")
+}
+
 android {
     namespace = "dev.arden.kbo_away_fans"
     compileSdk = flutter.compileSdkVersion

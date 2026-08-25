@@ -28,8 +28,8 @@
         "name": { "$ref": "common.defs.schema.json#/$defs/nonEmptyString" },
         "shortName": { "$ref": "common.defs.schema.json#/$defs/nonEmptyString" },
         "themeKey": {
-          "description": "lib/design/team_themes.dart 의 테마 토큰 키",
-          "$ref": "common.defs.schema.json#/$defs/slug"
+          "description": "lib/design/team_themes.dart 의 테마 토큰 키 — 앱 파서(TeamThemes.byId)와 동일하게 teamId 로스터로 제한",
+          "$ref": "common.defs.schema.json#/$defs/teamId"
         }
       }
     }

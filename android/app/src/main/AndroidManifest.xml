@@ -1,4 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- 콘텐츠 JSON·지도 타일·날씨 API 등 앱 핵심 기능이 네트워크에 의존한다.
+         플러그인 매니페스트 병합에 기대지 않고 본 매니페스트에 명시 선언. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <application
         android:label="kbo_away_fans"
         android:name="${applicationName}"

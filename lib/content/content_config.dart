@@ -9,8 +9,8 @@ library;
 ///
 /// 로컬 개발·CI 는 `--dart-define=CONTENT_BASE_URL=...` 로 오버라이드한다:
 /// ```sh
-/// python3 -m http.server 8787 --directory content-pipeline/data
-/// flutter run --dart-define=CONTENT_BASE_URL=http://127.0.0.1:8787
+/// python3 -m http.server 8899 --directory content-pipeline/data
+/// flutter run --dart-define=CONTENT_BASE_URL=http://127.0.0.1:8899
 /// ```
 /// (iOS 시뮬레이터는 `127.0.0.1` 그대로, Android 에뮬레이터는
 /// 호스트 루프백이 `10.0.2.2`.)

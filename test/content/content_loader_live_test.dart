@@ -3,7 +3,7 @@
 /// 평상시 `flutter test` 에서는 네트워크를 건드리지 않도록 skip 되고,
 /// `--dart-define=CONTENT_LIVE_TEST=true` 를 줄 때만 실제 HTTP 로 4종
 /// 문서를 로드한다. 대상 URL 은 [kContentBaseUrl] — CI/로컬에서는
-/// `--dart-define=CONTENT_BASE_URL=http://127.0.0.1:8787` 등으로
+/// `--dart-define=CONTENT_BASE_URL=http://127.0.0.1:8899` 등으로
 /// 스테이징·로컬 서버를 겨눌 수 있다.
 ///
 /// 실행 예 (실호스팅):

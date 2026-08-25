@@ -1,14 +1,45 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'content/content_providers.dart';
 import 'design/tokens.dart';
 import 'features/home/home_screen.dart';
 import 'features/team_select/selected_team.dart';
 import 'features/team_select/team_select_screen.dart';
 
 /// 앱 루트 위젯 — 기본 토큰으로 ThemeData 를 깔고 루트 게이트를 띄운다.
-class KboAwayFansApp extends StatelessWidget {
+///
+/// 앱 생명주기를 구독해 백그라운드 → 포그라운드 복귀(resumed)마다
+/// [invalidateContent] 로 콘텐츠 4종을 다시 로드한다 — 우천 취소가
+/// 콜드 스타트뿐 아니라 세션 중에도 반영되는 경로("앱은 폴링" 결정).
+/// resumed 는 실제 상태 전이에서만 발생하므로 과도한 재조회가 없다.
+class KboAwayFansApp extends ConsumerStatefulWidget {
   const KboAwayFansApp({super.key});
+
+  @override
+  ConsumerState<KboAwayFansApp> createState() => _KboAwayFansAppState();
+}
+
+class _KboAwayFansAppState extends ConsumerState<KboAwayFansApp>
+    with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      invalidateContent(ref);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
