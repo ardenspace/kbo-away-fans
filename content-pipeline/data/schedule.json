@@ -1,52 +1,7 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-08-25T05:22:16.995Z",
+  "generatedAt": "2026-08-25T15:24:57.945Z",
   "games": [
-    {
-      "id": "20260825HHSK02026",
-      "date": "2026-08-25",
-      "startTime": "18:30",
-      "homeTeamId": "ssg",
-      "awayTeamId": "hanwha",
-      "stadiumId": "munhak",
-      "status": "scheduled"
-    },
-    {
-      "id": "20260825LTHT02026",
-      "date": "2026-08-25",
-      "startTime": "18:30",
-      "homeTeamId": "kia",
-      "awayTeamId": "lotte",
-      "stadiumId": "gwangju",
-      "status": "scheduled"
-    },
-    {
-      "id": "20260825NCLG02026",
-      "date": "2026-08-25",
-      "startTime": "18:30",
-      "homeTeamId": "lg",
-      "awayTeamId": "nc",
-      "stadiumId": "jamsil",
-      "status": "scheduled"
-    },
-    {
-      "id": "20260825OBKT02026",
-      "date": "2026-08-25",
-      "startTime": "18:30",
-      "homeTeamId": "kt",
-      "awayTeamId": "doosan",
-      "stadiumId": "suwon",
-      "status": "scheduled"
-    },
-    {
-      "id": "20260825SSWO02026",
-      "date": "2026-08-25",
-      "startTime": "18:30",
-      "homeTeamId": "kiwoom",
-      "awayTeamId": "samsung",
-      "stadiumId": "gocheok",
-      "status": "scheduled"
-    },
     {
       "id": "20260826HHSK02026",
       "date": "2026-08-26",
@@ -1017,6 +972,33 @@
       "homeTeamId": "kt",
       "awayTeamId": "nc",
       "stadiumId": "suwon",
+      "status": "scheduled"
+    },
+    {
+      "id": "20260924LTLG02026",
+      "date": "2026-09-24",
+      "startTime": "17:00",
+      "homeTeamId": "lg",
+      "awayTeamId": "lotte",
+      "stadiumId": "jamsil",
+      "status": "scheduled"
+    },
+    {
+      "id": "20260924NCKT02026",
+      "date": "2026-09-24",
+      "startTime": "17:00",
+      "homeTeamId": "kt",
+      "awayTeamId": "nc",
+      "stadiumId": "suwon",
+      "status": "scheduled"
+    },
+    {
+      "id": "20260924SSSK02026",
+      "date": "2026-09-24",
+      "startTime": "17:00",
+      "homeTeamId": "ssg",
+      "awayTeamId": "samsung",
+      "stadiumId": "munhak",
       "status": "scheduled"
     }
   ]
