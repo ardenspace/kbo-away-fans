@@ -1,22 +1,28 @@
 ---
 mode: companion
 ---
-- [>] 1.1 in progress
-- [ ] 1.2
-- [ ] 1.3
-- [ ] 1.4
-- [ ] 1.5
-- [ ] 1.6
-- [ ] 2.1
-- [ ] 2.2
-- [ ] 2.3
-- [ ] 3.1
-- [ ] 3.2
-- [ ] 3.3
-- [ ] 3.4
-- [ ] 4.1
-- [ ] 4.2
-- [ ] 4.3
-- [ ] 5.1
-- [ ] 5.2
-- [ ] 5.3
+- [x] 1.1 verified (fresh)
+- [x] 1.2 verified (fresh)
+- [x] 1.3 verified (fresh)
+- [x] 1.4 verified (fresh)
+- [x] 1.5 verified (fresh)
+- [x] 1.6 verified (basic)
+- [x] phase 1 integration verified (fresh)
+- [x] 2.1 verified (fresh)
+- [x] 2.2 verified (basic)
+- [x] 2.3 verified (basic)
+- [x] phase 2 integration verified (fresh)
+- [x] 3.1 verified (basic)
+- [x] 3.2 verified (basic)
+- [x] 3.3 verified (fresh)
+- [x] 3.4 verified (basic)
+- [x] phase 3 integration verified (fresh, 1건 수정 후 재검증 통과)
+- [x] 4.1 verified (basic)
+- [x] 4.2 verified (basic)
+- [x] 4.3 verified (basic)
+- [x] phase 4 integration verified (fresh)
+- [x] 5.1 verified (fresh)
+- [x] 5.2 verified (basic)
+- [x] 5.3 verified (fresh)
+- [x] phase 5 integration verified (fresh)
+- [x] whole-run fresh-eyes review: 1차 REJECT(iOS 배포 타깃 블로커) → 수정 커밋 c0af3d1 → 2차 ACCEPT (2026-08-25)
