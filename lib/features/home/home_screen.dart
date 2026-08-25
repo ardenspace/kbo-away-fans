@@ -8,6 +8,8 @@ import '../../ui/shared/category_labels.dart';
 import '../../ui/shared/dday_header.dart';
 import '../../ui/shared/place_card.dart';
 import '../../ui/shared/team_theme_scope.dart';
+import '../../ui/shared/weather_backdrop.dart';
+import '../../weather/weather.dart';
 import '../places/stadium_places_screen.dart';
 import '../team_select/team_select_screen.dart';
 import 'next_away_game.dart';
@@ -41,6 +43,22 @@ class HomeScreen extends ConsumerWidget {
             now: ref.watch(clockProvider)(),
           );
 
+    // 목적지 구장 좌표의 날씨 → 비 연출 (step 4.1).
+    // 날씨 실패는 래퍼가 "연출 없음"으로 흡수하므로 여정에 영향이 없다.
+    final destination = switch (next) {
+      AwayGameToday(:final game) ||
+      AwayGameUpcoming(:final game) =>
+        stadiumsDoc?.byId(game.stadiumId),
+      _ => null,
+    };
+    final raining = destination != null &&
+        weatherEffectOf(ref.watch(
+              weatherEffectProvider(
+                (lat: destination.lat, lng: destination.lng),
+              ),
+            )) ==
+            WeatherEffect.rain;
+
     final team = teamsDoc?.byId(teamId);
     final scaffold = _HomeScaffold(
       team: team,
@@ -48,6 +66,7 @@ class HomeScreen extends ConsumerWidget {
       stadiums: stadiumsDoc,
       places: placesDoc,
       next: next,
+      raining: raining,
       scheduleLoading: scheduleDoc == null && scheduleAsync is AsyncLoading,
       // 재시도는 콘텐츠 4종을 함께 다시 로드 — 부분 복구로 홈이
       // raw id 저하 렌더되는 비일관성을 막는다.
@@ -68,6 +87,7 @@ class _HomeScaffold extends StatelessWidget {
     required this.stadiums,
     required this.places,
     required this.next,
+    required this.raining,
     required this.scheduleLoading,
     required this.onRetrySchedule,
   });
@@ -80,6 +100,9 @@ class _HomeScaffold extends StatelessWidget {
 
   /// 다음 원정 경기 상태 — schedule 문서를 못 얻었으면 null.
   final NextAwayGame? next;
+
+  /// 목적지 구장에 비가 오는지 (배경 연출용 — 여정과 무관).
+  final bool raining;
 
   /// schedule 이 아직 로드 중인지 (null 인 이유의 구분).
   final bool scheduleLoading;
@@ -119,9 +142,12 @@ class _HomeScaffold extends StatelessWidget {
           ),
         ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.only(bottom: SpaceTokens.xxl),
-        children: [_face(context)],
+      body: WeatherBackdrop(
+        raining: raining,
+        child: ListView(
+          padding: const EdgeInsets.only(bottom: SpaceTokens.xxl),
+          children: [_face(context)],
+        ),
       ),
     );
   }

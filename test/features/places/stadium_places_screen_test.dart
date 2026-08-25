@@ -33,6 +33,8 @@ import 'package:kbo_away_fans/ui/shared/place_card.dart';
 import 'package:kbo_away_fans/ui/shared/place_detail_sheet.dart';
 import 'package:kbo_away_fans/ui/shared/scratch_card.dart';
 import 'package:kbo_away_fans/ui/shared/stadium_map_view.dart';
+import 'package:kbo_away_fans/ui/shared/weather_backdrop.dart';
+import 'package:kbo_away_fans/weather/weather.dart';
 
 import '../../analytics/recording_analytics.dart';
 
@@ -98,9 +100,15 @@ void main() {
     ],
   );
 
-  Widget screen({RecordingAnalytics? analytics, String? themeKey}) {
+  Widget screen({
+    RecordingAnalytics? analytics,
+    String? themeKey,
+    WeatherEffect weather = WeatherEffect.none,
+  }) {
     return ProviderScope(
       overrides: [
+        // 날씨는 실 네트워크 대신 시나리오 주입 (기본은 연출 없음).
+        weatherEffectProvider.overrideWith((ref, point) async => weather),
         stadiumsProvider.overrideWith(
           (ref) async => ContentFresh<StadiumsDocument>(stadiumsDoc),
         ),
@@ -307,6 +315,27 @@ void main() {
     final appBar = tester.widget<AppBar>(find.byType(AppBar));
     expect(appBar.backgroundColor, ColorTokens.surface);
     expect(appBar.foregroundColor, ColorTokens.textPrimary);
+  });
+
+  testWidgets('구장이 비 오는 날이면 추천 목록 배경에 비 레이어가 뜬다', (tester) async {
+    await tester.pumpWidget(screen(weather: WeatherEffect.rain));
+    // RainLayer 는 repeat 애니메이션이라 pumpAndSettle 대신 고정 pump.
+    await tester.pump();
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.byType(WeatherBackdrop), findsOneWidget);
+    expect(find.byType(RainLayer), findsOneWidget);
+    // 여정(추천 목록)은 그대로 정상 렌더된다.
+    expect(find.byType(PlaceCard), findsNWidgets(3));
+  });
+
+  testWidgets('날씨가 비가 아니면(실패 포함 기본값) 비 레이어가 없다', (tester) async {
+    await tester.pumpWidget(screen());
+    await tester.pumpAndSettle();
+
+    expect(find.byType(WeatherBackdrop), findsOneWidget);
+    expect(find.byType(RainLayer), findsNothing);
   });
 
   testWidgets('필터 풀이 비면 ScratchCard 도 렌더되지 않는다', (tester) async {

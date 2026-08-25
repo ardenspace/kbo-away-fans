@@ -117,6 +117,7 @@ void main() {
         MotionTokens.slow,
         MotionTokens.themeShift,
         MotionTokens.weatherShift,
+        MotionTokens.rainFall,
       ];
       expect(durations, isNotEmpty);
       for (final d in durations) {

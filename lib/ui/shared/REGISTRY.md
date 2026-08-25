@@ -18,5 +18,5 @@
 | `PlaceDetailSheet` | 장소 상세 바텀시트 (지도 진입·길안내·OS 공유 진입점) | `lib/ui/shared/place_detail_sheet.dart` | 장소 카드 탭 시 |
 | `CategoryChip` | 맛집/방탈출/카페 등 카테고리 필터 칩 | `lib/ui/shared/category_chip.dart` | 추천 목록 필터 |
 | `kCategoryLabels` | places category enum ↔ 한국어 문구의 단일 매핑 (+ `categoryLabelOf`) | `lib/ui/shared/category_labels.dart` | 카테고리 문구가 필요한 모든 곳 |
-| `WeatherBackdrop` | 날씨 연동 배경 연출 (비 애니메이션 → 플랜B 유도) | `lib/ui/shared/weather_backdrop.dart` | 홈·추천 화면 배경 |
+| `WeatherBackdrop` | 날씨 연동 배경 연출 — 비 상태면 배경 오버레이 + 빗줄기 레이어(`RainLayer`), bool 주입이라 날씨 계층과 비결합 | `lib/ui/shared/weather_backdrop.dart` | 홈·추천 화면 배경 |
 | `StadiumPicker` | 구장 골라 구경하기 진입 (탐색 모드) | `lib/ui/shared/stadium_picker.dart` | 경기 없는 날·탐색 진입 |

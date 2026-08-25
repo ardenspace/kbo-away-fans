@@ -79,3 +79,8 @@
 - [2026-08-25] [M] Firebase 미초기화 no-op 방식: main 의 ensureInitialized 가 Firebase.initializeApp 을 try/catch — 설정 파일(google-services.json / GoogleService-Info.plist) 없음·초기화 실패 시 백엔드 null 로 남아 이벤트를 조용히 버리고, 전송은 fire-and-forget(catchError 흡수)이라 실패가 UI 흐름을 막지 않음 — 설정 없이 빌드·analyze·테스트 전부 통과
 - [2026-08-25] [S] 이벤트 발생 지점은 추천 목록 화면의 전이 코드 한 곳씩 — place_tap 은 카드 탭(_showDetailSheet 진입), map_open 은 지도 화면 push 전이(_openMap) — 성공 지표 "추천 탭 → 지도 진입"의 두 끝점과 1:1
 - [2026-08-25] [S] analysis_options 에 `build/**` exclude 추가 — iOS SPM 이 firebase 의존성 소스(example 포함)를 build/ios/SourcePackages 로 체크아웃하면서 analyze 에 끌려 들어와 경고 0 기준선이 깨지는 것을 차단 (빌드 산출물은 lint 대상 아님)
+- [2026-08-25] [M] 날씨 래퍼는 `lib/weather/weather.dart` 단일 파일 — WeatherEffect{none,rain} + WeatherService.effectAt + weatherEffectProvider(FutureProvider.family, 좌표 record 키); OpenWeatherMap 의존(호스트·경로·파싱·키)은 이 파일 안에만 두고, 모든 실패(키 미주입·네트워크·비 200·파싱)는 WeatherEffect.none("연출 없음")으로 흡수해 예외를 전파하지 않음 — analytics 처럼 비 UI 공용 계층이라 lib/ui/shared 로스터 대상 아님
+- [2026-08-25] [M] OpenWeatherMap API 키는 `--dart-define=OPENWEATHER_API_KEY` 주입 (NAVER_MAP_CLIENT_ID 와 같은 패턴) — 하드코딩 금지, 미주입이면 호출 없이 연출 없음이라 키 없이 빌드·analyze·테스트 전부 통과
+- [2026-08-25] [M] 날씨 갱신 주기는 좌표별 앱 세션 캐시(provider family 캐시, 타이머·폴링 없음) — 연출 용도라 실시간성 요구가 낮고 무료 티어 호출량을 아끼며, 강제 갱신은 invalidate 한 줄
+- [2026-08-25] [M] 비 연출은 RainLayer(repeat AnimationController + CustomPainter, 고정 시드 의사난수 빗줄기) — 연출 수치는 토큰으로(RainTokens 개수·길이·굵기·기울기 + MotionTokens.rainFall + ColorTokens.rainDrop), 눈 등 추가 날씨 연출은 미도입(discretion); 비 상태에서만 레이어가 트리에 존재해 위젯 테스트가 find.byType 으로 관찰
+- [2026-08-25] [S] 날씨 기준 좌표는 홈=다음 원정 경기 목적지 구장, 추천 목록=그 화면 구장 — WeatherBackdrop 은 raining bool 만 받아 날씨 계층과 비결합 유지(테스트 주입 경계)

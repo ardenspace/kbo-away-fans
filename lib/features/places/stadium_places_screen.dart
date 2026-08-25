@@ -15,6 +15,8 @@ import '../../ui/shared/place_card.dart';
 import '../../ui/shared/place_detail_sheet.dart';
 import '../../ui/shared/scratch_card.dart';
 import '../../ui/shared/team_theme_scope.dart';
+import '../../ui/shared/weather_backdrop.dart';
+import '../../weather/weather.dart';
 import 'place_filter.dart';
 import 'place_map_screen.dart';
 import 'scratch_pick.dart';
@@ -70,9 +72,20 @@ class _StadiumPlacesScreenState extends ConsumerState<StadiumPlacesScreen> {
     final stadiumsDoc = contentDataOf(ref.watch(stadiumsProvider));
     final stadium = stadiumsDoc?.byId(widget.stadiumId);
 
-    final body = placesDoc == null
-        ? _placesFallback(loading: placesAsync is AsyncLoading)
-        : _placesBody(placesDoc);
+    // 이 구장 좌표의 날씨 → 배경 비 연출 (step 4.1).
+    // 날씨 실패는 래퍼가 "연출 없음"으로 흡수하므로 여정에 영향이 없다.
+    final raining = stadium != null &&
+        weatherEffectOf(ref.watch(
+              weatherEffectProvider((lat: stadium.lat, lng: stadium.lng)),
+            )) ==
+            WeatherEffect.rain;
+
+    final body = WeatherBackdrop(
+      raining: raining,
+      child: placesDoc == null
+          ? _placesFallback(loading: placesAsync is AsyncLoading)
+          : _placesBody(placesDoc),
+    );
 
     final themeKey = widget.themeKey;
     if (themeKey == null) return _scaffold(context, stadium, body);

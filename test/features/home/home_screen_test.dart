@@ -19,6 +19,8 @@ import 'package:kbo_away_fans/features/home/home_screen.dart';
 import 'package:kbo_away_fans/features/home/next_away_game.dart';
 import 'package:kbo_away_fans/ui/shared/dday_header.dart';
 import 'package:kbo_away_fans/ui/shared/team_theme_scope.dart';
+import 'package:kbo_away_fans/ui/shared/weather_backdrop.dart';
+import 'package:kbo_away_fans/weather/weather.dart';
 
 Map<String, Object?> _readJson(String path) =>
     jsonDecode(File(path).readAsStringSync()) as Map<String, Object?>;
@@ -61,12 +63,15 @@ void main() {
     required String teamId,
     required List<Game> games,
     required DateTime now,
+    WeatherEffect weather = WeatherEffect.none,
   }) {
     final scheduleDoc =
         ScheduleDocument(generatedAt: DateTime.utc(2026), games: games);
     return ProviderScope(
       overrides: [
         clockProvider.overrideWithValue(() => now),
+        // 날씨는 실 네트워크 대신 시나리오 주입 (기본은 연출 없음).
+        weatherEffectProvider.overrideWith((ref, point) async => weather),
         teamsProvider.overrideWith(
           (ref) async => ContentFresh<TeamsDocument>(teamsDoc),
         ),
@@ -131,6 +136,41 @@ void main() {
 
     expect(find.text('남은 원정 경기가 없어요'), findsOneWidget);
     expect(find.byType(DdayHeader), findsOneWidget);
+  });
+
+  testWidgets('목적지 구장이 비 오는 날이면 홈 배경에 비 레이어가 뜬다', (tester) async {
+    await tester.pumpWidget(home(
+      teamId: 'lotte',
+      games: [
+        game(date: '2026-08-30', home: 'lg', away: 'lotte', stadium: 'jamsil'),
+      ],
+      now: now,
+      weather: WeatherEffect.rain,
+    ));
+    // RainLayer 는 repeat 애니메이션이라 pumpAndSettle 대신 고정 pump.
+    await tester.pump();
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.byType(WeatherBackdrop), findsOneWidget);
+    expect(find.byType(RainLayer), findsOneWidget);
+    // 여정(D-day 얼굴)은 그대로 정상 렌더된다.
+    expect(find.text('D-5'), findsOneWidget);
+  });
+
+  testWidgets('날씨가 비가 아니면(실패 포함 기본값) 비 레이어가 없다', (tester) async {
+    await tester.pumpWidget(home(
+      teamId: 'lotte',
+      games: [
+        game(date: '2026-08-30', home: 'lg', away: 'lotte', stadium: 'jamsil'),
+      ],
+      now: now,
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(WeatherBackdrop), findsOneWidget);
+    expect(find.byType(RainLayer), findsNothing);
+    expect(find.text('D-5'), findsOneWidget);
   });
 
   testWidgets('잠실 경기: D-day 영역 테마가 홈팀(LG) 기준으로 적용된다', (tester) async {

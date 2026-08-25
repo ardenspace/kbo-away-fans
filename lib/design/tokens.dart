@@ -27,6 +27,9 @@ abstract final class ColorTokens {
 
   // 연출 (비 오는 날 배경 오버레이 등)
   static const Color rainOverlay = Color(0x662F3B52);
+
+  /// 빗줄기(RainLayer) 색 — 반투명 슬레이트 블루.
+  static const Color rainDrop = Color(0x8C42557C);
 }
 
 /// `space.*` — 간격 스케일. 마진, 패딩, 갭.
@@ -71,6 +74,24 @@ abstract final class TypeTokens {
   static const FontWeight weightExtraBold = FontWeight.w800;
 }
 
+/// `rain.*` — 비 연출(WeatherBackdrop 빗줄기) 수치 토큰.
+///
+/// 색은 [ColorTokens.rainDrop]/[ColorTokens.rainOverlay],
+/// 낙하 주기는 [MotionTokens.rainFall] 에서 온다.
+abstract final class RainTokens {
+  /// 화면에 동시에 떠 있는 빗줄기 개수.
+  static const int dropCount = 90;
+
+  /// 빗줄기 기본 길이 (방울별로 축소 변주된다).
+  static const double dropLength = 16;
+
+  /// 빗줄기 선 굵기.
+  static const double strokeWidth = 2;
+
+  /// 빗줄기 기울기 — 낙하 거리 대비 가로 이동 비율.
+  static const double slant = 0.2;
+}
+
 /// `motion.*` — 지속시간·커브. 탄성(bouncy spring)이 기본 톤.
 abstract final class MotionTokens {
   // 지속시간
@@ -83,6 +104,9 @@ abstract final class MotionTokens {
 
   /// 날씨 배경 연출 (비 시작/그침 등).
   static const Duration weatherShift = Duration(milliseconds: 900);
+
+  /// 빗줄기 한 방울이 화면을 종단하는 낙하 주기 (RainLayer 반복 주기).
+  static const Duration rainFall = Duration(milliseconds: 800);
 
   // 커브 — 탄성 커브가 기본값.
   static const Curve bouncy = Curves.elasticOut;
