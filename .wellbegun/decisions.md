@@ -92,3 +92,10 @@
 - [2026-08-25] [S] 구장 목록 표현은 StadiumPicker 골격의 칩 Wrap 그대로, 라벨은 stadium.name — 지도/그리드 불채택(9개 고정이라 칩 나열로 충분, 지도는 SDK 키 의존), discretion 명시 항목
 - [2026-08-25] [M] 잠실 탐색 테마 규칙은 순수 함수 browseThemeKeyForStadium(lib/features/home/stadium_browse.dart) — 당일(KST) 잠실 경기의 홈팀 테마(취소·우천취소 경기도 "그날의 홈팀"으로 인정해 플랜B 테마 규칙과 일관, 복수면 시작 시각 빠른 쪽), 당일 경기 없음·schedule 미획득이면 중립(null = 팀 스코프 없음); 단일 홈팀 구장은 경기 유무 무관 그 팀 테마
 - [2026-08-25] [S] 탐색 화면은 신설 없이 StadiumPlacesScreen(stadiumId, themeKey) 재사용 — 테마 전환·추천 목록·뒤로 가기(pop)가 기존 계약 그대로 동작, "뒤로 가면 내 팀 홈"은 push/pop 으로 자동 충족
+- [2026-08-25] [M] 일정 크롤 소스는 네이버 스포츠 일정 API(api-gw.sports.naver.com/schedule/games, JSON) — KBO 공식(koreabaseball.com)은 robots.txt 가 전 경로 크롤을 금지("사전 승인 없이 자동 수집 금지" 명시)하고 다음 스포츠 API 경로(/prx/)도 robots Disallow 라 제외; 네이버는 robots 제약 없음(404)·구조화 JSON 이라 파싱 안정, 소스 교체는 crawl-schedule.mjs 한 파일의 파서 교체로 국소적
+- [2026-08-25] [M] 상태 매핑은 cancel=true & statusInfo 에 '우천' 포함 → rain_canceled, 그 외 취소 → canceled, 나머지(경기전·진행·종료·서스펜디드) → scheduled — 네이버는 지난 취소를 '경기취소'로 정규화해 우천 구분이 당일 라벨에만 있으므로, 이전 산출물이 rain_canceled 인 경기는 정규화된 취소 라벨로 강등하지 않고 유지(경기일 고빈도 크롤이 당일 라벨을 포착하는 전제)
+- [2026-08-25] [M] 게임 id 는 네이버 gameId 원문 사용, 로스터 밖 팀 코드·구장 표기(제2구장 포항·울산 등) 경기는 warn 로그 후 제외 — id 는 유일·안정하고 앱은 opaque 문자열로 소비, 9구장 로스터 밖 경기는 앱 콘텐츠가 없어 무의미
+- [2026-08-25] [M] 크롤 창은 KST 오늘부터 30일 단일 요청, games 내용이 기존 산출물과 같으면 파일 미갱신 — 오늘 취소 감지·D-day 계산에 충분하고 과거 경기는 자연 탈락, generatedAt 만 바뀌는 고빈도 cron 커밋 노이즈를 크롤러 수준에서 차단
+- [2026-08-25] [M] 크롤 산출 교체는 임시 파일(schedule.next.json)에 쓰고 validate.mjs 통과 시에만 rename — fetch/파싱/검증 어느 실패든 기존 schedule.json 무변경 + 실패 로그 + exit 1
+- [2026-08-25] [M] schedule game id 유일성은 validate.mjs 의 스키마 후 의미 검사(SEMANTIC_CHECKS)로 강제 — JSON Schema 로 표현 불가한 규칙이라, 크롤러뿐 아니라 수작업 편집·deploy 등 모든 검증 경로가 같은 게이트를 지나 앱 파서(중복 id 문서 거부)와의 드리프트를 봉합
+- [2026-08-25] [M] cron 은 저빈도 매일 21:30 UTC(06:30 KST) + 고빈도 05:00–14:40 UTC 20분 간격(14:00–23:40 KST) — 주말 낮 경기(14:00 KST)부터 야간 경기·취소 공지까지 커버, 변경 시에만 커밋이라 고빈도 부담 없음

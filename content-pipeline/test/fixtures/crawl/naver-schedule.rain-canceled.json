@@ -1,0 +1,59 @@
+{
+  "code": 200,
+  "success": true,
+  "result": {
+    "games": [
+      {
+        "gameId": "20260816HHSS02026",
+        "superCategoryId": "baseball",
+        "categoryId": "kbo",
+        "gameDate": "2026-08-16",
+        "gameDateTime": "2026-08-16T19:00:00",
+        "stadium": "대구",
+        "homeTeamCode": "SS",
+        "homeTeamName": "삼성",
+        "homeTeamScore": 0,
+        "awayTeamCode": "HH",
+        "awayTeamName": "한화",
+        "awayTeamScore": 0,
+        "winner": "DRAW",
+        "statusCode": "BEFORE",
+        "statusNum": 0,
+        "statusInfo": "우천취소",
+        "cancel": true,
+        "suspended": false,
+        "roundCode": "kbo_r",
+        "reversedHomeAway": true,
+        "homeTeamEmblemUrl": "https://sports-phinf.pstatic.net/team/kbo/default/SS.png",
+        "awayTeamEmblemUrl": "https://sports-phinf.pstatic.net/team/kbo/default/HH.png",
+        "widgetEnable": false
+      },
+      {
+        "gameId": "20260816NCLT02026",
+        "superCategoryId": "baseball",
+        "categoryId": "kbo",
+        "gameDate": "2026-08-16",
+        "gameDateTime": "2026-08-16T19:00:00",
+        "stadium": "사직",
+        "homeTeamCode": "LT",
+        "homeTeamName": "롯데",
+        "homeTeamScore": 0,
+        "awayTeamCode": "NC",
+        "awayTeamName": "NC",
+        "awayTeamScore": 0,
+        "winner": "DRAW",
+        "statusCode": "BEFORE",
+        "statusNum": 0,
+        "statusInfo": "경기취소",
+        "cancel": true,
+        "suspended": false,
+        "roundCode": "kbo_r",
+        "reversedHomeAway": true,
+        "homeTeamEmblemUrl": "https://sports-phinf.pstatic.net/team/kbo/default/LT.png",
+        "awayTeamEmblemUrl": "https://sports-phinf.pstatic.net/team/kbo/default/NC.png",
+        "widgetEnable": false
+      }
+    ],
+    "gameTotalCount": 2
+  }
+}

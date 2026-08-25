@@ -1,0 +1,60 @@
+# KBO 일정 크롤 cron — 크롤 → 검증 → (통과·변경 시) data/schedule.json 갱신 커밋.
+# 배포(호스팅 업로드) 연결은 step 5.3 의 일 — 여기서는 산출물 갱신까지만.
+#
+# 두 빈도 (cron 은 UTC — KST = UTC+9):
+#   - 평시 저빈도: 매일 21:30 UTC = 06:30 KST (당일 편성·더블헤더 공지 반영)
+#   - 경기 시간대: 05:00–14:40 UTC 20분 간격 = 14:00–23:40 KST
+#     (주말 낮 14:00 경기부터 야간 경기 종료·우천 취소 공지까지 커버)
+# 크롤러가 games 내용이 같으면 파일을 안 건드리므로 고빈도여도 커밋은 변경 시에만 생긴다.
+name: crawl-schedule
+
+on:
+  schedule:
+    - cron: '30 21 * * *'    # 평시 저빈도 — 06:30 KST 하루 1회
+    - cron: '*/20 5-14 * * *' # 경기 시간대 — 14:00–23:40 KST 20분 간격
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: crawl-schedule
+  cancel-in-progress: false
+
+jobs:
+  crawl:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 의존성 설치
+        run: npm ci --prefix content-pipeline
+
+      - name: 크롤 (내부에서 validate 통과 시에만 산출물 교체)
+        run: node content-pipeline/crawl-schedule.mjs
+
+      - name: 산출물 재검증
+        run: node content-pipeline/common/validate.mjs content-pipeline/data/schedule.json
+
+      - name: 변경 시 커밋
+        run: |
+          if git diff --quiet -- content-pipeline/data/schedule.json; then
+            echo "schedule.json 변경 없음 — 커밋 생략"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add content-pipeline/data/schedule.json
+          git commit -m "chore(schedule): 크롤 자동 갱신"
+          git pull --rebase origin "${GITHUB_REF_NAME}"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
+
+      - name: 산출물 아티팩트 업로드
+        uses: actions/upload-artifact@v4
+        with:
+          name: schedule-json
+          path: content-pipeline/data/schedule.json

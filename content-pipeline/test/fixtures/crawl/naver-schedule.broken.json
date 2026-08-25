@@ -1,0 +1,13 @@
+{
+  "code": 200,
+  "success": true,
+  "result": {
+    "games": [
+      {
+        "gameId": "20260822KTSK02026",
+        "superCategoryId": "baseball",
+        "categoryId": "kbo",
+        "gameDate": "2026-08-22",
+        "gameDateTime": "2026-08-22T19:00:00",
+        "stadium": "문학",
+        "h

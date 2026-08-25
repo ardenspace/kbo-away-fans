@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-08-25T09:00:00.000Z",
+  "games": [
+    {
+      "id": "20260822KTSK02026",
+      "date": "2026-08-22",
+      "startTime": "19:00",
+      "homeTeamId": "ssg",
+      "awayTeamId": "kt",
+      "stadiumId": "munhak",
+      "status": "canceled"
+    },
+    {
+      "id": "20260822LGHH02026",
+      "date": "2026-08-22",
+      "startTime": "19:00",
+      "homeTeamId": "hanwha",
+      "awayTeamId": "lg",
+      "stadiumId": "daejeon",
+      "status": "canceled"
+    },
+    {
+      "id": "20260822LTOB02026",
+      "date": "2026-08-22",
+      "startTime": "19:00",
+      "homeTeamId": "doosan",
+      "awayTeamId": "lotte",
+      "stadiumId": "jamsil",
+      "status": "canceled"
+    },
+    {
+      "id": "20260825HHSK02026",
+      "date": "2026-08-25",
+      "startTime": "18:30",
+      "homeTeamId": "ssg",
+      "awayTeamId": "hanwha",
+      "stadiumId": "munhak",
+      "status": "scheduled"
+    },
+    {
+      "id": "20260825LTHT02026",
+      "date": "2026-08-25",
+      "startTime": "18:30",
+      "homeTeamId": "kia",
+      "awayTeamId": "lotte",
+      "stadiumId": "gwangju",
+      "status": "scheduled"
+    },
+    {
+      "id": "20260825NCLG02026",
+      "date": "2026-08-25",
+      "startTime": "18:30",
+      "homeTeamId": "lg",
+      "awayTeamId": "nc",
+      "stadiumId": "jamsil",
+      "status": "scheduled"
+    },
+    {
+      "id": "20260825OBKT02026",
+      "date": "2026-08-25",
+      "startTime": "18:30",
+      "homeTeamId": "kt",
+      "awayTeamId": "doosan",
+      "stadiumId": "suwon",
+      "status": "scheduled"
+    },
+    {
+      "id": "20260825SSWO02026",
+      "date": "2026-08-25",
+      "startTime": "18:30",
+      "homeTeamId": "kiwoom",
+      "awayTeamId": "samsung",
+      "stadiumId": "gocheok",
+      "status": "scheduled"
+    }
+  ]
+}

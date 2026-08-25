@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-08-25T09:00:00Z",
+  "games": [
+    {
+      "id": "20260825NCLG02026",
+      "date": "2026-08-25",
+      "startTime": "18:30",
+      "homeTeamId": "lg",
+      "awayTeamId": "nc",
+      "stadiumId": "jamsil",
+      "status": "scheduled"
+    },
+    {
+      "id": "20260825NCLG02026",
+      "date": "2026-08-25",
+      "startTime": "18:30",
+      "homeTeamId": "lg",
+      "awayTeamId": "nc",
+      "stadiumId": "jamsil",
+      "status": "rain_canceled"
+    }
+  ]
+}
