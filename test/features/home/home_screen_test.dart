@@ -17,6 +17,8 @@ import 'package:kbo_away_fans/content/models.dart';
 import 'package:kbo_away_fans/design/team_themes.dart';
 import 'package:kbo_away_fans/features/home/home_screen.dart';
 import 'package:kbo_away_fans/features/home/next_away_game.dart';
+import 'package:kbo_away_fans/features/places/stadium_places_screen.dart';
+import 'package:kbo_away_fans/ui/shared/category_chip.dart';
 import 'package:kbo_away_fans/ui/shared/dday_header.dart';
 import 'package:kbo_away_fans/ui/shared/team_theme_scope.dart';
 import 'package:kbo_away_fans/ui/shared/weather_backdrop.dart';
@@ -47,6 +49,7 @@ void main() {
     required String home,
     required String away,
     required String stadium,
+    GameStatus status = GameStatus.scheduled,
   }) {
     return Game(
       id: '$date-$stadium-$away-$home',
@@ -55,7 +58,7 @@ void main() {
       homeTeamId: home,
       awayTeamId: away,
       stadiumId: stadium,
-      status: GameStatus.scheduled,
+      status: status,
     );
   }
 
@@ -171,6 +174,99 @@ void main() {
     expect(find.byType(WeatherBackdrop), findsOneWidget);
     expect(find.byType(RainLayer), findsNothing);
     expect(find.text('D-5'), findsOneWidget);
+  });
+
+  testWidgets('rain_canceled 픽스처 → 플랜B 배너 + 목록 진입 시 실내 필터 활성',
+      (tester) async {
+    await tester.pumpWidget(home(
+      teamId: 'lotte',
+      games: [
+        game(
+          date: '2026-08-25',
+          home: 'lg',
+          away: 'lotte',
+          stadium: 'jamsil',
+          status: GameStatus.rainCanceled,
+        ),
+      ],
+      now: now,
+    ));
+    await tester.pumpAndSettle();
+
+    // 플랜B 배너 렌더 (우천 문구).
+    expect(find.text('오늘 경기가 우천으로 취소됐어요'), findsOneWidget);
+    expect(find.text('실내 놀거리 보러 가기'), findsOneWidget);
+
+    // 유도 버튼 → 추천 목록이 실내 필터 켜진 상태로 열린다.
+    await tester.tap(find.text('실내 놀거리 보러 가기'));
+    await tester.pumpAndSettle();
+    expect(find.byType(StadiumPlacesScreen), findsOneWidget);
+    final indoorChip = tester.widget<CategoryChip>(
+      find.widgetWithText(CategoryChip, '실내만'),
+    );
+    expect(indoorChip.selected, isTrue);
+  });
+
+  testWidgets('canceled(일반 취소) 픽스처도 플랜B 배너가 뜬다', (tester) async {
+    await tester.pumpWidget(home(
+      teamId: 'lotte',
+      games: [
+        game(
+          date: '2026-08-25',
+          home: 'lg',
+          away: 'lotte',
+          stadium: 'jamsil',
+          status: GameStatus.canceled,
+        ),
+      ],
+      now: now,
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.text('오늘 경기가 취소됐어요'), findsOneWidget);
+    expect(find.text('실내 놀거리 보러 가기'), findsOneWidget);
+  });
+
+  testWidgets('정상(scheduled) 경기에서는 플랜B 배너가 없다 (홈 무변화)', (tester) async {
+    await tester.pumpWidget(home(
+      teamId: 'lotte',
+      games: [
+        game(date: '2026-08-25', home: 'lg', away: 'lotte', stadium: 'jamsil'),
+      ],
+      now: now,
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.text('오늘'), findsOneWidget);
+    expect(find.text('실내 놀거리 보러 가기'), findsNothing);
+    expect(find.text('오늘 경기가 우천으로 취소됐어요'), findsNothing);
+    expect(find.text('오늘 경기가 취소됐어요'), findsNothing);
+  });
+
+  testWidgets('우천 취소 + 비 오는 날 — 비 연출(4.1)과 플랜B 배너가 함께 뜬다',
+      (tester) async {
+    await tester.pumpWidget(home(
+      teamId: 'lotte',
+      games: [
+        game(
+          date: '2026-08-25',
+          home: 'lg',
+          away: 'lotte',
+          stadium: 'jamsil',
+          status: GameStatus.rainCanceled,
+        ),
+      ],
+      now: now,
+      weather: WeatherEffect.rain,
+    ));
+    // RainLayer 는 repeat 애니메이션이라 pumpAndSettle 대신 고정 pump.
+    await tester.pump();
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.byType(RainLayer), findsOneWidget);
+    expect(find.text('오늘 경기가 우천으로 취소됐어요'), findsOneWidget);
+    expect(find.text('실내 놀거리 보러 가기'), findsOneWidget);
   });
 
   testWidgets('잠실 경기: D-day 영역 테마가 홈팀(LG) 기준으로 적용된다', (tester) async {

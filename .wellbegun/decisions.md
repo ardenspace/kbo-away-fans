@@ -84,3 +84,7 @@
 - [2026-08-25] [M] 날씨 갱신 주기는 좌표별 앱 세션 캐시(provider family 캐시, 타이머·폴링 없음) — 연출 용도라 실시간성 요구가 낮고 무료 티어 호출량을 아끼며, 강제 갱신은 invalidate 한 줄
 - [2026-08-25] [M] 비 연출은 RainLayer(repeat AnimationController + CustomPainter, 고정 시드 의사난수 빗줄기) — 연출 수치는 토큰으로(RainTokens 개수·길이·굵기·기울기 + MotionTokens.rainFall + ColorTokens.rainDrop), 눈 등 추가 날씨 연출은 미도입(discretion); 비 상태에서만 레이어가 트리에 존재해 위젯 테스트가 find.byType 으로 관찰
 - [2026-08-25] [S] 날씨 기준 좌표는 홈=다음 원정 경기 목적지 구장, 추천 목록=그 화면 구장 — WeatherBackdrop 은 raining bool 만 받아 날씨 계층과 비결합 유지(테스트 주입 경계)
+- [2026-08-25] [M] 오늘 취소 감지는 sealed NextAwayGame 확장 대신 별도 순수 함수 findTodayCanceledAwayGame(→ Game?, non-null = 플랜B 모드) — 기존 exhaustive switch 사용처 무파손, 다음 경기 계산과 독립이라 취소일에도 D-day 얼굴이 그대로 동작
+- [2026-08-25] [M] StadiumPlacesScreen 에 initialIndoorOnly(기본 false) 생성자 파라미터 추가 — 기존 사용처·테스트 무파손 하위 호환 확장, 실내 필터(_indoorOnly) 초기값만 주입
+- [2026-08-25] [S] 플랜B 배너는 홈 전용(홈 파일 내 렌더, 공유 로스터 미등록 — 렌더 지점 1곳) — 상태별 문구(우천/일반 취소, warning 토큰 액센트) + '실내 놀거리 보러 가기' 버튼이 취소 경기 구장의 추천 목록을 실내 필터 켠 채·홈팀 테마로 push ('전체 보기'와 같은 테마 규칙)
+- [2026-08-25] [S] 홈 비 연출 좌표 우선순위: 오늘 취소된 경기 구장 > 다음 원정 목적지 — 우천 취소일에도 4.1 비 연출과 플랜B 유도가 함께 동작

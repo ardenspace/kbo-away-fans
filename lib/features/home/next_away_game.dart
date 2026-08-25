@@ -74,6 +74,30 @@ NextAwayGame findNextAwayGame({
   return dDay <= 0 ? AwayGameToday(next) : AwayGameUpcoming(next, dDay);
 }
 
+/// 오늘(KST) 취소된(canceled/우천취소) [teamId] 팀의 원정 경기 — 없으면 null.
+///
+/// non-null 이면 홈은 플랜B 모드(실내 놀거리 유도, step 4.2)로 분기한다.
+/// scheduled 경기는 대상이 아니고, 같은 날 여러 건이면 시작 시각이 빠른
+/// 경기를 고른다. [findNextAwayGame] 은 취소 경기를 건너뛰므로 두 계산은
+/// 서로 독립이다 — 기존 sealed [NextAwayGame] 사용처는 그대로 동작한다.
+Game? findTodayCanceledAwayGame({
+  required ScheduleDocument schedule,
+  required String teamId,
+  required DateTime now,
+}) {
+  final today = kstDateOf(now);
+  Game? canceled;
+  for (final game in schedule.games) {
+    if (game.awayTeamId != teamId) continue;
+    if (game.status == GameStatus.scheduled) continue;
+    if (gameDateOf(game) != today) continue;
+    if (canceled == null || _byDateThenStart(game, canceled) < 0) {
+      canceled = game;
+    }
+  }
+  return canceled;
+}
+
 int _byDateThenStart(Game a, Game b) {
   // date(YYYY-MM-DD)·startTime(HH:MM)은 고정 폭이라 문자열 비교가 시간순.
   final byDate = a.date.compareTo(b.date);

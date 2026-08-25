@@ -104,6 +104,7 @@ void main() {
     RecordingAnalytics? analytics,
     String? themeKey,
     WeatherEffect weather = WeatherEffect.none,
+    bool initialIndoorOnly = false,
   }) {
     return ProviderScope(
       overrides: [
@@ -119,7 +120,11 @@ void main() {
         analyticsProvider.overrideWithValue(analytics ?? RecordingAnalytics()),
       ],
       child: MaterialApp(
-        home: StadiumPlacesScreen(stadiumId: 'jamsil', themeKey: themeKey),
+        home: StadiumPlacesScreen(
+          stadiumId: 'jamsil',
+          themeKey: themeKey,
+          initialIndoorOnly: initialIndoorOnly,
+        ),
       ),
     );
   }
@@ -192,6 +197,26 @@ void main() {
     expect(find.text('한강 나들이'), findsNothing);
 
     // 토글 해제 시 복귀.
+    await tapChip(tester, '실내만');
+    expect(find.byType(PlaceCard), findsNWidgets(3));
+  });
+
+  testWidgets('initialIndoorOnly 진입 → 실내 필터가 켜진 채 열린다 (플랜B 경로)',
+      (tester) async {
+    await tester.pumpWidget(screen(initialIndoorOnly: true));
+    await tester.pumpAndSettle();
+
+    // '실내만' 칩이 켜진 상태로 시작한다.
+    final indoorChip = tester.widget<CategoryChip>(
+      find.widgetWithText(CategoryChip, '실내만'),
+    );
+    expect(indoorChip.selected, isTrue);
+
+    // 실외 장소는 처음부터 걸러져 있다.
+    expect(find.byType(PlaceCard), findsNWidgets(2));
+    expect(find.text('한강 나들이'), findsNothing);
+
+    // 토글을 풀면 전체가 돌아온다 (필터 조작은 그대로 가능).
     await tapChip(tester, '실내만');
     expect(find.byType(PlaceCard), findsNWidgets(3));
   });

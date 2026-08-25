@@ -191,6 +191,110 @@ void main() {
     });
   });
 
+  group('findTodayCanceledAwayGame — 상태별 홈 모드 분기 (step 4.2)', () {
+    Game todayGame(GameStatus status) => game(
+          id: 'today',
+          date: '2026-08-25',
+          home: 'lg',
+          away: 'lotte',
+          stadium: 'jamsil',
+          status: status,
+        );
+
+    test('scheduled 오늘 경기 → null (정상 모드, 홈 무변화)', () {
+      final doc = schedule([todayGame(GameStatus.scheduled)]);
+      expect(
+        findTodayCanceledAwayGame(schedule: doc, teamId: 'lotte', now: now),
+        isNull,
+      );
+    });
+
+    test('canceled 오늘 경기 → 그 경기 (플랜B 모드)', () {
+      final doc = schedule([todayGame(GameStatus.canceled)]);
+      final result =
+          findTodayCanceledAwayGame(schedule: doc, teamId: 'lotte', now: now);
+      expect(result?.id, 'today');
+    });
+
+    test('rain_canceled 오늘 경기 → 그 경기 (플랜B 모드)', () {
+      final doc = schedule([todayGame(GameStatus.rainCanceled)]);
+      final result =
+          findTodayCanceledAwayGame(schedule: doc, teamId: 'lotte', now: now);
+      expect(result?.id, 'today');
+    });
+
+    test('오늘(KST)이 아닌 취소 경기(어제·내일)는 플랜B 대상이 아니다', () {
+      final doc = schedule([
+        game(
+          id: 'yesterday',
+          date: '2026-08-24',
+          home: 'lg',
+          away: 'lotte',
+          stadium: 'jamsil',
+          status: GameStatus.rainCanceled,
+        ),
+        game(
+          id: 'tomorrow',
+          date: '2026-08-26',
+          home: 'lg',
+          away: 'lotte',
+          stadium: 'jamsil',
+          status: GameStatus.canceled,
+        ),
+      ]);
+      expect(
+        findTodayCanceledAwayGame(schedule: doc, teamId: 'lotte', now: now),
+        isNull,
+      );
+    });
+
+    test('내 원정 경기가 아니면(홈 경기·다른 팀 경기) 대상이 아니다', () {
+      final doc = schedule([
+        game(
+          id: 'home-side',
+          date: '2026-08-25',
+          home: 'lotte',
+          away: 'lg',
+          stadium: 'sajik',
+          status: GameStatus.rainCanceled,
+        ),
+        game(
+          id: 'someone-else',
+          date: '2026-08-25',
+          home: 'nc',
+          away: 'hanwha',
+          stadium: 'changwon',
+          status: GameStatus.canceled,
+        ),
+      ]);
+      expect(
+        findTodayCanceledAwayGame(schedule: doc, teamId: 'lotte', now: now),
+        isNull,
+      );
+    });
+
+    test('오늘 취소 + 미래 경기 → 플랜B와 다음 D-day 계산이 독립으로 동작한다', () {
+      final doc = schedule([
+        todayGame(GameStatus.rainCanceled),
+        game(
+          id: 'next',
+          date: '2026-08-30',
+          home: 'samsung',
+          away: 'lotte',
+          stadium: 'daegu',
+        ),
+      ]);
+
+      final canceled =
+          findTodayCanceledAwayGame(schedule: doc, teamId: 'lotte', now: now);
+      expect(canceled?.id, 'today');
+
+      final next = findNextAwayGame(schedule: doc, teamId: 'lotte', now: now);
+      expect((next as AwayGameUpcoming).game.id, 'next');
+      expect(next.dDay, 5);
+    });
+  });
+
   group('themeKeyForGame — 잠실 경기 픽스처', () {
     late TeamsDocument teams;
 

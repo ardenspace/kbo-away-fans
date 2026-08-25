@@ -21,6 +21,8 @@ import 'next_away_game.dart';
 ///   아래 렌더 — 잠실처럼 홈팀이 2팀인 구장의 테마 전환 근거.
 /// - schedule 문서를 못 얻으면 안내 + 재시도, 남은 일정이 없으면
 ///   명시적 빈 상태([DdayHeader.empty])를 띄운다.
+/// - 오늘 원정 경기가 취소(우천 포함)된 날은 플랜B 배너가 얼굴 위에 떠서
+///   실내 놀거리 추천(실내 필터 켠 추천 목록)으로 유도한다 (step 4.2).
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key, required this.teamId});
 
@@ -35,22 +37,31 @@ class HomeScreen extends ConsumerWidget {
 
     final scheduleAsync = ref.watch(scheduleProvider);
     final scheduleDoc = contentDataOf(scheduleAsync);
+    final now = ref.watch(clockProvider)();
     final next = scheduleDoc == null
         ? null
-        : findNextAwayGame(
+        : findNextAwayGame(schedule: scheduleDoc, teamId: teamId, now: now);
+
+    // 오늘 원정 경기가 취소(우천 포함)됐으면 플랜B 모드 (step 4.2).
+    final canceledToday = scheduleDoc == null
+        ? null
+        : findTodayCanceledAwayGame(
             schedule: scheduleDoc,
             teamId: teamId,
-            now: ref.watch(clockProvider)(),
+            now: now,
           );
 
     // 목적지 구장 좌표의 날씨 → 비 연출 (step 4.1).
-    // 날씨 실패는 래퍼가 "연출 없음"으로 흡수하므로 여정에 영향이 없다.
-    final destination = switch (next) {
-      AwayGameToday(:final game) ||
-      AwayGameUpcoming(:final game) =>
-        stadiumsDoc?.byId(game.stadiumId),
-      _ => null,
-    };
+    // 플랜B 날엔 오늘 취소된 경기의 구장이 목적지 — 비 연출과 플랜B 유도가
+    // 함께 동작한다. 날씨 실패는 래퍼가 "연출 없음"으로 흡수한다.
+    final destinationGame = canceledToday ??
+        switch (next) {
+          AwayGameToday(:final game) || AwayGameUpcoming(:final game) => game,
+          _ => null,
+        };
+    final destination = destinationGame == null
+        ? null
+        : stadiumsDoc?.byId(destinationGame.stadiumId);
     final raining = destination != null &&
         weatherEffectOf(ref.watch(
               weatherEffectProvider(
@@ -66,6 +77,7 @@ class HomeScreen extends ConsumerWidget {
       stadiums: stadiumsDoc,
       places: placesDoc,
       next: next,
+      canceledToday: canceledToday,
       raining: raining,
       scheduleLoading: scheduleDoc == null && scheduleAsync is AsyncLoading,
       // 재시도는 콘텐츠 4종을 함께 다시 로드 — 부분 복구로 홈이
@@ -87,6 +99,7 @@ class _HomeScaffold extends StatelessWidget {
     required this.stadiums,
     required this.places,
     required this.next,
+    required this.canceledToday,
     required this.raining,
     required this.scheduleLoading,
     required this.onRetrySchedule,
@@ -100,6 +113,9 @@ class _HomeScaffold extends StatelessWidget {
 
   /// 다음 원정 경기 상태 — schedule 문서를 못 얻었으면 null.
   final NextAwayGame? next;
+
+  /// 오늘(KST) 취소된 원정 경기 — non-null 이면 플랜B 모드 (step 4.2).
+  final Game? canceledToday;
 
   /// 목적지 구장에 비가 오는지 (배경 연출용 — 여정과 무관).
   final bool raining;
@@ -146,7 +162,92 @@ class _HomeScaffold extends StatelessWidget {
         raining: raining,
         child: ListView(
           padding: const EdgeInsets.only(bottom: SpaceTokens.xxl),
-          children: [_face(context)],
+          children: [..._planB(context), _face(context)],
+        ),
+      ),
+    );
+  }
+
+  /// 플랜B 배너 (step 4.2) — 오늘 원정 경기가 취소된 날만 렌더된다.
+  /// 정상(scheduled) 경기에서는 빈 목록이라 홈에 아무 변화가 없다.
+  List<Widget> _planB(BuildContext context) {
+    final game = canceledToday;
+    if (game == null) return const [];
+
+    final rain = game.status == GameStatus.rainCanceled;
+    final city = stadiums?.byId(game.stadiumId)?.city;
+    return [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(
+          SpaceTokens.lg,
+          SpaceTokens.lg,
+          SpaceTokens.lg,
+          SpaceTokens.sm,
+        ),
+        child: Container(
+          padding: const EdgeInsets.all(SpaceTokens.lg),
+          decoration: BoxDecoration(
+            color: ColorTokens.surface,
+            borderRadius: BorderRadius.circular(RadiusTokens.lg),
+            border: Border.all(color: ColorTokens.warning),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    rain
+                        ? Icons.umbrella_rounded
+                        : Icons.event_busy_rounded,
+                    color: ColorTokens.warning,
+                  ),
+                  const SizedBox(width: SpaceTokens.sm),
+                  Expanded(
+                    child: Text(
+                      rain ? '오늘 경기가 우천으로 취소됐어요' : '오늘 경기가 취소됐어요',
+                      style: const TextStyle(
+                        fontFamily: TypeTokens.fontFamily,
+                        fontSize: TypeTokens.heading,
+                        fontWeight: TypeTokens.weightExtraBold,
+                        color: ColorTokens.textPrimary,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: SpaceTokens.sm),
+              Text(
+                '아쉽지만 ${city ?? '근처'} 실내 놀거리로 플랜B 어때요?',
+                style: const TextStyle(
+                  fontFamily: TypeTokens.fontFamily,
+                  fontSize: TypeTokens.body,
+                  fontWeight: TypeTokens.weightMedium,
+                  color: ColorTokens.textSecondary,
+                ),
+              ),
+              const SizedBox(height: SpaceTokens.md),
+              FilledButton(
+                onPressed: () => _openPlanB(context, game),
+                child: const Text('실내 놀거리 보러 가기'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ];
+  }
+
+  /// 플랜B 진입 — 취소된 경기 구장의 추천 목록을 실내 필터 켠 채로 연다.
+  /// 테마는 '전체 보기'와 같은 규칙(그 경기 홈팀)을 따른다.
+  void _openPlanB(BuildContext context, Game game) {
+    final teamsDoc = teams;
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => StadiumPlacesScreen(
+          stadiumId: game.stadiumId,
+          themeKey: teamsDoc == null ? null : themeKeyForGame(game, teamsDoc),
+          initialIndoorOnly: true,
         ),
       ),
     );

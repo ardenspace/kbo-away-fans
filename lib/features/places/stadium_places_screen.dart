@@ -31,11 +31,14 @@ import 'scratch_pick.dart';
 ///   [pickScratchPlace] 로 뽑은 랜덤 장소가 드러난다. 풀이 비면 카드도 없다.
 /// - [themeKey] 가 있으면 화면 전체를 그 팀 테마([TeamThemeScope])로 감싼다
 ///   (홈에서 진입 시 그 경기 홈팀 테마를 이어받는 근거).
+/// - [initialIndoorOnly] 가 true 면 실내 필터가 켜진 채로 열린다
+///   (우천 취소 플랜B 유도, step 4.2).
 class StadiumPlacesScreen extends ConsumerStatefulWidget {
   const StadiumPlacesScreen({
     super.key,
     required this.stadiumId,
     this.themeKey,
+    this.initialIndoorOnly = false,
   });
 
   /// 대상 구장 id (common.defs stadiumId).
@@ -43,6 +46,9 @@ class StadiumPlacesScreen extends ConsumerStatefulWidget {
 
   /// 화면에 적용할 팀 테마 키 (null 이면 기본 토큰).
   final String? themeKey;
+
+  /// 실내 필터를 켠 채로 진입할지 (우천 플랜B 유도 경로, step 4.2).
+  final bool initialIndoorOnly;
 
   @override
   ConsumerState<StadiumPlacesScreen> createState() =>
@@ -53,8 +59,8 @@ class _StadiumPlacesScreenState extends ConsumerState<StadiumPlacesScreen> {
   /// 선택된 카테고리 — null 이면 전체.
   PlaceCategory? _category;
 
-  /// 실내만 보기 (우천 플랜B 필터).
-  bool _indoorOnly = false;
+  /// 실내만 보기 (우천 플랜B 필터) — 진입 초기값은 위젯 파라미터에서 온다.
+  late bool _indoorOnly = widget.initialIndoorOnly;
 
   /// 긁기 카드 랜덤 소스 (선택 규칙 자체는 [pickScratchPlace] 가 단위 테스트 커버).
   final Random _random = Random();
