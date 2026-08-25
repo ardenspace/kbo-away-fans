@@ -7,12 +7,14 @@ import '../../design/tokens.dart';
 import '../../ui/shared/category_labels.dart';
 import '../../ui/shared/dday_header.dart';
 import '../../ui/shared/place_card.dart';
+import '../../ui/shared/stadium_picker.dart';
 import '../../ui/shared/team_theme_scope.dart';
 import '../../ui/shared/weather_backdrop.dart';
 import '../../weather/weather.dart';
 import '../places/stadium_places_screen.dart';
 import '../team_select/team_select_screen.dart';
 import 'next_away_game.dart';
+import 'stadium_browse.dart';
 
 /// 홈 화면 (step 2.3) — 다음 원정 경기 D-day 기본 얼굴.
 ///
@@ -23,6 +25,8 @@ import 'next_away_game.dart';
 ///   명시적 빈 상태([DdayHeader.empty])를 띄운다.
 /// - 오늘 원정 경기가 취소(우천 포함)된 날은 플랜B 배너가 얼굴 위에 떠서
 ///   실내 놀거리 추천(실내 필터 켠 추천 목록)으로 유도한다 (step 4.2).
+/// - 하단에는 "구장 골라 구경하기"([StadiumPicker]) 섹션이 상시 떠서
+///   경기 없는 날에도 아무 구장의 테마·추천을 구경할 수 있다 (step 4.3).
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key, required this.teamId});
 
@@ -79,6 +83,8 @@ class HomeScreen extends ConsumerWidget {
       next: next,
       canceledToday: canceledToday,
       raining: raining,
+      schedule: scheduleDoc,
+      now: now,
       scheduleLoading: scheduleDoc == null && scheduleAsync is AsyncLoading,
       // 재시도는 콘텐츠 4종을 함께 다시 로드 — 부분 복구로 홈이
       // raw id 저하 렌더되는 비일관성을 막는다.
@@ -101,6 +107,8 @@ class _HomeScaffold extends StatelessWidget {
     required this.next,
     required this.canceledToday,
     required this.raining,
+    required this.schedule,
+    required this.now,
     required this.scheduleLoading,
     required this.onRetrySchedule,
   });
@@ -119,6 +127,12 @@ class _HomeScaffold extends StatelessWidget {
 
   /// 목적지 구장에 비가 오는지 (배경 연출용 — 여정과 무관).
   final bool raining;
+
+  /// 경기 일정 — 잠실 탐색 테마 결정(당일 홈팀)에 쓴다. 못 얻었으면 null.
+  final ScheduleDocument? schedule;
+
+  /// 현재 시각 ([clockProvider] 주입) — 잠실 "당일" 판정 기준.
+  final DateTime now;
 
   /// schedule 이 아직 로드 중인지 (null 인 이유의 구분).
   final bool scheduleLoading;
@@ -162,7 +176,7 @@ class _HomeScaffold extends StatelessWidget {
         raining: raining,
         child: ListView(
           padding: const EdgeInsets.only(bottom: SpaceTokens.xxl),
-          children: [..._planB(context), _face(context)],
+          children: [..._planB(context), _face(context), ..._explore(context)],
         ),
       ),
     );
@@ -248,6 +262,59 @@ class _HomeScaffold extends StatelessWidget {
           stadiumId: game.stadiumId,
           themeKey: teamsDoc == null ? null : themeKeyForGame(game, teamsDoc),
           initialIndoorOnly: true,
+        ),
+      ),
+    );
+  }
+
+  /// 구장 골라 구경하기 (step 4.3) — 경기 없는 날의 두 번째 진입점.
+  ///
+  /// 얼굴 상태와 무관하게 홈 하단에 상시 떠서, 아무 구장이나 골라 그 구장
+  /// 테마·추천 목록을 구경할 수 있다. stadiums 문서를 못 얻었으면 비노출.
+  List<Widget> _explore(BuildContext context) {
+    final stadiumsDoc = stadiums;
+    if (stadiumsDoc == null) return const [];
+    return [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(
+          SpaceTokens.lg,
+          SpaceTokens.xl,
+          SpaceTokens.lg,
+          0,
+        ),
+        child: StadiumPicker(
+          stadiums: [
+            for (final stadium in stadiumsDoc.stadiums)
+              StadiumPickerItem(id: stadium.id, label: stadium.name),
+          ],
+          onSelected: (id) => _openBrowse(context, stadiumsDoc, id),
+        ),
+      ),
+    ];
+  }
+
+  /// 탐색 진입 — 선택 구장의 추천 목록을 [browseThemeKeyForStadium] 이
+  /// 정한 테마(잠실 무경기 날은 중립 = null)로 push. 뒤로 가면 내 팀 홈.
+  void _openBrowse(
+    BuildContext context,
+    StadiumsDocument stadiumsDoc,
+    String stadiumId,
+  ) {
+    final stadium = stadiumsDoc.byId(stadiumId);
+    final teamsDoc = teams;
+    final themeKey = stadium == null || teamsDoc == null
+        ? null
+        : browseThemeKeyForStadium(
+            stadium: stadium,
+            teams: teamsDoc,
+            schedule: schedule,
+            now: now,
+          );
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => StadiumPlacesScreen(
+          stadiumId: stadiumId,
+          themeKey: themeKey,
         ),
       ),
     );

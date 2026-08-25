@@ -20,6 +20,7 @@ import 'package:kbo_away_fans/features/home/next_away_game.dart';
 import 'package:kbo_away_fans/features/places/stadium_places_screen.dart';
 import 'package:kbo_away_fans/ui/shared/category_chip.dart';
 import 'package:kbo_away_fans/ui/shared/dday_header.dart';
+import 'package:kbo_away_fans/ui/shared/stadium_picker.dart';
 import 'package:kbo_away_fans/ui/shared/team_theme_scope.dart';
 import 'package:kbo_away_fans/ui/shared/weather_backdrop.dart';
 import 'package:kbo_away_fans/weather/weather.dart';
@@ -267,6 +268,137 @@ void main() {
     expect(find.byType(RainLayer), findsOneWidget);
     expect(find.text('오늘 경기가 우천으로 취소됐어요'), findsOneWidget);
     expect(find.text('실내 놀거리 보러 가기'), findsOneWidget);
+  });
+
+  group('구장 골라 구경하기 (step 4.3)', () {
+    /// 하단 섹션까지 스크롤해 [finder] 를 화면에 노출시킨다.
+    Future<void> reveal(WidgetTester tester, Finder finder) async {
+      await tester.ensureVisible(finder);
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('홈 하단에 9개 구장이 모두 렌더된다 (경기 없는 날 포함)', (tester) async {
+      await tester.pumpWidget(home(teamId: 'lotte', games: const [], now: now));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byType(StadiumPicker, skipOffstage: false),
+        findsOneWidget,
+      );
+      final picker = tester.widget<StadiumPicker>(
+        find.byType(StadiumPicker, skipOffstage: false),
+      );
+      expect(picker.stadiums, hasLength(9));
+      for (final stadium in stadiumsDoc.stadiums) {
+        expect(
+          find.text(stadium.name, skipOffstage: false),
+          findsOneWidget,
+          reason: '${stadium.id} 구장이 렌더되어야 한다',
+        );
+      }
+    });
+
+    testWidgets('구장 선택 → 그 구장 id 의 추천 목록이 홈팀 테마로 뜬다', (tester) async {
+      await tester.pumpWidget(home(teamId: 'lotte', games: const [], now: now));
+      await tester.pumpAndSettle();
+
+      final daegu = find.text('대구 삼성라이온즈파크', skipOffstage: false);
+      await reveal(tester, daegu);
+      await tester.tap(daegu);
+      await tester.pumpAndSettle();
+
+      final screen = tester.widget<StadiumPlacesScreen>(
+        find.byType(StadiumPlacesScreen),
+      );
+      expect(screen.stadiumId, 'daegu');
+      expect(screen.themeKey, teamsDoc.byId('samsung')!.themeKey);
+      // 테마 색 전환 — 추천 목록이 삼성 테마 스코프 아래 렌더된다.
+      final scope = tester.widget<TeamThemeScope>(
+        find.descendant(
+          of: find.byType(StadiumPlacesScreen),
+          matching: find.byType(TeamThemeScope),
+        ),
+      );
+      expect(scope.theme.primary, TeamThemes.byId['samsung']!.primary);
+    });
+
+    testWidgets('잠실 선택 — 당일 경기가 없으면 중립(팀 스코프 없음)', (tester) async {
+      await tester.pumpWidget(home(
+        teamId: 'lotte',
+        games: [
+          // 내일 잠실 경기 — "당일"이 아니므로 중립이어야 한다.
+          game(
+            date: '2026-08-26',
+            home: 'lg',
+            away: 'lotte',
+            stadium: 'jamsil',
+          ),
+        ],
+        now: now,
+      ));
+      await tester.pumpAndSettle();
+
+      final jamsil = find.text('잠실야구장', skipOffstage: false);
+      await reveal(tester, jamsil);
+      await tester.tap(jamsil);
+      await tester.pumpAndSettle();
+
+      final screen = tester.widget<StadiumPlacesScreen>(
+        find.byType(StadiumPlacesScreen),
+      );
+      expect(screen.stadiumId, 'jamsil');
+      expect(screen.themeKey, isNull);
+      expect(
+        find.descendant(
+          of: find.byType(StadiumPlacesScreen),
+          matching: find.byType(TeamThemeScope),
+        ),
+        findsNothing,
+      );
+    });
+
+    testWidgets('잠실 선택 — 당일 잠실 경기가 있으면 그 경기 홈팀 테마', (tester) async {
+      await tester.pumpWidget(home(
+        teamId: 'lotte',
+        games: [
+          game(date: '2026-08-25', home: 'doosan', away: 'kia', stadium: 'jamsil'),
+        ],
+        now: now,
+      ));
+      await tester.pumpAndSettle();
+
+      final jamsil = find.text('잠실야구장', skipOffstage: false);
+      await reveal(tester, jamsil);
+      await tester.tap(jamsil);
+      await tester.pumpAndSettle();
+
+      final screen = tester.widget<StadiumPlacesScreen>(
+        find.byType(StadiumPlacesScreen),
+      );
+      expect(screen.stadiumId, 'jamsil');
+      expect(screen.themeKey, teamsDoc.byId('doosan')!.themeKey);
+    });
+
+    testWidgets('뒤로 가면 내 팀 테마의 홈으로 돌아온다', (tester) async {
+      await tester.pumpWidget(home(teamId: 'lotte', games: const [], now: now));
+      await tester.pumpAndSettle();
+
+      final daegu = find.text('대구 삼성라이온즈파크', skipOffstage: false);
+      await reveal(tester, daegu);
+      await tester.tap(daegu);
+      await tester.pumpAndSettle();
+      expect(find.byType(StadiumPlacesScreen), findsOneWidget);
+
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+
+      expect(find.byType(HomeScreen), findsOneWidget);
+      expect(find.byType(StadiumPlacesScreen), findsNothing);
+      final scope = tester.widget<TeamThemeScope>(
+        find.byType(TeamThemeScope).first,
+      );
+      expect(scope.theme.primary, TeamThemes.byId['lotte']!.primary);
+    });
   });
 
   testWidgets('잠실 경기: D-day 영역 테마가 홈팀(LG) 기준으로 적용된다', (tester) async {
