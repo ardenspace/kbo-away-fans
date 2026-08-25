@@ -4,15 +4,27 @@ library;
 /// 콘텐츠 JSON 4종(teams/stadiums/places/schedule)의 배포 원점.
 ///
 /// **이 상수 하나만 바꾸면 소스가 바뀐다** (spec의 acceptance 계약).
-/// 실호스팅 URL 연결은 step 5.3의 일이다.
+/// 기본값은 실호스팅(GitHub Pages, `content-pipeline/deploy.mjs` 가
+/// gh-pages 브랜치로 올리는 곳)이다.
 ///
-/// 개발 단계에서는 저장소의 샘플 데이터를 로컬 정적 서버로 서빙한다:
+/// 로컬 개발·CI 는 `--dart-define=CONTENT_BASE_URL=...` 로 오버라이드한다:
 /// ```sh
 /// python3 -m http.server 8787 --directory content-pipeline/data
+/// flutter run --dart-define=CONTENT_BASE_URL=http://127.0.0.1:8787
 /// ```
 /// (iOS 시뮬레이터는 `127.0.0.1` 그대로, Android 에뮬레이터는
-/// 호스트 루프백이 `10.0.2.2` 이므로 이 상수를 그 주소로 바꿔 쓴다.)
-const String kContentBaseUrl = 'http://127.0.0.1:8787';
+/// 호스트 루프백이 `10.0.2.2`.)
+const String kContentBaseUrl = String.fromEnvironment(
+  'CONTENT_BASE_URL',
+  defaultValue: 'https://ardenspace.github.io/kbo-away-fans',
+);
+
+/// 콘텐츠 문서 하나의 HTTP 요청 타임아웃.
+///
+/// 실기기에서 첫 로드가 무기한 대기하지 않도록 로더의 모든 GET 에 적용한다.
+/// 파이프라인 fetch 공통(`content-pipeline/common/fetch.mjs`)의 시도당
+/// 타임아웃 10초와 같은 값.
+const Duration kContentFetchTimeout = Duration(seconds: 10);
 
 /// 앱이 이해하는 콘텐츠 계약 버전.
 ///

@@ -1,0 +1,40 @@
+# 콘텐츠 배포 — main 의 산출물/계약/배포 스크립트가 바뀌면 gh-pages 로 재배포.
+#
+# 사람 손으로 push 한 변경(큐레이션 병합, 스키마 갱신 등)을 커버한다.
+# 크롤 cron 이 GITHUB_TOKEN 으로 만든 커밋은 이 워크플로를 트리거하지 않으므로,
+# 그 경로는 crawl-schedule.yml 이 자기 안에서 deploy 를 직접 실행한다.
+# deploy.mjs 는 검증 실패 시 exit 1 로 중단하고, 원격 트리와 같으면 push 를 생략한다.
+name: deploy-content
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'content-pipeline/data/**'
+      - 'content-pipeline/schema/**'
+      - 'content-pipeline/deploy.mjs'
+      - 'content-pipeline/common/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: deploy-content
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 의존성 설치
+        run: npm ci --prefix content-pipeline
+
+      - name: 검증 후 배포 (검증 실패 시 배포 중단)
+        run: node content-pipeline/deploy.mjs

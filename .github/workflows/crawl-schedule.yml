@@ -1,5 +1,8 @@
-# KBO 일정 크롤 cron — 크롤 → 검증 → (통과·변경 시) data/schedule.json 갱신 커밋.
-# 배포(호스팅 업로드) 연결은 step 5.3 의 일 — 여기서는 산출물 갱신까지만.
+# KBO 일정 크롤 cron — 크롤 → 검증 → (통과·변경 시) data/schedule.json 갱신 커밋 → 배포.
+#
+# 배포를 이 워크플로에서 직접 잇는 이유: GITHUB_TOKEN 으로 push 한 커밋은
+# 다른 워크플로(deploy-content.yml 의 on: push)를 트리거하지 않는다.
+# deploy.mjs 는 원격 gh-pages 트리와 같으면 push 를 생략하므로 중복 실행이 싸다.
 #
 # 두 빈도 (cron 은 UTC — KST = UTC+9):
 #   - 평시 저빈도: 매일 21:30 UTC = 06:30 KST (당일 편성·더블헤더 공지 반영)
@@ -41,9 +44,11 @@ jobs:
         run: node content-pipeline/common/validate.mjs content-pipeline/data/schedule.json
 
       - name: 변경 시 커밋
+        id: commit
         run: |
           if git diff --quiet -- content-pipeline/data/schedule.json; then
             echo "schedule.json 변경 없음 — 커밋 생략"
+            echo "changed=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           git config user.name "github-actions[bot]"
@@ -52,6 +57,11 @@ jobs:
           git commit -m "chore(schedule): 크롤 자동 갱신"
           git pull --rebase origin "${GITHUB_REF_NAME}"
           git push origin "HEAD:${GITHUB_REF_NAME}"
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      - name: 배포 (gh-pages) — 변경 또는 수동 실행 시
+        if: steps.commit.outputs.changed == 'true' || github.event_name == 'workflow_dispatch'
+        run: node content-pipeline/deploy.mjs
 
       - name: 산출물 아티팩트 업로드
         uses: actions/upload-artifact@v4

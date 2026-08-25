@@ -6,6 +6,7 @@
   "description": "kbo-away-fans 콘텐츠 파이프라인 — 크롤링·큐레이션 산출 JSON의 계약(스키마)과 빌드 검증",
   "scripts": {
     "validate": "node common/validate.mjs",
+    "deploy": "node deploy.mjs",
     "test": "node --test"
   },
   "dependencies": {

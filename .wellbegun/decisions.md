@@ -105,3 +105,8 @@
 - [2026-08-25] [S] 플랜B 커버리지 임계(장소 10·카테고리 3·실내 3)는 병합기 warn + CURATION.md 문서화 — 채우는 중인 구장이 있어 빌드 실패로는 안 만들고, 출시 전 전 구장 충족을 운영 조건으로 명시; 시범 구장 충족은 파이프라인 테스트와 앱 통합 테스트가 단언
 - [2026-08-25] [M] 대전 한화생명 볼파크 좌표를 36.3163/127.4314 로 교정 (위키백과 좌표, 중구 부사동 대종로 373) — 기존 샘플 값(36.3403/127.3869)은 둔산동 방향 약 5km 오차; 나머지 8구장 좌표·명칭은 실제 값과 일치 확인
 - [2026-08-25] [S] 샤라웃은 매체 근거가 확인된 4곳만 (에스콰이어 '선수 Pick' 기사 등) — 기사에 함께 언급된 돈사돈(장원준 단골)은 잠실 인근 지점 실재를 확인 못 해 제외 (허위 출처 금지 규칙); 나머지는 shoutout 없는 일반 큐레이션
+- [2026-08-25] [M] 콘텐츠 호스팅은 GitHub Pages, 배포는 deploy.mjs 가 git plumbing(hash-object→mktree→commit-tree)으로 4종 JSON+.nojekyll 고아 커밋을 gh-pages 브랜치에 force-push — 이력 원본은 main 의 data/ 커밋이라 gh-pages 이력 불필요, 원격 트리 동일 시 push 생략(idempotent); Actions 공식 Pages 배포(actions/deploy-pages) 대신 브랜치 방식이라 로컬·CI 어디서든 스크립트 한 번으로 배포 가능
+- [2026-08-25] [M] 크롤 cron → 배포 연결은 crawl-schedule.yml 안에서 deploy.mjs 직접 실행(변경 커밋 또는 수동 실행 시) — GITHUB_TOKEN push 는 다른 워크플로의 on: push 를 트리거하지 않아 별도 워크플로로는 안 이어짐; 사람 push 경로는 deploy-content.yml(on: push paths=data/·schema/·common/·deploy.mjs)이 커버
+- [2026-08-25] [M] kContentBaseUrl 은 String.fromEnvironment('CONTENT_BASE_URL') 기본값 https://ardenspace.github.io/kbo-away-fans — 기존 dart-define 패턴(NAVER_MAP_CLIENT_ID·OPENWEATHER_API_KEY)과 동일하게 로컬/CI 는 빌드 시 오버라이드, "URL 상수 하나로 전환" 계약 유지
+- [2026-08-25] [S] 로더 HTTP 타임아웃은 kContentFetchTimeout 10초 (Future.timeout, TimeoutException 은 기존 network issue 분류로 흡수) — 파이프라인 fetch 공통의 시도당 타임아웃과 같은 값, 실기기 첫 로드 무기한 대기 차단
+- [2026-08-25] [S] 실 URL 통합 테스트는 test/content/content_loader_live_test.dart 로 두고 CONTENT_LIVE_TEST dart-define 게이트로 skip 기본 — 평상시 flutter test 를 네트워크 없이 유지, CI/로컬은 CONTENT_BASE_URL 오버라이드로 스테이징·로컬 서버 대상 실행 가능 (integration_test/ 는 실기기 필요라 불채택)

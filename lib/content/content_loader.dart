@@ -166,8 +166,11 @@ class ContentLoader {
 
     String? body;
     try {
-      final response =
-          await client.get(Uri.parse('$baseUrl/${kind.fileName}'));
+      // 타임아웃 없이는 실기기 첫 로드가 무기한 대기할 수 있다 —
+      // TimeoutException 은 아래 `on Exception` 이 network issue 로 분류한다.
+      final response = await client
+          .get(Uri.parse('$baseUrl/${kind.fileName}'))
+          .timeout(kContentFetchTimeout);
       if (response.statusCode == 200) {
         body = utf8.decode(response.bodyBytes);
       } else {
