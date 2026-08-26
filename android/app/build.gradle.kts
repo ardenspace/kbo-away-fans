@@ -13,7 +13,7 @@ if (file("google-services.json").exists()) {
 }
 
 android {
-    namespace = "dev.arden.kbo_away_fans"
+    namespace = "com.ardenspace.kbo_away_fans"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -24,7 +24,7 @@ android {
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "dev.arden.kbo_away_fans"
+        applicationId = "com.ardenspace.kbo_away_fans"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion

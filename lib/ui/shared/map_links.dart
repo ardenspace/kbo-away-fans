@@ -8,7 +8,7 @@ library;
 import 'package:url_launcher/url_launcher.dart';
 
 /// nmap 딥링크 관례상 호출 앱 식별자(appname 파라미터)로 넣는 번들 id.
-const String kNaverMapCallerAppName = 'dev.arden.kbo_away_fans';
+const String kNaverMapCallerAppName = 'com.ardenspace.kbo_away_fans';
 
 /// 네이버지도 앱 길안내 딥링크 (대중교통 기준).
 ///

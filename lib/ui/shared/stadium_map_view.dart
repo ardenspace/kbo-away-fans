@@ -85,6 +85,10 @@ class StadiumMapView extends StatelessWidget {
   }
 
   /// 실 SDK 지도 — 초기 카메라를 중심 좌표에 두고 마커를 얹는다.
+  ///
+  /// 마커가 둘 이상이면 [initialZoom] 고정값으로는 마커가 화면 밖으로
+  /// 잘릴 수 있어(구장과 장소가 멀 때), 지도가 준비된 뒤 모든 마커를
+  /// 감싸는 경계로 카메라를 다시 맞춘다.
   Widget _map() {
     return NaverMap(
       options: NaverMapViewOptions(
@@ -102,7 +106,25 @@ class StadiumMapView extends StatelessWidget {
               caption: NOverlayCaption(text: marker.label),
             ),
         });
+        _fitMarkers(controller);
       },
+    );
+  }
+
+  /// 마커가 모두 보이도록 카메라를 경계에 맞춘다.
+  ///
+  /// 마커가 하나 이하면 감쌀 영역이 없으므로 초기 카메라를 그대로 둔다.
+  /// 여백은 캡션과 지도 저작권 표시가 마커를 가리지 않을 만큼 준다.
+  void _fitMarkers(NaverMapController controller) {
+    if (markers.length < 2) return;
+    final bounds = NLatLngBounds.from(
+      markers.map((marker) => NLatLng(marker.lat, marker.lng)),
+    );
+    controller.updateCamera(
+      NCameraUpdate.fitBounds(
+        bounds,
+        padding: const EdgeInsets.all(SpaceTokens.xxl),
+      ),
     );
   }
 
