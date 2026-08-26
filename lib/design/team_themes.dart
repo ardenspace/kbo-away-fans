@@ -39,24 +39,24 @@ abstract final class TeamThemes {
   );
 
   static const TeamTheme doosan = TeamTheme(
-    primary: Color(0xFF131230),
+    primary: Color(0xFF1A1748),
     onPrimary: Color(0xFFFFFFFF),
-    secondary: Color(0xFFED1C24),
+    secondary: Color(0xFFEB1D25),
     onSecondary: Color(0xFFFFFFFF),
   );
 
   static const TeamTheme kiwoom = TeamTheme(
     primary: Color(0xFF570514),
     onPrimary: Color(0xFFFFFFFF),
-    secondary: Color(0xFFB07D4F),
-    onSecondary: Color(0xFF1A1A1E),
+    secondary: Color(0xFFB07F4A),
+    onSecondary: Color(0xFFFFFFFF),
   );
 
   static const TeamTheme ssg = TeamTheme(
     primary: Color(0xFFCE0E2D),
     onPrimary: Color(0xFFFFFFFF),
     secondary: Color(0xFFFFB81C),
-    onSecondary: Color(0xFF1A1A1E),
+    onSecondary: Color(0xFF000000),
   );
 
   static const TeamTheme kt = TeamTheme(
@@ -76,8 +76,8 @@ abstract final class TeamThemes {
   static const TeamTheme samsung = TeamTheme(
     primary: Color(0xFF074CA1),
     onPrimary: Color(0xFFFFFFFF),
-    secondary: Color(0xFF7A7E83),
-    onSecondary: Color(0xFFFFFFFF),
+    secondary: Color(0xFFC0C0C0),
+    onSecondary: Color(0xFF074CA1),
   );
 
   static const TeamTheme lotte = TeamTheme(
@@ -91,13 +91,13 @@ abstract final class TeamThemes {
     primary: Color(0xFF315288),
     onPrimary: Color(0xFFFFFFFF),
     secondary: Color(0xFFAF917B),
-    onSecondary: Color(0xFF1A1A1E),
+    onSecondary: Color(0xFF00275A),
   );
 
   static const TeamTheme hanwha = TeamTheme(
-    primary: Color(0xFFFF6600),
+    primary: Color(0xFFFC4E00),
     onPrimary: Color(0xFFFFFFFF),
-    secondary: Color(0xFF25282A),
+    secondary: Color(0xFF07111F),
     onSecondary: Color(0xFFFFFFFF),
   );
 
