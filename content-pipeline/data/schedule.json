@@ -1,52 +1,7 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-08-25T15:24:57.945Z",
+  "generatedAt": "2026-08-26T16:03:21.034Z",
   "games": [
-    {
-      "id": "20260826HHSK02026",
-      "date": "2026-08-26",
-      "startTime": "18:30",
-      "homeTeamId": "ssg",
-      "awayTeamId": "hanwha",
-      "stadiumId": "munhak",
-      "status": "scheduled"
-    },
-    {
-      "id": "20260826LTHT02026",
-      "date": "2026-08-26",
-      "startTime": "18:30",
-      "homeTeamId": "kia",
-      "awayTeamId": "lotte",
-      "stadiumId": "gwangju",
-      "status": "scheduled"
-    },
-    {
-      "id": "20260826NCLG02026",
-      "date": "2026-08-26",
-      "startTime": "18:30",
-      "homeTeamId": "lg",
-      "awayTeamId": "nc",
-      "stadiumId": "jamsil",
-      "status": "scheduled"
-    },
-    {
-      "id": "20260826OBKT02026",
-      "date": "2026-08-26",
-      "startTime": "18:30",
-      "homeTeamId": "kt",
-      "awayTeamId": "doosan",
-      "stadiumId": "suwon",
-      "status": "scheduled"
-    },
-    {
-      "id": "20260826SSWO02026",
-      "date": "2026-08-26",
-      "startTime": "18:30",
-      "homeTeamId": "kiwoom",
-      "awayTeamId": "samsung",
-      "stadiumId": "gocheok",
-      "status": "scheduled"
-    },
     {
       "id": "20260827HHSK02026",
       "date": "2026-08-27",
@@ -995,6 +950,33 @@
     {
       "id": "20260924SSSK02026",
       "date": "2026-09-24",
+      "startTime": "17:00",
+      "homeTeamId": "ssg",
+      "awayTeamId": "samsung",
+      "stadiumId": "munhak",
+      "status": "scheduled"
+    },
+    {
+      "id": "20260925HHNC02026",
+      "date": "2026-09-25",
+      "startTime": "17:00",
+      "homeTeamId": "nc",
+      "awayTeamId": "hanwha",
+      "stadiumId": "changwon",
+      "status": "scheduled"
+    },
+    {
+      "id": "20260925LTOB02026",
+      "date": "2026-09-25",
+      "startTime": "17:00",
+      "homeTeamId": "doosan",
+      "awayTeamId": "lotte",
+      "stadiumId": "jamsil",
+      "status": "scheduled"
+    },
+    {
+      "id": "20260925SSSK02026",
+      "date": "2026-09-25",
       "startTime": "17:00",
       "homeTeamId": "ssg",
       "awayTeamId": "samsung",
