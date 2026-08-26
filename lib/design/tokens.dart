@@ -12,6 +12,11 @@ abstract final class ColorTokens {
   // 배경·표면
   static const Color background = Color(0xFFF7F6F2);
   static const Color surface = Color(0xFFFFFFFF);
+
+  /// 스플래시 배경 — 실밥 에셋(`assets/splash/seam_*.png`)에 구워진
+  /// 오프화이트와 정확히 같은 값이어야 이음매가 보이지 않는다.
+  /// 에셋을 다시 만들면 이 값도 함께 맞춘다.
+  static const Color splashBackground = Color(0xFFF1F0EF);
   static const Color surfaceDim = Color(0xFFEDEBE6);
   static const Color outline = Color(0xFFD9D6CF);
 
@@ -92,6 +97,52 @@ abstract final class RainTokens {
   static const double slant = 0.2;
 }
 
+/// `splash.*` — 스플래시 연출 수치 토큰.
+///
+/// 실밥 두 가닥이 위아래로 살짝 벌어지고, 그 사이에서 로고가 튀어나와
+/// 몇 번 작게 점프한다. 거리 값은 전부 화면 크기 대비 비율이라 기기
+/// 크기와 무관하게 같은 인상을 준다. 커브는 [MotionTokens] 에서 온다.
+abstract final class SplashTokens {
+  /// 벌어지기 직전 안쪽으로 움츠리는 반동 구간.
+  static const Duration seamAnticipation = Duration(milliseconds: 150);
+
+  /// 실밥이 바깥으로 벌어지는 구간.
+  static const Duration seamSeparation = Duration(milliseconds: 600);
+
+  /// 실밥이 최종적으로 벌어지는 거리 — 화면 높이 대비 비율.
+  static const double seamSeparationFactor = 0.06;
+
+  /// 반동으로 안쪽으로 움츠리는 거리 — 벌어지는 거리 대비 비율.
+  static const double seamAnticipationFactor = 0.15;
+
+  /// 실밥이 벌어지기 시작한 뒤 로고가 등장하기까지의 지연.
+  static const Duration logoDelay = Duration(milliseconds: 200);
+
+  /// 로고가 크기 0 에서 1 로 튀어나오는 구간 ("띠요옹").
+  static const Duration logoPop = Duration(milliseconds: 700);
+
+  /// 등장 후 작은 점프를 모두 마치기까지의 구간.
+  static const Duration logoBounce = Duration(milliseconds: 500);
+
+  /// 작은 점프 횟수.
+  static const int logoBounceCount = 3;
+
+  /// 첫 점프의 높이 — 화면 높이 대비 비율.
+  static const double logoBounceFactor = 0.028;
+
+  /// 점프마다 높이가 줄어드는 비율 (1 이면 잦아들지 않는다).
+  static const double logoBounceDecay = 0.55;
+
+  /// 로고 폭 — 화면 폭 대비 비율.
+  static const double logoWidthFactor = 0.68;
+
+  /// 연출이 끝나고 다음 화면으로 넘기기 전 머무는 시간.
+  static const Duration hold = Duration(milliseconds: 300);
+
+  /// 스플래시에서 앱 첫 화면으로 넘어가는 페이드 구간.
+  static const Duration handoff = Duration(milliseconds: 350);
+}
+
 /// `motion.*` — 지속시간·커브. 탄성(bouncy spring)이 기본 톤.
 abstract final class MotionTokens {
   // 지속시간
@@ -112,4 +163,10 @@ abstract final class MotionTokens {
   static const Curve bouncy = Curves.elasticOut;
   static const Curve emphasized = Curves.easeOutBack;
   static const Curve standard = Curves.easeOutCubic;
+
+  /// 위로 솟는 구간 — 처음이 빠르고 정점에서 느려진다 (점프의 상승부).
+  static const Curve rise = Curves.easeOut;
+
+  /// 아래로 떨어지는 구간 — 중력처럼 끝으로 갈수록 빨라진다 (점프의 하강부).
+  static const Curve fall = Curves.easeIn;
 }

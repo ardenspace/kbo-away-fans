@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'content/content_providers.dart';
 import 'design/tokens.dart';
 import 'features/home/home_screen.dart';
+import 'features/splash/splash_screen.dart';
 import 'features/team_select/selected_team.dart';
 import 'features/team_select/team_select_screen.dart';
 
@@ -49,7 +50,37 @@ class _KboAwayFansAppState extends ConsumerState<KboAwayFansApp>
         scaffoldBackgroundColor: ColorTokens.background,
         fontFamily: TypeTokens.fontFamily,
       ),
-      home: const RootGate(),
+      home: const SplashGate(),
+    );
+  }
+}
+
+/// 스플래시 연출을 먼저 재생하고, 끝나면 [RootGate] 로 페이드 전환한다.
+///
+/// 연출이 도는 동안 응원 팀 조회와 콘텐츠 로드가 뒤에서 함께 진행되므로
+/// 실제 대기 시간이 늘지는 않는다. 스플래시는 콜드 스타트에서만 뜬다
+/// (포그라운드 복귀는 위젯 트리가 유지되므로 다시 재생되지 않는다).
+class SplashGate extends StatefulWidget {
+  const SplashGate({super.key});
+
+  @override
+  State<SplashGate> createState() => _SplashGateState();
+}
+
+class _SplashGateState extends State<SplashGate> {
+  bool _splashDone = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedSwitcher(
+      duration: SplashTokens.handoff,
+      child: _splashDone
+          ? const RootGate()
+          : SplashScreen(
+              onComplete: () {
+                if (mounted) setState(() => _splashDone = true);
+              },
+            ),
     );
   }
 }

@@ -26,3 +26,9 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+
+  assets:
+    # 스플래시 연출용 — seam_top/seam_bottom 은 야구공 실밥 원화를 위/아래로
+    # 자른 두 조각이고(가운데 빈 구간은 버렸다), logo.png 는 배경을 투명하게
+    # 뺀 워드마크다. 원화는 저장소에 두지 않으므로 다시 자르려면 원본이 필요하다.
+    - assets/splash/
