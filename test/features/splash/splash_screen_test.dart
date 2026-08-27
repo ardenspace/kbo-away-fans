@@ -1,4 +1,4 @@
-/// 스플래시 연출 위젯 테스트 — 실밥 분리와 로고 등장의 계약을 고정한다.
+/// 스플래시 연출 위젯 테스트 — 로고 착지와 실밥 진입의 계약을 고정한다.
 ///
 /// 거리·시간 값은 전부 [SplashTokens] 에서 오므로 테스트도 리터럴 대신
 /// 토큰을 참조한다. 토큰을 조정해도 이 테스트는 그대로 통과해야 한다
@@ -11,15 +11,34 @@ import 'package:kbo_away_fans/design/tokens.dart';
 import 'package:kbo_away_fans/features/splash/splash_screen.dart';
 
 void main() {
-  Widget host({VoidCallback? onComplete}) => MaterialApp(
-        home: SplashScreen(onComplete: onComplete ?? () {}),
-      );
+  Widget host({VoidCallback? onComplete}) =>
+      MaterialApp(home: SplashScreen(onComplete: onComplete ?? () {}));
 
-  double topSeamEdge(WidgetTester tester) =>
-      tester.getTopLeft(find.byKey(SplashScreen.seamTopKey)).dy;
+  double screenWidthOf(WidgetTester tester) =>
+      tester.view.physicalSize.width / tester.view.devicePixelRatio;
 
-  double bottomSeamEdge(WidgetTester tester) =>
-      tester.getBottomLeft(find.byKey(SplashScreen.seamBottomKey)).dy;
+  Rect seamRect(WidgetTester tester, Key key) =>
+      tester.getRect(find.byKey(key));
+
+  double logoWidth(WidgetTester tester) =>
+      tester.getRect(find.byKey(SplashScreen.logoKey)).width;
+
+  double logoOpacity(WidgetTester tester) => tester
+      .widget<Opacity>(
+        find.ancestor(
+          of: find.byKey(SplashScreen.logoKey),
+          matching: find.byType(Opacity),
+        ),
+      )
+      .opacity;
+
+  bool logoIsBlurred(WidgetTester tester) => find
+      .ancestor(
+        of: find.byKey(SplashScreen.logoKey),
+        matching: find.byType(ImageFiltered),
+      )
+      .evaluate()
+      .isNotEmpty;
 
   testWidgets('실밥 두 가닥과 로고가 모두 렌더된다', (tester) async {
     await tester.pumpWidget(host());
@@ -31,129 +50,201 @@ void main() {
     await tester.pumpAndSettle();
   });
 
-  testWidgets('벌어지기 직전 실밥이 안쪽으로 살짝 움츠린다', (tester) async {
+  testWidgets('착지 전까지 실밥은 화면 밖에 있어 보이지 않는다', (tester) async {
     await tester.pumpWidget(host());
-    final topStart = topSeamEdge(tester);
-    final bottomStart = bottomSeamEdge(tester);
+    final screenWidth = screenWidthOf(tester);
 
-    await tester.pump(SplashTokens.seamAnticipation);
+    // 시작 직후와 착지 직전, 두 시점 모두 화면 안에 걸치지 않아야 한다.
+    // 착지 "정확히 그 순간" 이 아니라 직전을 보는 이유는, 그 순간의 프레임은
+    // 이미 진입이 시작된 뒤라 부동소수점 수준으로 조금 들어와 있기 때문이다.
+    for (final elapsed in [
+      Duration.zero,
+      SplashScreen.impactAt - const Duration(milliseconds: 1),
+    ]) {
+      if (elapsed > Duration.zero) await tester.pump(elapsed);
 
-    // 반동 구간 끝 — 위 실밥은 내려오고 아래 실밥은 올라와 사이가 좁아진다.
-    expect(topSeamEdge(tester), greaterThan(topStart));
-    expect(bottomSeamEdge(tester), lessThan(bottomStart));
-
-    await tester.pumpAndSettle();
-  });
-
-  testWidgets('실밥은 최종적으로 서로 반대 방향으로 벌어진다', (tester) async {
-    await tester.pumpWidget(host());
-    final topStart = topSeamEdge(tester);
-    final bottomStart = bottomSeamEdge(tester);
-
-    await tester.pumpAndSettle();
-
-    expect(
-      topSeamEdge(tester),
-      lessThan(topStart),
-      reason: '위 실밥은 위로 올라가 화면 위쪽으로 벌어져야 한다',
-    );
-    expect(
-      bottomSeamEdge(tester),
-      greaterThan(bottomStart),
-      reason: '아래 실밥은 아래로 내려가 화면 아래쪽으로 벌어져야 한다',
-    );
-  });
-
-  testWidgets('위 실밥은 왼쪽으로, 아래 실밥은 오른쪽으로 미끄러진다', (tester) async {
-    await tester.pumpWidget(host());
-    final topStart = tester.getTopLeft(find.byKey(SplashScreen.seamTopKey)).dx;
-    final bottomStart =
-        tester.getTopLeft(find.byKey(SplashScreen.seamBottomKey)).dx;
-
-    await tester.pumpAndSettle();
-
-    expect(
-      tester.getTopLeft(find.byKey(SplashScreen.seamTopKey)).dx,
-      lessThan(topStart),
-      reason: '위 실밥은 왼쪽으로 가야 한다',
-    );
-    expect(
-      tester.getTopLeft(find.byKey(SplashScreen.seamBottomKey)).dx,
-      greaterThan(bottomStart),
-      reason: '아래 실밥은 오른쪽으로 가야 한다',
-    );
-  });
-
-  testWidgets('미끄러지는 동안에도 실밥이 화면 폭을 늘 덮는다', (tester) async {
-    await tester.pumpWidget(host());
-    final screenWidth =
-        tester.view.physicalSize.width / tester.view.devicePixelRatio;
-
-    // 여유분(seamOverscan)이 이동 거리(seamDriftFactor)보다 작아지면
-    // 가장자리에 배경이 드러난다. 두 토큰의 관계를 여기서 지킨다.
-    const step = Duration(milliseconds: 50);
-    for (var elapsed = Duration.zero;
-        elapsed <= SplashScreen.totalDuration;
-        elapsed += step) {
-      for (final key in [SplashScreen.seamTopKey, SplashScreen.seamBottomKey]) {
-        final finder = find.byKey(key);
-        final xs = [
-          tester.getTopLeft(finder).dx,
-          tester.getTopRight(finder).dx,
-          tester.getBottomLeft(finder).dx,
-          tester.getBottomRight(finder).dx,
-        ];
-        expect(
-          xs.reduce((a, b) => a < b ? a : b),
-          lessThanOrEqualTo(0.5),
-          reason: '$key @ $elapsed 왼쪽 끝이 화면을 덮지 못한다',
-        );
-        expect(
-          xs.reduce((a, b) => a > b ? a : b),
-          greaterThanOrEqualTo(screenWidth - 0.5),
-          reason: '$key @ $elapsed 오른쪽 끝이 화면을 덮지 못한다',
-        );
-      }
-      await tester.pump(step);
+      expect(
+        seamRect(tester, SplashScreen.seamTopKey).right,
+        lessThanOrEqualTo(0.5),
+        reason: '위 실밥은 화면 왼쪽 밖에 대기한다 @ $elapsed',
+      );
+      expect(
+        seamRect(tester, SplashScreen.seamBottomKey).left,
+        greaterThanOrEqualTo(screenWidth - 0.5),
+        reason: '아래 실밥은 화면 오른쪽 밖에 대기한다 @ $elapsed',
+      );
     }
 
     await tester.pumpAndSettle();
   });
 
-  testWidgets('로고는 크기 0 에서 시작해 제 크기로 커진다', (tester) async {
+  testWidgets('위 실밥은 왼쪽에서, 아래 실밥은 오른쪽에서 들어온다', (tester) async {
     await tester.pumpWidget(host());
+    await tester.pump(SplashScreen.impactAt);
 
-    expect(
-      tester.getRect(find.byKey(SplashScreen.logoKey)).width,
-      lessThan(1),
-      reason: '등장 전에는 크기가 0 이라 화면에서 폭을 차지하지 않는다',
-    );
+    final topStart = seamRect(tester, SplashScreen.seamTopKey).left;
+    final bottomStart = seamRect(tester, SplashScreen.seamBottomKey).left;
 
     await tester.pumpAndSettle();
 
-    final screenWidth = tester.view.physicalSize.width / tester.view.devicePixelRatio;
     expect(
-      tester.getRect(find.byKey(SplashScreen.logoKey)).width,
-      closeTo(screenWidth * SplashTokens.logoWidthFactor, 1),
-      reason: '연출이 끝나면 로고 폭은 화면 폭 대비 토큰 비율과 같아야 한다',
+      seamRect(tester, SplashScreen.seamTopKey).left,
+      greaterThan(topStart),
+      reason: '위 실밥은 오른쪽으로 밀려 들어와야 한다',
+    );
+    expect(
+      seamRect(tester, SplashScreen.seamBottomKey).left,
+      lessThan(bottomStart),
+      reason: '아래 실밥은 왼쪽으로 밀려 들어와야 한다',
     );
   });
 
-  testWidgets('로고 등장은 실밥이 벌어지기 시작한 뒤로 미뤄진다', (tester) async {
+  testWidgets('실밥은 seamSlantSlope 가 정한 각도로 들어온다', (tester) async {
     await tester.pumpWidget(host());
+    await tester.pump(SplashScreen.impactAt);
 
-    // 반동이 끝나 실밥이 벌어지기 시작한 시점 — 로고는 아직 나오지 않았다.
-    await tester.pump(SplashTokens.seamAnticipation);
-    expect(tester.getRect(find.byKey(SplashScreen.logoKey)).width, lessThan(1));
+    final topStart = seamRect(tester, SplashScreen.seamTopKey);
+    final bottomStart = seamRect(tester, SplashScreen.seamBottomKey);
 
-    await tester.pump(SplashTokens.logoDelay + SplashTokens.logoPop);
+    await tester.pumpAndSettle();
+
+    final topRest = seamRect(tester, SplashScreen.seamTopKey);
+    final bottomRest = seamRect(tester, SplashScreen.seamBottomKey);
+
+    // 세로 이동량은 가로 이동량에 기울기를 곱한 값이어야 한다.
+    // 기울기가 0 이면 세로로는 전혀 움직이지 않는다는 뜻이 된다.
+    final travel = (topRest.left - topStart.left).abs();
+    final expectedShift = -SplashTokens.seamSlantSlope * travel;
+
     expect(
-      tester.getRect(find.byKey(SplashScreen.logoKey)).width,
-      greaterThan(1),
-      reason: '지연이 지나면 로고가 등장해 있어야 한다',
+      topStart.top - topRest.top,
+      closeTo(expectedShift, 1),
+      reason: '위 실밥의 진입 각도가 토큰과 어긋난다',
+    );
+    expect(
+      bottomRest.bottom - bottomStart.bottom,
+      closeTo(expectedShift, 1),
+      reason: '아래 실밥의 진입 각도가 토큰과 어긋난다 (위와 대칭이어야 한다)',
+    );
+  });
+
+  testWidgets('들어오기를 마치면 두 실밥이 화면 폭을 덮는다', (tester) async {
+    await tester.pumpWidget(host());
+    final screenWidth = screenWidthOf(tester);
+
+    await tester.pumpAndSettle();
+
+    for (final key in [SplashScreen.seamTopKey, SplashScreen.seamBottomKey]) {
+      final rect = seamRect(tester, key);
+      expect(rect.left, lessThanOrEqualTo(0.5), reason: '$key 왼쪽 끝');
+      expect(
+        rect.right,
+        greaterThanOrEqualTo(screenWidth - 0.5),
+        reason: '$key 오른쪽 끝',
+      );
+    }
+  });
+
+  testWidgets('로고는 코앞에 크게 떠 있다가 제 크기로 꽂힌다', (tester) async {
+    await tester.pumpWidget(host());
+    final restWidth = screenWidthOf(tester) * SplashTokens.logoWidthFactor;
+
+    expect(
+      logoWidth(tester),
+      greaterThan(restWidth * 2),
+      reason: '보는 사람 코앞에서 출발하므로 처음에는 제 크기보다 훨씬 크다',
     );
 
     await tester.pumpAndSettle();
+
+    expect(
+      logoWidth(tester),
+      closeTo(restWidth, 1),
+      reason: '착지하면 로고 폭은 화면 폭 대비 토큰 비율과 같아야 한다',
+    );
+  });
+
+  testWidgets('로고는 날아드는 동안 흐렸다가 착지하면 또렷해진다', (tester) async {
+    await tester.pumpWidget(host());
+
+    expect(
+      logoIsBlurred(tester),
+      isTrue,
+      reason: '아직 멀리 있는 동안에는 흐림이 걸려 있다',
+    );
+
+    await tester.pump(SplashScreen.impactAt);
+
+    expect(
+      logoIsBlurred(tester),
+      isFalse,
+      reason: '착지하면 흐림이 0 이라 필터 자체를 걷어낸다',
+    );
+
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('로고는 지연이 지난 뒤에야 보이기 시작한다', (tester) async {
+    await tester.pumpWidget(host());
+
+    expect(logoOpacity(tester), 0, reason: '시작할 때는 완전히 투명하다');
+
+    await tester.pump(SplashTokens.logoDelay);
+    expect(
+      logoOpacity(tester),
+      closeTo(0, 0.01),
+      reason: '지연이 끝나는 시점까지도 사실상 투명하다',
+    );
+
+    await tester.pump(SplashTokens.logoSlam);
+    expect(logoOpacity(tester), 1, reason: '착지 시점에는 완전히 또렷하다');
+
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('착지 순간부터 화면이 흔들렸다가 제자리로 돌아온다', (tester) async {
+    await tester.pumpWidget(host());
+    final restCenter = tester.getRect(find.byKey(SplashScreen.logoKey)).center;
+
+    // 착지 직전까지는 흔들리지 않는다 (로고는 화면 중앙에 그대로 있다).
+    // 충돌 순간 변위가 0 이 아니면 화면이 툭 튀므로 두 축 모두 확인한다.
+    await tester.pump(SplashScreen.impactAt);
+    final atImpact = tester.getRect(find.byKey(SplashScreen.logoKey)).center;
+    expect(
+      atImpact.dx,
+      closeTo(restCenter.dx, 0.5),
+      reason: '충격 순간 가로로 튀면 안 된다',
+    );
+    expect(
+      atImpact.dy,
+      closeTo(restCenter.dy, 0.5),
+      reason: '충격 순간 세로로 튀면 안 된다',
+    );
+
+    // 흔들림 구간을 훑어 가장 크게 벗어난 정도를 잰다.
+    const step = Duration(milliseconds: 20);
+    var peak = 0.0;
+    for (
+      var elapsed = Duration.zero;
+      elapsed < SplashTokens.shake;
+      elapsed += step
+    ) {
+      await tester.pump(step);
+      final dy =
+          (tester.getRect(find.byKey(SplashScreen.logoKey)).center.dy -
+                  restCenter.dy)
+              .abs();
+      if (dy > peak) peak = dy;
+    }
+
+    expect(peak, greaterThan(1), reason: '착지 후에는 화면이 눈에 띄게 흔들려야 한다');
+
+    await tester.pumpAndSettle();
+    expect(
+      tester.getRect(find.byKey(SplashScreen.logoKey)).center.dy,
+      closeTo(restCenter.dy, 0.01),
+      reason: '흔들림이 잦아들면 정확히 제자리로 돌아온다',
+    );
   });
 
   testWidgets('연출이 끝나면 onComplete 가 정확히 한 번 호출된다', (tester) async {

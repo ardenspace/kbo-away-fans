@@ -99,63 +99,83 @@ abstract final class RainTokens {
 
 /// `splash.*` — 스플래시 연출 수치 토큰.
 ///
-/// 실밥 두 가닥이 위아래로 살짝 벌어지고, 그 사이에서 로고가 튀어나와
-/// 몇 번 작게 점프한다. 거리 값은 전부 화면 크기 대비 비율이라 기기
-/// 크기와 무관하게 같은 인상을 준다. 커브는 [MotionTokens] 에서 온다.
+/// 빈 화면에서 로고가 코앞으로부터 날아와 꽂히고, 그 충격으로 화면이
+/// 흔들리는 동시에 실밥 두 가닥이 좌우에서 밀려 들어온다. 거리 값은 전부
+/// 화면 크기 대비 비율이라 기기 크기와 무관하게 같은 인상을 준다.
+/// 커브는 [MotionTokens] 에서 온다.
 abstract final class SplashTokens {
-  /// 벌어지기 직전 안쪽으로 움츠리는 반동 구간.
-  static const Duration seamAnticipation = Duration(milliseconds: 150);
+  /// 착지 순간부터 실밥이 화면 밖에서 제자리까지 밀려 들어오는 구간.
+  static const Duration seamEntry = Duration(milliseconds: 1200);
 
-  /// 실밥이 바깥으로 벌어지는 구간.
-  static const Duration seamSeparation = Duration(milliseconds: 600);
-
-  /// 실밥이 최종적으로 벌어지는 거리 — 화면 높이 대비 비율.
+  /// 실밥이 들어오는 방향의 기울기 (가로 이동 대비 세로 이동).
   ///
-  /// 세로 분리는 가로 미끄러짐보다 훨씬 잘 보이므로, 가로가 묻히지 않게
-  /// 일부러 작게 잡았다. 이 값을 키우면 가로 움직임이 다시 가려진다.
-  static const double seamSeparationFactor = 0.02;
-
-  /// 실밥이 가로로 미끄러지는 거리 — 화면 폭 대비 비율.
-  /// 위 실밥은 왼쪽으로, 아래 실밥은 오른쪽으로 간다.
-  ///
-  /// 실밥이 수평에서 12도밖에 안 기울어서, 옆으로 미는 것은 실밥을 제
-  /// 방향으로 미는 것에 가깝다. 그래서 눈에 띄려면 이동 거리가 커야 하고,
-  /// 그만큼 [seamOverscan] 도 함께 커진다.
-  static const double seamDriftFactor = 0.25;
+  /// 0 이면 순수한 가로 이동이라 실밥이 옆으로 미끄러져 들어온다. 실밥
+  /// 그림의 기울기(원화를 재면 위 실밥 -0.219, 아래 실밥 -0.252)를 넣으면
+  /// 제 각도를 따라 비스듬히 들어온다. 두 실밥의 기울기를 따로 두면 좌우
+  /// 진입이 비대칭으로 보이므로 하나로 쓴다.
+  static const double seamSlantSlope = 0;
 
   /// 실밥을 화면 폭보다 넓게 그려 두는 배율.
   ///
-  /// 가로로 미끄러질 때 가장자리에 빈 구간이 드러나지 않게 하는 여유분이며,
-  /// 한쪽 여유는 `(seamOverscan - 1) / 2` 다. 이 값이 [seamDriftFactor] 보다
-  /// 커야 하므로 둘 중 하나를 조정할 때는 함께 확인한다.
+  /// 무늬 크기를 정하는 값이면서, 실밥이 화면 밖 어디에서 출발하는지도
+  /// 여기서 나온다. 완전히 가려지려면 화면 폭의 `(seamOverscan + 1) / 2`
+  /// 만큼 밀려나 있어야 하므로, 이 값을 키우면 들어오는 거리도 길어진다.
   static const double seamOverscan = 1.6;
 
-  /// 반동으로 안쪽으로 움츠리는 거리 — 벌어지는 거리 대비 비율.
-  static const double seamAnticipationFactor = 0.15;
+  /// 빈 화면이 유지되다 로고가 날아들기까지의 지연.
+  static const Duration logoDelay = Duration(milliseconds: 750);
 
-  /// 실밥이 벌어지기 시작한 뒤 로고가 등장하기까지의 지연.
-  static const Duration logoDelay = Duration(milliseconds: 200);
+  /// 로고가 코앞에서 화면으로 꽂히는 구간 ("쾅").
+  ///
+  /// 60fps 기준 아홉 프레임이다. [MotionTokens.swoop] 커브가 첫 프레임에
+  /// 거리 대부분을 지나가므로, 구간이 길어져도 "다가온다" 가 아니라
+  /// "꽂힌 뒤 여운이 남는다" 로 읽힌다.
+  static const Duration logoSlam = Duration(milliseconds: 150);
 
-  /// 로고가 크기 0 에서 1 로 튀어나오는 구간 ("띠요옹").
-  static const Duration logoPop = Duration(milliseconds: 700);
+  /// 날아드는 동안 로고에 걸리는 흐림의 최대 세기 (가우시안 sigma).
+  ///
+  /// 남은 거리에 비례해 줄어들어 착지 순간 정확히 0 이 된다. 이 흐림이
+  /// 없으면 순식간에 지나가는 구간이라 그냥 튀어나온 것처럼 보인다.
+  static const double logoMotionBlur = 28;
 
-  /// 등장 후 작은 점프를 모두 마치기까지의 구간.
-  static const Duration logoBounce = Duration(milliseconds: 500);
+  /// 로고가 출발하는 깊이 (논리 픽셀). 음수가 보는 사람 쪽이다.
+  ///
+  /// [logoPerspective] 와 함께 시작 배율을 정한다. 화면 크기와 무관하게
+  /// 배율이 같으므로 절대값으로 둔다.
+  static const double logoStartDepth = -420;
 
-  /// 작은 점프 횟수.
-  static const int logoBounceCount = 3;
+  /// 원근 강도 — 클수록 깊이 차이가 과장된다.
+  ///
+  /// 시작 배율은 `1 / (1 + logoPerspective * logoStartDepth)` 로,
+  /// 현재 값에서는 약 2.7배다.
+  static const double logoPerspective = 0.0015;
 
-  /// 첫 점프의 높이 — 화면 높이 대비 비율.
-  static const double logoBounceFactor = 0.028;
-
-  /// 점프마다 높이가 줄어드는 비율 (1 이면 잦아들지 않는다).
-  static const double logoBounceDecay = 0.55;
+  /// 로고가 흐릿한 상태에서 또렷해지는 구간 — [logoSlam] 대비 비율.
+  /// 갑자기 큰 로고가 튀어나오는 인상을 눌러 준다.
+  static const double logoFadeInRatio = 0.4;
 
   /// 로고 폭 — 화면 폭 대비 비율.
   static const double logoWidthFactor = 0.68;
 
+  /// 착지 충격으로 화면 전체가 흔들리는 구간.
+  ///
+  /// 진동 속도는 이 값과 [shakeOscillations] 가 함께 정한다
+  /// (초당 진동수 = shakeOscillations / shake). 짧을수록 빠르다.
+  /// 지금은 초당 2.9회이며, 빠르게 올려 봤더니 잔떨림처럼 보여서
+  /// 느긋한 쪽으로 정착했다.
+  static const Duration shake = Duration(milliseconds: 1200);
+
+  /// 흔들림의 세로 진폭 — 화면 폭 대비 비율.
+  static const double shakeFactor = 0.02;
+
+  /// 흔들림이 잦아들 때까지의 진동 횟수.
+  static const double shakeOscillations = 3.5;
+
+  /// 세로 진폭 대비 가로 진폭의 비율.
+  static const double shakeLateralRatio = 0.5;
+
   /// 연출이 끝나고 다음 화면으로 넘기기 전 머무는 시간.
-  static const Duration hold = Duration(milliseconds: 300);
+  static const Duration hold = Duration(milliseconds: 900);
 
   /// 스플래시에서 앱 첫 화면으로 넘어가는 페이드 구간.
   static const Duration handoff = Duration(milliseconds: 350);
@@ -187,4 +207,8 @@ abstract final class MotionTokens {
 
   /// 아래로 떨어지는 구간 — 중력처럼 끝으로 갈수록 빨라진다 (점프의 하강부).
   static const Curve fall = Curves.easeIn;
+
+  /// 튀어나오듯 시작해 급격히 감속하며 멎는 구간.
+  /// 첫 프레임에 거리 대부분을 지나가므로 아주 짧은 구간에서도 속도가 읽힌다.
+  static const Curve swoop = Curves.easeOutQuart;
 }
