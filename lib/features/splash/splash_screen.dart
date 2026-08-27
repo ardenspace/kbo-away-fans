@@ -1,5 +1,9 @@
-/// 스플래시 연출 — 야구공 실밥이 위아래로 벌어지고 그 사이에서 로고가
-/// 튀어나온다.
+/// 스플래시 연출 — 야구공 실밥이 벌어지고 그 사이에서 로고가 튀어나온다.
+///
+/// 실밥은 가로로 서로 반대 방향으로 미끄러지고(위는 왼쪽, 아래는 오른쪽),
+/// 동시에 위아래로도 살짝 갈라진다. 두 축이 같은 진행도를 공유해 한 몸처럼
+/// 움직인다. 가로로 크게 움직이므로 가장자리가 비지 않도록 실밥은 화면보다
+/// 넓게 그린다 ([SplashTokens.seamOverscan]).
 ///
 /// 하나의 [AnimationController] 가 전체 타임라인을 돌리고, 구간마다
 /// [TweenSequence] 의 가중치로 나눠 쓴다. 가중치의 단위는 밀리초라
@@ -54,8 +58,11 @@ class _SplashScreenState extends State<SplashScreen>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
 
-  /// 실밥이 바깥으로 벌어진 정도 — 화면 높이 대비 비율. 음수는 안쪽(반동).
-  late final Animation<double> _seamSpread;
+  /// 실밥이 벌어진 정도 — 0 이 제자리, 1 이 다 벌어진 상태다.
+  ///
+  /// 세로 분리와 가로 미끄러짐이 이 하나의 진행도를 공유하므로 두 축이
+  /// 항상 같은 박자로 움직인다. 음수 구간은 벌어지기 전의 반동이다.
+  late final Animation<double> _seamProgress;
 
   /// 로고 배율 — 0 이면 아직 등장 전.
   late final Animation<double> _logoScale;
@@ -70,7 +77,7 @@ class _SplashScreenState extends State<SplashScreen>
       vsync: this,
       duration: SplashScreen.totalDuration,
     );
-    _seamSpread = _controller.drive(_seamSpreadTween());
+    _seamProgress = _controller.drive(_seamProgressTween());
     _logoScale = _controller.drive(_logoScaleTween());
     _logoLift = _controller.drive(_logoLiftTween());
 
@@ -90,9 +97,8 @@ class _SplashScreenState extends State<SplashScreen>
   double get _totalWeight =>
       SplashScreen.totalDuration.inMilliseconds.toDouble();
 
-  TweenSequence<double> _seamSpreadTween() {
-    const spread = SplashTokens.seamSeparationFactor;
-    const pullIn = -spread * SplashTokens.seamAnticipationFactor;
+  TweenSequence<double> _seamProgressTween() {
+    const pullIn = -SplashTokens.seamAnticipationFactor;
     final movingWeight = (SplashTokens.seamAnticipation +
             SplashTokens.seamSeparation)
         .inMilliseconds
@@ -107,13 +113,13 @@ class _SplashScreenState extends State<SplashScreen>
       ),
       // 바깥으로 벌어진다 — 끝에서 살짝 넘쳤다 돌아온다.
       TweenSequenceItem(
-        tween: Tween<double>(begin: pullIn, end: spread)
+        tween: Tween<double>(begin: pullIn, end: 1)
             .chain(CurveTween(curve: MotionTokens.emphasized)),
         weight: SplashTokens.seamSeparation.inMilliseconds.toDouble(),
       ),
       // 벌어진 자리에 그대로 머문다.
       TweenSequenceItem(
-        tween: ConstantTween<double>(spread),
+        tween: ConstantTween<double>(1),
         weight: _totalWeight - movingWeight,
       ),
     ]);
@@ -203,25 +209,33 @@ class _SplashScreenState extends State<SplashScreen>
       body: AnimatedBuilder(
         animation: _controller,
         builder: (context, _) {
-          final spread = _seamSpread.value * size.height;
+          final progress = _seamProgress.value;
+          final spread =
+              progress * SplashTokens.seamSeparationFactor * size.height;
+          final drift = progress * SplashTokens.seamDriftFactor * size.width;
+          // 화면보다 넓게 그리고 가운데를 맞춘다 — 남는 폭이 가로로
+          // 미끄러질 여유분이 된다.
+          final seamWidth = size.width * SplashTokens.seamOverscan;
+          final seamRest = (size.width - seamWidth) / 2;
+
           return Stack(
             children: [
-              // 위 실밥 — 화면 위 가장자리에 붙어 있다가 위로 밀려난다.
+              // 위 실밥 — 위로 밀려나면서 왼쪽으로 미끄러진다.
               Positioned(
-                left: 0,
-                right: 0,
+                left: seamRest - drift,
                 top: -spread,
+                width: seamWidth,
                 child: Image.asset(
                   _seamTopAsset,
                   key: SplashScreen.seamTopKey,
                   fit: BoxFit.fitWidth,
                 ),
               ),
-              // 아래 실밥 — 아래 가장자리에 붙어 있다가 아래로 밀려난다.
+              // 아래 실밥 — 아래로 밀려나면서 오른쪽으로 미끄러진다.
               Positioned(
-                left: 0,
-                right: 0,
+                left: seamRest + drift,
                 bottom: -spread,
+                width: seamWidth,
                 child: Image.asset(
                   _seamBottomAsset,
                   key: SplashScreen.seamBottomKey,

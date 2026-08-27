@@ -64,6 +64,62 @@ void main() {
     );
   });
 
+  testWidgets('위 실밥은 왼쪽으로, 아래 실밥은 오른쪽으로 미끄러진다', (tester) async {
+    await tester.pumpWidget(host());
+    final topStart = tester.getTopLeft(find.byKey(SplashScreen.seamTopKey)).dx;
+    final bottomStart =
+        tester.getTopLeft(find.byKey(SplashScreen.seamBottomKey)).dx;
+
+    await tester.pumpAndSettle();
+
+    expect(
+      tester.getTopLeft(find.byKey(SplashScreen.seamTopKey)).dx,
+      lessThan(topStart),
+      reason: '위 실밥은 왼쪽으로 가야 한다',
+    );
+    expect(
+      tester.getTopLeft(find.byKey(SplashScreen.seamBottomKey)).dx,
+      greaterThan(bottomStart),
+      reason: '아래 실밥은 오른쪽으로 가야 한다',
+    );
+  });
+
+  testWidgets('미끄러지는 동안에도 실밥이 화면 폭을 늘 덮는다', (tester) async {
+    await tester.pumpWidget(host());
+    final screenWidth =
+        tester.view.physicalSize.width / tester.view.devicePixelRatio;
+
+    // 여유분(seamOverscan)이 이동 거리(seamDriftFactor)보다 작아지면
+    // 가장자리에 배경이 드러난다. 두 토큰의 관계를 여기서 지킨다.
+    const step = Duration(milliseconds: 50);
+    for (var elapsed = Duration.zero;
+        elapsed <= SplashScreen.totalDuration;
+        elapsed += step) {
+      for (final key in [SplashScreen.seamTopKey, SplashScreen.seamBottomKey]) {
+        final finder = find.byKey(key);
+        final xs = [
+          tester.getTopLeft(finder).dx,
+          tester.getTopRight(finder).dx,
+          tester.getBottomLeft(finder).dx,
+          tester.getBottomRight(finder).dx,
+        ];
+        expect(
+          xs.reduce((a, b) => a < b ? a : b),
+          lessThanOrEqualTo(0.5),
+          reason: '$key @ $elapsed 왼쪽 끝이 화면을 덮지 못한다',
+        );
+        expect(
+          xs.reduce((a, b) => a > b ? a : b),
+          greaterThanOrEqualTo(screenWidth - 0.5),
+          reason: '$key @ $elapsed 오른쪽 끝이 화면을 덮지 못한다',
+        );
+      }
+      await tester.pump(step);
+    }
+
+    await tester.pumpAndSettle();
+  });
+
   testWidgets('로고는 크기 0 에서 시작해 제 크기로 커진다', (tester) async {
     await tester.pumpWidget(host());
 

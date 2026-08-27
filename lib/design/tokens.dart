@@ -110,7 +110,25 @@ abstract final class SplashTokens {
   static const Duration seamSeparation = Duration(milliseconds: 600);
 
   /// 실밥이 최종적으로 벌어지는 거리 — 화면 높이 대비 비율.
-  static const double seamSeparationFactor = 0.06;
+  ///
+  /// 세로 분리는 가로 미끄러짐보다 훨씬 잘 보이므로, 가로가 묻히지 않게
+  /// 일부러 작게 잡았다. 이 값을 키우면 가로 움직임이 다시 가려진다.
+  static const double seamSeparationFactor = 0.02;
+
+  /// 실밥이 가로로 미끄러지는 거리 — 화면 폭 대비 비율.
+  /// 위 실밥은 왼쪽으로, 아래 실밥은 오른쪽으로 간다.
+  ///
+  /// 실밥이 수평에서 12도밖에 안 기울어서, 옆으로 미는 것은 실밥을 제
+  /// 방향으로 미는 것에 가깝다. 그래서 눈에 띄려면 이동 거리가 커야 하고,
+  /// 그만큼 [seamOverscan] 도 함께 커진다.
+  static const double seamDriftFactor = 0.25;
+
+  /// 실밥을 화면 폭보다 넓게 그려 두는 배율.
+  ///
+  /// 가로로 미끄러질 때 가장자리에 빈 구간이 드러나지 않게 하는 여유분이며,
+  /// 한쪽 여유는 `(seamOverscan - 1) / 2` 다. 이 값이 [seamDriftFactor] 보다
+  /// 커야 하므로 둘 중 하나를 조정할 때는 함께 확인한다.
+  static const double seamOverscan = 1.6;
 
   /// 반동으로 안쪽으로 움츠리는 거리 — 벌어지는 거리 대비 비율.
   static const double seamAnticipationFactor = 0.15;
