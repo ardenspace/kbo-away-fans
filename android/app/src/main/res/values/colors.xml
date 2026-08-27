@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- ColorTokens.splashBackground (lib/design/tokens.dart) 와 동일한 값이어야
+         네이티브 런치 스크린에서 Flutter 스플래시로 넘어갈 때 색이 튀지 않는다.
+         스플래시는 다크 모드에서도 같은 색을 쓰므로 values-night 에 별도 정의를 두지 않는다. -->
+    <color name="splash_background">#F1F0EF</color>
+</resources>

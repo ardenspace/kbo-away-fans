@@ -13,6 +13,8 @@
 
          This Theme is only used starting with V2 of Flutter's Android embedding. -->
     <style name="NormalTheme" parent="@android:style/Theme.Light.NoTitleBar">
-        <item name="android:windowBackground">?android:colorBackground</item>
+        <!-- 런치 스크린과 같은 색으로 두어야 Flutter 가 첫 프레임을 그리기 직전에
+             기본 배경색이 잠깐 드러나는 현상이 생기지 않는다. -->
+        <item name="android:windowBackground">@color/splash_background</item>
     </style>
 </resources>
