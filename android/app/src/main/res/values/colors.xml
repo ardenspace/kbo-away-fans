@@ -4,4 +4,9 @@
          네이티브 런치 스크린에서 Flutter 스플래시로 넘어갈 때 색이 튀지 않는다.
          스플래시는 다크 모드에서도 같은 색을 쓰므로 values-night 에 별도 정의를 두지 않는다. -->
     <color name="splash_background">#F1F0EF</color>
+
+    <!-- adaptive icon 의 배경 레이어. 아이콘 원화(assets/icon/app_icon.png)에
+         칠해진 오프화이트와 같은 값이라 iOS 아이콘과 같은 바탕이 된다.
+         pubspec 의 adaptive_icon_background 를 바꾸면 여기도 함께 갱신된다. -->
+    <color name="ic_launcher_background">#F5F4F3</color>
 </resources>

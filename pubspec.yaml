@@ -42,6 +42,12 @@ flutter_launcher_icons:
   # 같은 오프화이트로 채운다 (ColorTokens.splashBackground).
   remove_alpha_ios: true
   background_color_ios: "#F1F0EF"
+  # Android 8 이상은 런처 아이콘을 배경·전경 두 장으로 받아 기기마다 다른
+  # 모양(원·스쿼클·물방울)으로 잘라낸다. 한 장짜리로 두면 시스템이 통째로
+  # 축소해 원 안에 넣어 심볼이 작아지므로 두 장을 따로 준다. 전경은 잘려
+  # 나가는 바깥을 감안해 심볼을 캔버스의 60% 로 앉힌 그림이다.
+  adaptive_icon_background: "#F5F4F3"
+  adaptive_icon_foreground: assets/icon/app_icon_foreground.png
 
 flutter:
   uses-material-design: true
