@@ -26,26 +26,25 @@ dev_dependencies:
   flutter_launcher_icons: ^0.14.4
 
 # 런처 아이콘 생성 — 소스 한 장에서 iOS·Android 전 사이즈를 만든다.
-# 아이콘을 갈아끼울 때는 assets/icon/app_icon.png 를 바꾸고
-# `dart run flutter_launcher_icons` 를 다시 돌린다.
-#
-# 주의: 0.14.4 는 실행할 때마다 project.pbxproj 의
-# ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS 값을 YES 에서
-# AppIcon 으로 잘못 덮어쓴다 (설정하려던 키는 ASSETCATALOG_COMPILER_APPICON_NAME
-# 이고 그쪽은 이미 올바르게 들어 있다). 돌린 뒤 pbxproj diff 를 보고 그 두 줄은
-# YES 로 되돌린다.
+# 아이콘을 갈아끼울 때는 assets/icon/ 의 원본을 바꾸고
+# `scripts/regen_icons.sh` 를 돌린다. (`dart run flutter_launcher_icons` 를
+# 직접 돌리면 0.14.4 버그로 pbxproj 가 망가진다 — 자세한 내용은 스크립트 주석 참조.)
 flutter_launcher_icons:
   image_path: assets/icon/app_icon.png
   ios: true
   android: true
-  # iOS 아이콘은 알파 채널이 있으면 검게 렌더되므로 배경을 스플래시와
-  # 같은 오프화이트로 채운다 (ColorTokens.splashBackground).
+  # iOS 아이콘은 알파 채널이 있으면 검게 렌더되므로 알파를 제거한다.
+  # 원화(app_icon.png)가 이미 불투명이라 배경색은 평소엔 효과가 없지만,
+  # 원화에 알파가 생겼을 때 엉뚱한 색이 깔리지 않도록 원화 바탕과 같은
+  # 오프화이트로 맞춰 둔다.
   remove_alpha_ios: true
-  background_color_ios: "#F1F0EF"
+  background_color_ios: "#F5F4F3"
   # Android 8 이상은 런처 아이콘을 배경·전경 두 장으로 받아 기기마다 다른
   # 모양(원·스쿼클·물방울)으로 잘라낸다. 한 장짜리로 두면 시스템이 통째로
-  # 축소해 원 안에 넣어 심볼이 작아지므로 두 장을 따로 준다. 전경은 잘려
-  # 나가는 바깥을 감안해 심볼을 캔버스의 60% 로 앉힌 그림이다.
+  # 축소해 원 안에 넣어 심볼이 작아지므로 두 장을 따로 준다. 전경은 자동
+  # 생성되지 않아 따로 그린다: 원형 마스크가 보여 주는 영역은 캔버스 가운데
+  # 66.7% (72/108dp) 이고 잘리지 않는 안전 영역은 61% (66/108dp) 이므로,
+  # 심볼 높이를 캔버스의 61% 에 맞춰 정중앙에 앉힌 투명 배경 그림이어야 한다.
   adaptive_icon_background: "#F5F4F3"
   adaptive_icon_foreground: assets/icon/app_icon_foreground.png
 
