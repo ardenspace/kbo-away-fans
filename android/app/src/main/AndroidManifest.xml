@@ -3,7 +3,7 @@
          플러그인 매니페스트 병합에 기대지 않고 본 매니페스트에 명시 선언. -->
     <uses-permission android:name="android.permission.INTERNET"/>
     <application
-        android:label="kbo_away_fans"
+        android:label="KBO 원정러"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

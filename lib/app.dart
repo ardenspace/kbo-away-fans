@@ -45,7 +45,7 @@ class _KboAwayFansAppState extends ConsumerState<KboAwayFansApp>
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'KBO 원정 도장깨기',
+      title: 'KBO 원정러',
       theme: ThemeData(
         scaffoldBackgroundColor: ColorTokens.background,
         fontFamily: TypeTokens.fontFamily,

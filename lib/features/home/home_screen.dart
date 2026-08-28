@@ -149,7 +149,7 @@ class _HomeScaffold extends StatelessWidget {
         backgroundColor: barBg,
         foregroundColor: barFg,
         title: Text(
-          'KBO 원정 도장깨기',
+          'KBO 원정러',
           style: TextStyle(
             fontFamily: TypeTokens.fontFamily,
             fontSize: TypeTokens.heading,
