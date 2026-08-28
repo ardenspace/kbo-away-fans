@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 12(API 31)부터는 시스템이 앱 시작 화면을 직접 그리고 그 가운데에
+     런처 아이콘을 얹는다. 이 화면 자체는 끌 수 없으므로, 아이콘 자리를 투명
+     드로어블로 채워 배경색만 남긴다 — iOS 런치 스크린과 같은 그림으로 맞추기
+     위함이다. values/styles.xml 을 이 API 레벨에서 덮어쓰는 파일이라
+     windowBackground 도 함께 적어야 한다. -->
+<resources>
+    <style name="LaunchTheme" parent="@android:style/Theme.Light.NoTitleBar">
+        <item name="android:windowBackground">@drawable/launch_background</item>
+        <item name="android:windowSplashScreenBackground">@color/splash_background</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/splash_icon_transparent</item>
+    </style>
+    <style name="NormalTheme" parent="@android:style/Theme.Light.NoTitleBar">
+        <item name="android:windowBackground">@color/splash_background</item>
+    </style>
+</resources>

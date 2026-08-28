@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 12 이상의 시스템 시작 화면이 가운데에 얹는 아이콘 자리를 비우기
+     위한 드로어블. 그 자리는 끌 수 없고 무언가를 반드시 그리므로, 투명한 것을
+     넣어 배경색만 남긴다. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="@android:color/transparent" />
+</shape>
