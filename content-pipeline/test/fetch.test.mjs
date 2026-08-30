@@ -126,11 +126,22 @@ test('타임아웃되면 해당 시도는 실패로 치고 재시도한다', asy
         resolve(new Response('ok', { status: 200 }));
       }
     });
-  const res = await fetchWithRetry('https://example.test/slow', {
-    timeoutMs: 20,
-    fetchImpl: impl,
-    sleep: immediateSleep,
-  });
-  assert.equal(res.status, 200);
-  assert.equal(hangs, 1);
+
+  // `AbortSignal.timeout` 의 타이머는 이벤트 루프를 붙잡지 않는다(unref). 첫 시도는
+  // abort 로만 풀리는 가짜 promise 라 붙잡을 소켓도 없어서, 대기 중에 루프를 잡아 두는
+  // 것이 하나도 없다. 그러면 프로세스가 먼저 빠져나가 이 테스트가 cancelled 로 죽는다
+  // (CI 에서 실제로 재현됐다). 실제 크롤은 진짜 fetch 의 소켓이 루프를 잡으므로
+  // 이 문제가 없다 — 가짜 fetch 를 쓰는 테스트에서만 참조 타이머로 버텨 준다.
+  const keepAlive = setInterval(() => {}, 5);
+  try {
+    const res = await fetchWithRetry('https://example.test/slow', {
+      timeoutMs: 20,
+      fetchImpl: impl,
+      sleep: immediateSleep,
+    });
+    assert.equal(res.status, 200);
+    assert.equal(hangs, 1);
+  } finally {
+    clearInterval(keepAlive);
+  }
 });
