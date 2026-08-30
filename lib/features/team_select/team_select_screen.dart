@@ -140,6 +140,9 @@ class _TeamList extends StatelessWidget {
 }
 
 /// 팀 카드 — 팀 테마 primary 로 칠하고 onPrimary 로 글자를 올린다.
+///
+/// 왼쪽 보조색 띠는 [TeamBadge] 와 같은 짜임이다. 카드가 배지의 큰 판본처럼
+/// 읽혀야 홈 화면에서 배지를 만났을 때 같은 팀으로 이어 보이기 때문이다.
 class _TeamCard extends StatelessWidget {
   const _TeamCard({
     required this.team,
@@ -156,43 +159,42 @@ class _TeamCard extends StatelessWidget {
     final theme = team.theme;
     return GestureDetector(
       onTap: onTap,
-      child: AnimatedContainer(
-        duration: MotionTokens.fast,
-        curve: MotionTokens.standard,
-        padding: const EdgeInsets.symmetric(
-          horizontal: SpaceTokens.lg,
-          vertical: SpaceTokens.lg,
-        ),
-        decoration: BoxDecoration(
-          color: theme.primary,
-          borderRadius: BorderRadius.circular(RadiusTokens.lg),
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: Text(
-                team.name,
-                style: TextStyle(
-                  fontFamily: TypeTokens.fontFamily,
-                  fontSize: TypeTokens.heading,
-                  fontWeight: TypeTokens.weightBold,
-                  color: theme.onPrimary,
-                ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(RadiusTokens.lg),
+        child: ColoredBox(
+          color: theme.secondary,
+          // 대표색 몸통을 왼쪽만 비켜 얹어, 남는 띠를 보조색 탭으로 쓴다.
+          child: Padding(
+            padding: const EdgeInsets.only(left: SpaceTokens.md),
+            child: AnimatedContainer(
+              duration: MotionTokens.fast,
+              curve: MotionTokens.standard,
+              padding: const EdgeInsets.symmetric(
+                horizontal: SpaceTokens.lg,
+                vertical: SpaceTokens.lg,
+              ),
+              color: theme.primary,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      team.name,
+                      style: TextStyle(
+                        fontFamily: TypeTokens.fontFamily,
+                        fontSize: TypeTokens.heading,
+                        fontWeight: TypeTokens.weightBold,
+                        color: theme.onPrimary,
+                      ),
+                    ),
+                  ),
+                  // 선택 표시만 오른쪽에 둔다. 약칭은 왼쪽 팀 이름과 겹치는
+                  // 정보라서 두지 않는다.
+                  if (selected)
+                    Icon(Icons.check_circle_rounded, color: theme.onPrimary),
+                ],
               ),
             ),
-            if (selected)
-              Icon(Icons.check_circle_rounded, color: theme.onPrimary)
-            else
-              Text(
-                team.shortName,
-                style: TextStyle(
-                  fontFamily: TypeTokens.fontFamily,
-                  fontSize: TypeTokens.label,
-                  fontWeight: TypeTokens.weightExtraBold,
-                  color: theme.onPrimary,
-                ),
-              ),
-          ],
+          ),
         ),
       ),
     );

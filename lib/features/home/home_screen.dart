@@ -376,7 +376,11 @@ class _HomeScaffold extends StatelessWidget {
     final content = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        DdayHeader(dDay: dDay, matchLabel: _matchLabel(game, stadium)),
+        DdayHeader(
+          dDay: dDay,
+          matchLabel: _matchLabel(game, stadium),
+          opponentShortName: _opponentShortName(game),
+        ),
         ..._preview(context, game, stadium),
       ],
     );
@@ -389,15 +393,22 @@ class _HomeScaffold extends StatelessWidget {
     );
   }
 
-  /// 경기 정보 한 줄 (예: '8/30 (토) 사직야구장 · vs 롯데 · 18:30').
+  /// 경기 정보 한 줄 (예: '8/30 (토) 사직야구장 · 18:30').
+  ///
+  /// 상대팀은 이 문구에 넣지 않는다. [DdayHeader] 가 [_opponentShortName] 을
+  /// 받아 팀 색이 들어간 배지로 따로 보여 주기 때문이다.
   String _matchLabel(Game game, Stadium? stadium) {
     final date = gameDateOf(game);
     const weekdays = ['월', '화', '수', '목', '금', '토', '일'];
     final where = stadium?.name ?? game.stadiumId;
-    final opponent = teams?.byId(game.homeTeamId)?.shortName ?? game.homeTeamId;
     return '${date.month}/${date.day} (${weekdays[date.weekday - 1]}) '
-        '$where · vs $opponent · ${game.startTime}';
+        '$where · ${game.startTime}';
   }
+
+  /// 원정 경기에서 만나는 상대팀(= 그 경기 홈팀)의 약칭.
+  /// 팀 목록을 아직 못 받았으면 배지를 세우지 않도록 null 을 준다.
+  String? _opponentShortName(Game game) =>
+      teams?.byId(game.homeTeamId)?.shortName;
 
   /// 다음 원정 미리보기 — 목적지 구장의 추천 장소 몇 곳 + 추천 목록 진입.
   List<Widget> _preview(BuildContext context, Game game, Stadium? stadium) {

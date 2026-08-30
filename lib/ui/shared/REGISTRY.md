@@ -20,3 +20,4 @@
 | `kCategoryLabels` | places category enum ↔ 한국어 문구의 단일 매핑 (+ `categoryLabelOf`) | `lib/ui/shared/category_labels.dart` | 카테고리 문구가 필요한 모든 곳 |
 | `WeatherBackdrop` | 날씨 연동 배경 연출 — 비 상태면 배경 오버레이 + 빗줄기 레이어(`RainLayer`), bool 주입이라 날씨 계층과 비결합 | `lib/ui/shared/weather_backdrop.dart` | 홈·추천 화면 배경 |
 | `StadiumPicker` | 구장 골라 구경하기 진입 (탐색 모드) | `lib/ui/shared/stadium_picker.dart` | 경기 없는 날·탐색 진입 |
+| `TeamBadge` | 팀 표시 — 약칭 글자 + 대표색 몸통 + 좌측 보조색 탭 (엠블럼·마스코트 대체), 좁은 자리는 `compact` | `lib/ui/shared/team_badge.dart` | 팀을 가리켜야 하는 모든 곳 |
