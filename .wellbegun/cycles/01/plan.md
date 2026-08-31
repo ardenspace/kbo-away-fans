@@ -1,5 +1,6 @@
 ---
 status: approved
+cycle: 1
 ---
 
 # kbo-away-fans — plan

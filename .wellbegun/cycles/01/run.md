@@ -1,5 +1,6 @@
 ---
 mode: companion
+cycle: 1
 ---
 - [x] 1.1 verified (fresh)
 - [x] 1.2 verified (fresh)

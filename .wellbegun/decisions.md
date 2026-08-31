@@ -11,6 +11,8 @@
 
 ## 원장 (시간순 추가 전용)
 
+### 사이클 1 — MVP (2026-08-24 ~ 2026-08-25, 아카이브: `cycles/01/`)
+
 - [2026-08-24] [XL] 크로스플랫폼 프레임워크는 Flutter — 애니메이션 연출이 제품 정체성이고, 콘텐츠 갱신은 원격 JSON이 담당하므로 Expo OTA의 이점이 줄며, 긴급 패치는 Shorebird로 가능; rejected: React Native + Expo (OTA 배포 편의는 강점이나 이 앱에서는 콘텐츠 파이프라인이 그 역할을 대체)
 - [2026-08-24] [L] 콘텐츠는 서버 없이 버전 있는 정적 JSON 번들로 배포 — 쓰기 주체가 운영자뿐이고 서버에 개인 데이터를 두지 않는 begin 결정과 정합하며, 운영 부담이 최소; rejected: 백엔드 API 서버 (MVP에 운영·비용 부담만 추가, 개인화 없음이라 이점 없음)
 - [2026-08-24] [L] KBO 일정은 스케줄러 크롤링 → schedule.json 계약으로 공급 — 공식 API가 없어 크롤링이 불가피하며, 앱은 JSON 계약만 소비해 소스 교체가 계약 뒤에서 가능; rejected: 앱이 직접 경기 사이트를 크롤링 (차단·파싱 변경에 전체 사용자가 동시 노출)
@@ -126,3 +128,8 @@
 - [2026-08-25] [M] Firebase Android 활성화는 조건부 plugin wiring 채택: settings.gradle.kts 에 com.google.gms.google-services 4.5.0 apply false 등록 + app 모듈이 google-services.json 존재 시에만 apply — json 없는 클론에서도 빌드 무파손이 문서화(b안)보다 확실히 강제됨; 4.5.0 은 AGP 9.0.1 대응 최신(4.4.x 는 AGP 8 세대), 이 머신에 Android SDK 가 없어 Gradle 빌드 검증은 불가라 아티팩트 존재를 Google maven metadata 로 확인
 - [2026-08-25] [S] 로컬 콘텐츠 서버 예시 포트를 8787 → 8899 로 변경 (README·content_config.dart·live test 주석) — 8787 은 개발 머신에서 타 프로젝트가 점유 중이라 예시 그대로 복붙하면 충돌; decisions.md 의 과거 결정 문구는 이력이라 그대로 둠
 - [2026-08-26] [M] 앱 식별자 org 를 dev.arden → com.ardenspace 로 통일 (Android applicationId·namespace·MainActivity 패키지, iOS PRODUCT_BUNDLE_IDENTIFIER 6곳, map_links.dart 의 kNaverMapCallerAppName) — NCP Maps Application 에 이미 등록된 값이 com.ardenspace 계열이었고 스토어 배포 전이라 변경 비용이 여전히 낮은 시점, 2026-08-24 의 "dev.arden 임시 확정"을 대체. 대가로 Firebase Android/iOS 앱 재등록(설정 파일 재발급)이 필요하다
+
+### 사이클 2 — 계정·배지·개인화 (2026-09-01 개시)
+
+<!-- 이 사이클의 결정을 여기에 시간순으로 추가한다. L/XL 은 위 색인도 같은 커밋에서 갱신. -->
+

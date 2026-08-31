@@ -1,5 +1,6 @@
 ---
 status: approved
+cycle: 1
 ---
 
 # kbo-away-fans — spec
@@ -35,6 +36,8 @@ status: approved
 | `radius.*` | 모서리 스케일 — "통통 튀는" 톤이라 큰 라운드가 기본 | `lib/design/tokens.dart` | 카드, 시트, 칩, 버튼 |
 | `type.*` | 폰트 패밀리·크기·굵기 — 트렌디하고 둥근 볼드 지향 | `lib/design/tokens.dart` | 모든 텍스트 |
 | `motion.*` | 지속시간·커브 — 탄성(bouncy spring) 기본, 비/테마 전환 연출 포함 | `lib/design/tokens.dart` | 모든 애니메이션 |
+| `rain.*` | 비 연출(빗줄기 개수·길이·굵기·기울기) 수치 토큰 | `lib/design/tokens.dart` | `WeatherBackdrop` 빗줄기 레이어 |
+| `splash.*` | 스플래시 연출(로고 낙하·화면 흔들림·실밥 진입) 수치 토큰 | `lib/design/tokens.dart` | 스플래시 화면 연출 |
 
 ### Shared components
 **Shared component folder:** `lib/ui/shared/` (+ `lib/ui/shared/REGISTRY.md`)
@@ -52,6 +55,9 @@ status: approved
 | `CategoryChip` | 맛집/방탈출/카페 등 카테고리 필터 칩 | `lib/ui/shared/category_chip.dart` | 추천 목록 필터 |
 | `WeatherBackdrop` | 날씨 연동 배경 연출 (비 애니메이션 → 플랜B 유도) | `lib/ui/shared/weather_backdrop.dart` | 홈·추천 화면 배경 |
 | `StadiumPicker` | 구장 골라 구경하기 진입 (탐색 모드) | `lib/ui/shared/stadium_picker.dart` | 경기 없는 날·탐색 진입 |
+| `map_links` | 네이버지도 딥링크·웹 폴백·공유 페이로드 빌더 (지도 SDK 무관) | `lib/ui/shared/map_links.dart` | 지도 링크·길안내·공유 문구가 필요한 모든 곳 |
+| `kCategoryLabels` | places category enum ↔ 한국어 문구의 단일 매핑 | `lib/ui/shared/category_labels.dart` | 카테고리 문구가 필요한 모든 곳 |
+| `TeamBadge` | 팀 표시 — 약칭 글자 + 대표색 몸통 + 보조색 탭 | `lib/ui/shared/team_badge.dart` | 팀을 가리켜야 하는 모든 곳 |
 
 ### Backend common layers
 서버가 없으므로 이 영역은 **콘텐츠 파이프라인**(`content-pipeline/` + `content-pipeline/REGISTRY.md`)으로 대체한다.
@@ -64,6 +70,8 @@ status: approved
 | 스키마 검증 | 산출 JSON이 계약(스키마 버전 포함)을 지키는지 빌드 시 검증 | `content-pipeline/common/validate.*` | 모든 JSON 산출 직전 |
 | 로깅 | 크롤 성공/실패 구조화 로그 | `content-pipeline/common/log.*` | 모든 스크립트 |
 | 배포 스텝 | 검증 통과한 JSON을 호스팅으로 올리는 단일 경로 | `content-pipeline/deploy.*` + CI cron | 모든 콘텐츠 갱신 |
+| 일정 크롤러 | 네이버 스포츠 API에서 KBO 일정·상태를 긁어 schedule.json 산출 | `content-pipeline/crawl-schedule.mjs` | CI cron·수동 일정 갱신 |
+| 장소 병합기 | `curation/*.json` 큐레이션 입력을 병합·검증해 places.json 산출 | `content-pipeline/build-places.mjs` | 장소 큐레이션 갱신 |
 
 ### DB schema
 DB 서버가 없으므로 **콘텐츠 JSON 계약 + 앱 로컬 저장**이 스키마다. 계약 변경은 마이그레이션급(L)으로 취급: `schemaVersion` 필드를 올리고 앱의 하위 호환을 확인한다.
@@ -76,6 +84,7 @@ DB 서버가 없으므로 **콘텐츠 JSON 계약 + 앱 로컬 저장**이 스�
 | `stadiums.json` | 구장 9곳 — 안정적 id, 좌표, 홈팀 목록 | `content-pipeline/schema/stadiums.schema.json` | 파이프라인 소유; id는 스탬프 대비 불변 |
 | `places.json` | 추천 장소 — 구장 id, 카테고리, 실내 여부, 샤라웃 출처, source("curated") | `content-pipeline/schema/places.schema.json` | 파이프라인 소유; source 필드는 UGC 문 |
 | `schedule.json` | 경기 일정 + 상태(예정/취소/우천취소) | `content-pipeline/schema/schedule.schema.json` | 파이프라인 소유; 경기일 고빈도 갱신 |
+| `common.defs` | 4개 계약이 공유하는 정의 — 팀 10·구장 9의 안정 id 로스터 | `content-pipeline/schema/common.defs.schema.json` | 파이프라인 소유; id 로스터의 단일 원본 |
 | 로컬 prefs | 선택한 응원 팀, 콘텐츠 캐시 | 앱 로컬 저장소 (구현 재량) | 앱 소유; 서버 전송 없음 |
 
 ## Implementer discretion
