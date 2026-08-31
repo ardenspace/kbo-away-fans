@@ -9,7 +9,7 @@
 
 | name | purpose (one line) | location | use when |
 |---|---|---|---|
-| `TeamThemeScope` | 팀 테마 토큰을 하위 트리에 주입하는 테마 전환 지점 | `lib/ui/shared/team_theme_scope.dart` | 구장/팀 맥락 화면 전체 |
+| `TeamThemeScope` | 팀 테마 토큰을 하위 트리에 주입하는 테마 전환 지점 — 같은 자리에서 팀이 바뀌면 네 색을 `MotionTokens.themeShift` 동안 보간, 정지 상태에서는 목표 테마 인스턴스를 그대로 전달 | `lib/ui/shared/team_theme_scope.dart` | 구장/팀 맥락 화면 전체 |
 | `DdayHeader` | 다음 원정 경기 헤더 (기본 얼굴) — 오늘/D-day/빈 상태(`.empty`) 세 상태 렌더 | `lib/ui/shared/dday_header.dart` | 홈 화면 상단 |
 | `PlaceCard` | 추천 장소 카드 (샤라웃 출처 뱃지 포함) | `lib/ui/shared/place_card.dart` | 추천 목록·미리보기 어디든 |
 | `ScratchCard` | "오늘 뭐하지?" 긁기 카드 — 긁기 진행이 임계에 닿으면 숨김 내용(hiddenLabel/hiddenSublabel) 공개, onRescratch 로 재긁기 지원 | `lib/ui/shared/scratch_card.dart` | 추천 목록의 마지막 항목 |

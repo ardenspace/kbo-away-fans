@@ -46,6 +46,35 @@ void main() {
         );
       }
     });
+
+    test('lerp 은 양 끝에서 원본과 같고 중간에서는 두 색 사이에 놓인다', () {
+      const a = TeamThemes.lotte;
+      const b = TeamThemes.hanwha;
+
+      expect(TeamTheme.lerp(a, b, 0), equals(a));
+      expect(TeamTheme.lerp(a, b, 1), equals(b));
+
+      final mid = TeamTheme.lerp(a, b, 0.5);
+      expect(mid, isNot(equals(a)));
+      expect(mid, isNot(equals(b)));
+      expect(mid.primary, equals(Color.lerp(a.primary, b.primary, 0.5)));
+      expect(mid.onSecondary, equals(Color.lerp(a.onSecondary, b.onSecondary, 0.5)));
+    });
+
+    test('같은 테마끼리의 lerp 은 사본을 만들지 않는다', () {
+      expect(
+        TeamTheme.lerp(TeamThemes.lg, TeamThemes.lg, 0.5),
+        same(TeamThemes.lg),
+      );
+    });
+
+    test('값이 같으면 인스턴스가 달라도 == 이고 hashCode 도 같다', () {
+      // 보간이 만드는 인스턴스는 매번 새것이라, 재알림 판정이 값 동등성에 걸린다.
+      final copy = TeamTheme.lerp(TeamThemes.nc, TeamThemes.samsung, 1);
+      expect(identical(copy, TeamThemes.samsung), isFalse);
+      expect(copy, equals(TeamThemes.samsung));
+      expect(copy.hashCode, equals(TeamThemes.samsung.hashCode));
+    });
   });
 
   group('토큰 그룹 5종', () {

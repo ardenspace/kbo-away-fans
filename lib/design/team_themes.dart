@@ -27,6 +27,36 @@ class TeamTheme {
 
   /// secondary 위에 올리는 콘텐츠 색.
   final Color onSecondary;
+
+  /// 두 팀 테마 사이를 색 채널 단위로 보간한다 (테마 전환 연출용).
+  ///
+  /// [t] 가 0이면 [a] 와, 1이면 [b] 와 같은 색이 나온다. 네 색을 각각
+  /// [Color.lerp] 로 건너보내므로 대표색과 그 위 콘텐츠 색이 함께 움직여
+  /// 전환 도중에도 대비가 유지된다.
+  static TeamTheme lerp(TeamTheme a, TeamTheme b, double t) {
+    if (identical(a, b)) return a;
+    return TeamTheme(
+      primary: Color.lerp(a.primary, b.primary, t)!,
+      onPrimary: Color.lerp(a.onPrimary, b.onPrimary, t)!,
+      secondary: Color.lerp(a.secondary, b.secondary, t)!,
+      onSecondary: Color.lerp(a.onSecondary, b.onSecondary, t)!,
+    );
+  }
+
+  /// 값 동등성 — 보간이 만드는 인스턴스는 매번 새것이라, 같은 색인지를
+  /// 인스턴스 동일성 대신 색 값으로 판정해야 재알림이 낭비되지 않는다.
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is TeamTheme &&
+        other.primary == primary &&
+        other.onPrimary == onPrimary &&
+        other.secondary == secondary &&
+        other.onSecondary == onSecondary;
+  }
+
+  @override
+  int get hashCode => Object.hash(primary, onPrimary, secondary, onSecondary);
 }
 
 /// 팀 id → 테마 레지스트리.
