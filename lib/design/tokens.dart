@@ -402,7 +402,8 @@ abstract final class BadgeTokens {
 
 /// 배지 등급 3단계. 값은 [BadgeTierTokens].
 ///
-/// 한 칸(=한 구장)에 쌓인 도장 개수로 갈린다.
+/// 한 칸(= 팀 홈구장 하나)에 쌓인 도장 개수로 갈린다. 칸이 팀 테마 10개와
+/// 1:1 이므로 잠실은 LG·두산 두 칸이고, 두 칸의 등급도 따로 오른다.
 enum BadgeTier {
   /// 첫 도장 — 그 구장에 가 봤다.
   first,
@@ -414,18 +415,40 @@ enum BadgeTier {
   master,
 }
 
+/// 링 한 겹 — 색과 굵기. [BadgeTierStyle.rings] 가 **바깥에서 안쪽 순서로**
+/// 쌓는 단위이며, 렌더러는 목록 순서대로 동심원 테두리를 그린다.
+@immutable
+class BadgeRingLayer {
+  const BadgeRingLayer({required this.color, required this.width});
+
+  /// 이 겹의 색.
+  final Color color;
+
+  /// 이 겹의 굵기.
+  final double width;
+}
+
 /// 등급 하나의 표현 값.
 ///
 /// 칸 몸통은 팀 대표색이므로 등급은 **색을 바꾸지 않고 위에 얹는다** —
-/// 테두리 링과 흰 광택만으로 갈라야 10개 팀 색 어디에 올라가도 같은 등급이
-/// 같은 세기로 읽힌다.
+/// 링은 칸 가장자리에만 놓이고 몸통 한가운데는 언제나 팀 색 그대로다.
+///
+/// 링이 어떤 몸통 색 위에서도 읽히는 근거는 **밝은 겉테와 어두운 윤곽을
+/// 함께 두는 것**이다([BadgeTierTokens.haloColor] / [BadgeTierTokens.contourColor]).
+/// 한 가지 색만으로는 안 된다 — 몸통 상대휘도가 0(kt)에서 0.26(한화)까지
+/// 벌어져 있어, 어떤 단색을 골라도 어두운 몸통과 밝은 몸통 중 한쪽에서는
+/// 3:1 아래로 떨어진다. 두 겹을 함께 두면 어떤 색 위에서든 둘 중 하나가
+/// 최소 4.16:1 로 갈린다(흰색과 잉크색의 대비 곡선이 만나는 지점).
+///
+/// 등급을 가리키는 [ringColor] 금속 띠는 두 겹 안쪽에 갇혀 몸통과 맞닿지
+/// 않으므로, 등급이 읽히는 세기가 팀 색에 좌우되지 않는다.
 @immutable
 class BadgeTierStyle {
   const BadgeTierStyle({
     required this.minStamps,
     required this.label,
     required this.ringColor,
-    required this.ringWidth,
+    required this.rings,
     required this.sheenOpacity,
   });
 
@@ -435,45 +458,120 @@ class BadgeTierStyle {
   /// 화면에 보이는 등급 이름.
   final String label;
 
-  /// 팀 색 위에 얹는 링 색.
+  /// 등급을 가리키는 금속색. [rings] 안의 금속 띠 색과 같은 값이다.
   final Color ringColor;
 
-  /// 링 굵기.
-  final double ringWidth;
+  /// 팀 색 위에 얹는 링 — **바깥에서 안쪽 순서**. 밝은 겉테와 어두운 윤곽이
+  /// 항상 함께 들어 있고, 금속 띠는 그 안쪽에 놓인다.
+  final List<BadgeRingLayer> rings;
 
   /// 팀 색 위에 덧대는 흰 광택의 세기 (0이면 광택 없음).
   final double sheenOpacity;
+
+  /// 링 전체 굵기 — 모든 겹의 합.
+  double get ringWidth =>
+      rings.fold<double>(0, (sum, layer) => sum + layer.width);
+
+  /// 금속 띠의 개수 — 1/2/3. 색과 무관하게 셀 수 있는 서열 신호라
+  /// 색각 이상이나 작은 크기에서도 등급이 갈린다.
+  int get bands => rings.where((layer) => layer.color == ringColor).length;
 }
 
 /// `badgeTier.*` — 등급 3단계의 표현 값.
 ///
 /// 임계 개수(1/3/10)는 초기값이다 — 한 시즌 한 구장에 서너 번 가는 팬이
 /// 흔하다는 가정에서 잡았고, 실사용을 보고 조정한다.
+///
+/// 세 등급은 **금속색 사다리(구리 → 은 → 금)와 띠 개수(1/2/3)** 두 신호로
+/// 갈린다. 금속색은 이웃 등급끼리 상대휘도가 1.8배 이상 벌어지도록 골랐고
+/// (`test/design/badge_tier_legibility_test.dart` 가 검사), 띠 개수는 색이
+/// 안 보이는 조건에서도 서열을 남긴다.
 abstract final class BadgeTierTokens {
-  /// 첫 도장 — 팀 색이 그대로 드러나고 얇은 흰 링만 두른다.
+  /// 링의 밝은 겉테 — 어두운 몸통 위에서 링을 띄운다.
+  static const Color haloColor = Color(0xFFFFFFFF);
+
+  /// 링의 어두운 윤곽 — 밝은 몸통 위에서 링을 띄우고, 금속 띠를 몸통과
+  /// 겉테 양쪽에서 떼어 놓는다. 팔레트의 [ColorTokens.textPrimary](잉크색)와
+  /// 같은 값이라 새 색을 만들지 않는다.
+  static const Color contourColor = ColorTokens.textPrimary;
+
+  /// 구릿빛 — `first` 의 금속색.
+  static const Color bronze = Color(0xFF9C5F2E);
+
+  /// 은빛 — `regular` 의 금속색.
+  static const Color silver = Color(0xFF9BA4B0);
+
+  /// 금빛 — `master` 의 금속색.
+  static const Color gold = Color(0xFFFFD766);
+
+  /// 밝은 겉테의 굵기.
+  static const double haloWidth = 1.25;
+
+  /// 어두운 윤곽 한 줄의 굵기.
+  static const double contourWidth = 0.75;
+
+  /// 금속 띠 한 줄의 굵기.
+  static const double bandWidth = 1.5;
+
+  /// 모든 등급이 공유하는 겉 두 겹 — 어두운 윤곽 + 밝은 겉테.
+  /// 이 두 겹이 몸통과의 대비를 책임진다 (겉이 몸통과 맞닿는 쪽).
+  static const List<BadgeRingLayer> _frame = [
+    BadgeRingLayer(color: contourColor, width: contourWidth),
+    BadgeRingLayer(color: haloColor, width: haloWidth),
+  ];
+
+  /// 금속 띠와 몸통 사이를 막는 안쪽 윤곽 — 링의 가장 안쪽 겹.
+  /// 금속 띠가 몸통과 직접 맞닿지 않아야 등급이 팀 색과 무관하게 읽힌다.
+  static const BadgeRingLayer _innerContour = BadgeRingLayer(
+    color: contourColor,
+    width: contourWidth,
+  );
+
+  /// 첫 도장 — 구릿빛 띠 한 줄.
   static const BadgeTierStyle first = BadgeTierStyle(
     minStamps: 1,
     label: '첫 방문',
-    ringColor: Color(0x59FFFFFF),
-    ringWidth: 2,
+    ringColor: bronze,
+    rings: [
+      ..._frame,
+      _innerContour,
+      BadgeRingLayer(color: bronze, width: bandWidth),
+      _innerContour,
+    ],
     sheenOpacity: 0,
   );
 
-  /// 단골 — 은빛 링과 옅은 광택.
+  /// 단골 — 은빛 띠 두 줄과 옅은 광택.
   static const BadgeTierStyle regular = BadgeTierStyle(
     minStamps: 3,
     label: '단골',
-    ringColor: Color(0xFFC9CFD8),
-    ringWidth: 3,
+    ringColor: silver,
+    rings: [
+      ..._frame,
+      _innerContour,
+      BadgeRingLayer(color: silver, width: bandWidth),
+      _innerContour,
+      BadgeRingLayer(color: silver, width: bandWidth),
+      _innerContour,
+    ],
     sheenOpacity: 0.1,
   );
 
-  /// 마스터 — 금빛 링과 또렷한 광택.
+  /// 마스터 — 금빛 띠 세 줄과 또렷한 광택.
   static const BadgeTierStyle master = BadgeTierStyle(
     minStamps: 10,
     label: '마스터',
-    ringColor: Color(0xFFE8B94A),
-    ringWidth: 4,
+    ringColor: gold,
+    rings: [
+      ..._frame,
+      _innerContour,
+      BadgeRingLayer(color: gold, width: bandWidth),
+      _innerContour,
+      BadgeRingLayer(color: gold, width: bandWidth),
+      _innerContour,
+      BadgeRingLayer(color: gold, width: bandWidth),
+      _innerContour,
+    ],
     sheenOpacity: 0.18,
   );
 

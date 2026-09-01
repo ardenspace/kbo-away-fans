@@ -68,7 +68,9 @@ cycle: 2
 1. **Goal:** 13개 파일에 흩어진 네 줄짜리 `TextStyle` 손조합을 1.3 의 조합 스타일로 전부 바꾼다 — 두 방식이 공존하지 않게 하는 것이 목적이다.
 2. **Acceptance criteria:** `lib/design/` 밖에 낱개 토큰을 손으로 조합한 `TextStyle` 이 남지 않는다. 기존 위젯 테스트가 렌더 결과 변화 없이 그대로 통과한다.
 3. **Boundary tests:**
-   - `grep -rn "fontFamily: TypeTokens.fontFamily" lib --include='*.dart' | grep -v '^lib/design/'` → 매치 없음 (grep exit 1)
+   - `grep -rn -B2 "fontFamily: TypeTokens.fontFamily" lib --include='*.dart' | grep -v '^lib/design/' | grep -c 'TextStyle('` → 0 (손조합 `TextStyle` 이 남지 않음)
+     <!-- wellrun 이 1.3 검증에서 교정: 원래 문구는 `lib/app.dart` 의 `ThemeData(fontFamily: …)` 까지 잡아 37곳을 전부 바꿔도 통과할 수 없었다. 그 자리는 TextStyle 을 받지 않아 어떤 조합 스타일로도 대체 불가이고, 폰트를 번들할 때 필요한 줄이라 지울 수도 없다. acceptance("낱개 토큰을 손으로 조합한 TextStyle 이 남지 않는다")는 그대로 두고 검사 명령만 그 의도에 맞게 좁혔다. 2026-09-01 -->
+   - `flutter test test/design/tokens_test.dart` → exit 0 (조합 스타일이 실제 사용처를 덮는지 함께 확인)
    - `flutter test` → exit 0
    - `bash scripts/hooks/check-hardcoded-values.sh` → exit 0
    - `flutter analyze` → exit 0

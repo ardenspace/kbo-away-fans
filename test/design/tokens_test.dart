@@ -292,19 +292,26 @@ void main() {
         expect(style, isNotNull, reason: '$tier 에 대응하는 표현 값이 없다');
         expect(style!.label, isNotEmpty);
         expect(style.ringWidth, greaterThan(0));
+        expect(style.bands, greaterThan(0), reason: '$tier 에 금속 띠가 없다');
+        expect(style.rings.every((layer) => layer.width > 0), isTrue);
         expect(style.sheenOpacity, inInclusiveRange(0, 1));
       }
     });
 
-    test('등급은 팀 색을 갈아치우지 않고 위에 얹는다', () {
-      // 링·광택만으로 갈려야 10개 팀 색 어디에 올라가도 같은 등급이
-      // 같은 세기로 읽힌다 — 몸통 색을 대신하는 값이 있으면 안 된다.
-      final teamColors = TeamThemes.byId.values.map((t) => t.primary).toSet();
-      for (final style in BadgeTierTokens.byTier.values) {
+    test('등급은 팀 색을 갈아치우지 않고 칸 가장자리에만 얹힌다', () {
+      // "얹는다"의 실질 — 링이 아무리 두꺼워져도 칸 한가운데는 팀 대표색으로
+      // 남아야 한다. 링이 칸의 절반을 넘게 먹으면 칸을 보고 읽히는 색이
+      // 팀 색이 아니라 등급 색이 되어, 얹은 것이 아니라 대체가 된다.
+      // (등급이 몸통 색 위에서 실제로 읽히는지는 대비로 검사한다 —
+      //  test/design/badge_tier_legibility_test.dart)
+      for (final MapEntry(key: tier, value: style)
+          in BadgeTierTokens.byTier.entries) {
+        final ringSpan = BadgeTokens.tierRingInset + style.ringWidth;
+        final core = BadgeTokens.cellSize - 2 * ringSpan;
         expect(
-          teamColors,
-          isNot(contains(style.ringColor)),
-          reason: '등급 색이 팀 대표색과 겹치면 얹힌 것이 아니라 대체가 된다',
+          core,
+          greaterThanOrEqualTo(BadgeTokens.cellSize / 2),
+          reason: '${tier.name}: 링이 칸의 절반 넘게 먹어 몸통이 남지 않는다',
         );
       }
     });
