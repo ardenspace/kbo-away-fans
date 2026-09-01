@@ -298,8 +298,9 @@ void main() {
         expect(style!.label, isNotEmpty);
         expect(style.ringWidth, greaterThan(0));
         expect(style.bands, greaterThan(0), reason: '$tier 에 금속 띠가 없다');
-        expect(style.rings.every((layer) => layer.width > 0), isTrue);
-        expect(style.sheenOpacity, inInclusiveRange(0, 1));
+        // 겹마다의 굵기 하한(1 논리픽셀)은 badge_tier_legibility_test.dart 가
+        // 든다 — 여기에 `width > 0` 을 함께 두면 같은 성질을 두 파일이 서로
+        // 다른 기준으로 재게 되고, 나중에 한쪽만 고치면 기준이 갈린다.
       }
     });
 
