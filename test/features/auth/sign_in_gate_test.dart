@@ -161,6 +161,49 @@ void main() {
     expect(find.byType(SignInScreen), findsNothing);
   });
 
+  testWidgets('세션 스트림이 오류와 함께 끝나도 다시 로그인하면 들어간다', (tester) async {
+    SharedPreferences.setMockInitialValues({kSelectedTeamPrefsKey: 'lg'});
+    final auth = fakeAuth(signedIn: _signedInUser);
+    await tester.pumpWidget(gate(auth));
+    await tester.pumpAndSettle();
+    expect(find.byType(HomeScreen), findsOneWidget);
+
+    // 위 케이스와 다른 점은 스트림이 오류를 내고 **끝난다**는 것뿐이다.
+    // 그 한 가지로 세션 상태를 다시 세울 경로가 없으면 앱을 다시 켜는 것
+    // 말고는 빠져나올 길이 없어진다.
+    await auth.dropSession();
+    await tester.pumpAndSettle();
+    expect(find.byType(SignInScreen), findsOneWidget);
+    expect(find.byType(SignInNotice), findsOneWidget);
+
+    await tester.tap(
+      find.text(SocialSignInButton.labelOf(AuthProviderId.google)),
+    );
+    await tester.pumpAndSettle();
+
+    expect(auth.signInCalls, [AuthProviderId.google]);
+    expect(find.byType(HomeScreen), findsOneWidget);
+    expect(find.byType(SignInScreen), findsNothing);
+  });
+
+  testWidgets('진행 중인 로그인이 있으면 다른 제공자 탭은 무시된다', (tester) async {
+    SharedPreferences.setMockInitialValues({kSelectedTeamPrefsKey: 'lg'});
+    final auth = fakeAuth();
+    await tester.pumpWidget(gate(auth));
+    await tester.pumpAndSettle();
+
+    // 프레임 사이 rebuild 없이 두 번 — 실기기의 두 손가락 동시 탭에 해당한다.
+    await tester.tap(
+      find.text(SocialSignInButton.labelOf(AuthProviderId.google)),
+    );
+    await tester.tap(
+      find.text(SocialSignInButton.labelOf(AuthProviderId.apple)),
+    );
+    await tester.pumpAndSettle();
+
+    expect(auth.signInCalls, [AuthProviderId.google]);
+  });
+
   testWidgets('인증 서비스 주입이 없으면 로그인 화면 + 안내로 드러난다', (tester) async {
     SharedPreferences.setMockInitialValues({kSelectedTeamPrefsKey: 'lg'});
     await tester.pumpWidget(gate(null));

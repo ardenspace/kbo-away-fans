@@ -153,20 +153,37 @@ class FakeAuthService implements AuthService {
       displayName: '${provider.name} 사용자',
     );
     _current = user;
-    _changes.add(user);
+    if (!_changes.isClosed) _changes.add(user);
     return user;
   }
 
   @override
   Future<void> signOut() async {
     _current = null;
-    _changes.add(null);
+    if (!_changes.isClosed) _changes.add(null);
   }
 
   /// 세션 스트림에 오류를 흘린다 — 게이트가 스트림 실패를 어떻게 받는지
   /// 재는 자리(2.1). 실 구현에서는 SDK 예외가 이 길로 온다.
-  void emitError(Object error) => _changes.addError(error);
+  /// 스트림은 열린 채라, 같은 구독으로 뒤이어 값이 더 온다.
+  void emitError(Object error) {
+    if (!_changes.isClosed) _changes.addError(error);
+  }
+
+  /// 세션이 **오류와 함께 끝난다** — 스트림이 닫히므로 같은 구독으로는 값이
+  /// 더 오지 않는다. 실 SDK 에서 흔한 모양이고(권한을 잃은 스냅샷 스트림이
+  /// 그렇게 끝난다), [emitError] 가 전제하는 "오류 뒤에도 같은 구독이 산다"를
+  /// 뺀 자리를 재려고 둔다 — 다시 로그인해서 빠져나오는 경로가 실제로 서
+  /// 있는지는 이 대역으로만 드러난다.
+  Future<void> dropSession([Object? error]) async {
+    _current = null;
+    if (_changes.isClosed) return;
+    _changes.addError(error ?? StateError('세션 스트림이 끊겼다'));
+    await _changes.close();
+  }
 
   /// 스트림 정리 — 테스트의 tearDown 에서 부른다.
-  Future<void> dispose() => _changes.close();
+  Future<void> dispose() async {
+    if (!_changes.isClosed) await _changes.close();
+  }
 }

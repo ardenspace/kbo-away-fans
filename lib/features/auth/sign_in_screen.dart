@@ -28,25 +28,47 @@ class SignInScreen extends ConsumerStatefulWidget {
 }
 
 class _SignInScreenState extends ConsumerState<SignInScreen> {
-  /// 지금 진행 중인 로그인. null 이 아니면 세 버튼이 모두 잠긴다 —
+  /// 이 화면이 시작한 로그인. 진행 중이거나 이미 성공해서 게이트가 화면을
+  /// 걷어가기를 기다리는 동안 null 이 아니고, 그동안 세 버튼이 모두 잠긴다 —
   /// 두 제공자의 흐름이 겹치면 어느 쪽 결과가 세션이 되는지가 흐려진다.
+  /// 실패로 끝났을 때만 다시 null 이 된다.
   AuthProviderId? _pending;
 
   /// 마지막 실패 안내. 다음 시도를 시작할 때 지운다.
   String? _failure;
 
   Future<void> _signIn(AuthProviderId provider) async {
+    // 잠금을 `_pending` → rebuild → `onPressed: null` 경로에만 기대면 같은
+    // 프레임에 도착한 두 번째 탭(두 손가락 동시 탭)이 그대로 통과한다.
+    // 결정("진행 중이면 셋 다 잠근다")을 지키는 자리는 핸들러 안쪽이다 —
+    // `LikeButton` 이 연타를 막은 방식과 같다.
+    if (_pending != null) return;
     setState(() {
       _pending = provider;
       _failure = null;
     });
     String? failure;
+    var signedIn = false;
     try {
       await ref.read(authServiceProvider).signIn(provider);
+      signedIn = true;
     } catch (error) {
       failure = _messageOf(BackendError.from(error));
     }
     if (!mounted) return;
+    if (signedIn) {
+      // 성공했으면 잠금을 풀지 않는다 — 이 화면은 게이트가 곧 걷어내므로
+      // 여기서 더 할 일이 없고, 푸는 순간 게이트가 화면을 바꾸기 전(아직 한
+      // 프레임도 그리지 않은 사이)에 들어온 탭이 두 번째 로그인을 연다.
+      //
+      // 세션 상태는 다시 세운다. 세션 스트림은 오류와 함께 끝나기도 하는데
+      // (권한을 잃은 스냅샷 스트림이 그렇다) 그러면 provider 가 죽은 구독을
+      // 든 채 남아, 다시 로그인해도 게이트가 넘어가지 않는다. 자동 재시도를
+      // 끈 결정은 그대로 두고, 다시 세우는 시점만 사람의 행동인 이 자리에
+      // 붙인다.
+      ref.invalidate(authStateProvider);
+      return;
+    }
     setState(() {
       _pending = null;
       _failure = failure;

@@ -9,6 +9,7 @@ import 'features/home/home_screen.dart';
 import 'features/splash/splash_screen.dart';
 import 'features/team_select/selected_team.dart';
 import 'features/team_select/team_select_screen.dart';
+import 'ui/shared/content_fallback.dart';
 
 /// 앱 루트 위젯 — 기본 토큰으로 ThemeData 를 깔고 루트 게이트를 띄운다.
 ///
@@ -101,11 +102,30 @@ class _SplashGateState extends State<SplashGate> {
 /// 세션을 확인하지 못한 경우(스트림 오류, 또는 `AuthService` 주입 없음)도
 /// 로그인 화면이되 안내를 함께 띄운다 — 로그인한 것으로 볼 수는 없고,
 /// 말없이 되돌리면 까닭 없이 로그아웃된 것으로 보이기 때문이다.
-class RootGate extends ConsumerWidget {
+///
+/// 게이트는 자기 route 안의 화면만 갈아 끼운다. 그래서 로그인한 뒤 루트
+/// Navigator 에 밀어 올린 화면(팀 바꾸기·장소 화면 등)은 인증 상태가 바뀌어도
+/// 저 혼자 위에 남는다 — 로그아웃한 사람이 로그인 뒤의 화면을 계속 조작하게
+/// 되는 자리다. 그래서 이 게이트는 화면을 가르는 일에 더해, "로그인됨"에서
+/// 벗어나는 순간 자기 위에 쌓인 route 를 함께 내린다. 미는 쪽마다 뒷정리를
+/// 심지 않는 것은, 그러면 화면이 하나 늘 때마다 같은 빈틈이 다시 열리기
+/// 때문이다.
+class RootGate extends ConsumerStatefulWidget {
   const RootGate({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<RootGate> createState() => _RootGateState();
+}
+
+class _RootGateState extends ConsumerState<RootGate> {
+  @override
+  Widget build(BuildContext context) {
+    ref.listen(authStateProvider, (previous, next) {
+      if (previous != null && _isSignedIn(previous) && !_isSignedIn(next)) {
+        _dismissRoutesAboveGate();
+      }
+    });
+
     // 오류를 먼저 본다 — 세션 스트림이 값을 흘린 뒤에 실패하면 이전 값이
     // 상태에 남아 있어(AsyncValue 는 실패해도 마지막 값을 들고 있다) 값부터
     // 보면 끊긴 세션으로 홈에 머무르게 된다.
@@ -116,10 +136,28 @@ class RootGate extends ConsumerWidget {
       AsyncValue(hasValue: true, :final value) => value == null
           ? const SignInScreen()
           : const _SignedInGate(),
-      _ => const _GateLoading(),
+      _ => _gateLoading,
     };
   }
+
+  /// 게이트 위에 쌓인 route 를 전부 내린다.
+  ///
+  /// 프레임이 끝난 뒤로 미루는 것은, 인증 상태가 build 도중에 바뀌는 경우에도
+  /// Navigator 를 건드리는 시점이 프레임 밖이 되게 하려는 것이다.
+  void _dismissRoutesAboveGate() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      Navigator.maybeOf(
+        context,
+        rootNavigator: true,
+      )?.popUntil((route) => route.isFirst);
+    });
+  }
 }
+
+/// 세션이 확인된 로그인 상태인가 — 오류는 값이 남아 있어도 로그인이 아니다.
+bool _isSignedIn(AsyncValue<AuthUser?> state) =>
+    !state.hasError && state.hasValue && state.value != null;
 
 /// 로그인한 뒤의 분기 — 저장된 응원 팀이 없으면 온보딩, 있으면 홈.
 class _SignedInGate extends ConsumerWidget {
@@ -132,17 +170,11 @@ class _SignedInGate extends ConsumerWidget {
           ? const TeamSelectScreen()
           : HomeScreen(teamId: value),
       AsyncError() => const TeamSelectScreen(),
-      _ => const _GateLoading(),
+      _ => _gateLoading,
     };
   }
 }
 
-/// 게이트가 아직 갈래를 못 정한 동안의 화면.
-class _GateLoading extends StatelessWidget {
-  const _GateLoading();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Scaffold(body: Center(child: CircularProgressIndicator()));
-  }
-}
+/// 게이트가 아직 갈래를 못 정한 동안의 화면 — 스피너는 [ContentFallback] 의
+/// 로딩 모습 그대로다 (로스터에 있는 단일 구현을 다시 짜지 않는다).
+const Widget _gateLoading = Scaffold(body: ContentFallback(loading: true));
