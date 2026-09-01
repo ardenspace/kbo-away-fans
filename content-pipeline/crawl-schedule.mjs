@@ -17,8 +17,8 @@
 //      경기 내용이 그대로인 채 계약 버전만 올라간 변경은 통과시켜야 한다 —
 //      산출물이 옛 버전에 머물면 앱이 그 문서를 통째로 거부한다.
 //   5) 원천이 조용히 반토막 나는 두 경로를 실패로 바꾼다 — 응답 총건수(gameTotalCount)
-//      보다 적게 받으면(창을 넓혔을 때의 잘림), 그리고 이전 산출물로도 못 살린 점수
-//      결측이 임계값(MAX_UNRECOVERABLE_MISSING_SCORES)을 넘으면 exit 1.
+//      보다 적게 받으면(창을 넓혔을 때의 잘림), 그리고 원천이 종료라고 말하는데 점수를
+//      얻지 못한 경기가 임계값(MAX_MISSING_FINISHED_SCORES)을 넘으면 exit 1.
 //
 // 사용법:
 //   node content-pipeline/crawl-schedule.mjs                  # 실 크롤 → data/schedule.json
@@ -221,19 +221,24 @@ function carryOverFromPrevious(previous) {
 }
 
 /**
- * 이전 산출물로도 못 살린 **신규** 점수 결측이 한 번의 크롤에서 이 수를 넘으면
- * warn 이 아니라 실패다 (안전장치 2겹).
+ * **원천이 종료라고 말하는데 점수를 얻지 못한 경기**가 한 번의 크롤에서 이 수를
+ * 넘으면 warn 이 아니라 실패다 (안전장치 2겹).
+ *
+ * 세는 대상이 "1겹이 못 살린 건수"가 아니라 "결측 전부"인 이유 — 크롤은 20분
+ * 간격이라 경기가 끝나기 직전의 이전 산출물 상태는 언제나 scheduled 이고, 1겹은
+ * 그 상태도 그대로 유지하며 살린 것으로 처리한다. 못 살린 건수만 세면 원천이
+ * 점수 필드를 개명·null 화했을 때 종료 경기 **전원**이 유지 경로로 흘러 카운트가
+ * 0 이 되고, 점수 없이 전부 scheduled 로 강등된 문서가 crawl_success 로 배포된다.
+ * 유지 여부와 무관하게 세면 그 경로가 임계값에 걸린다.
  *
  * 5인 근거 — KBO 정규 시즌의 하루 최대 경기 수다(구장 9곳 중 5곳 동시 개최).
- * 안전장치 1겹이 "이전 산출물에 있던 경기"를 전부 흡수하므로, 여기 남는 것은
- * 이 창에 처음 들어오면서 이미 끝나 있던 경기뿐이다. 한 크롤에서 그런 경기가
- * 하루치를 통째로 넘긴다는 것은 개별 경기의 데이터 결손이 아니라 원천의 점수
- * 필드가 바뀐 것(개명·null 화)이고, 그때는 종료 경기 전원이 조용히 빠진 반토막
- * 산출물이 crawl_success 로 배포되는 편보다 기존 산출물을 지키는 편이 싸다.
- * 반대로 5 이하는 통과시켜, "한 건의 결측이 문서 전체의 산출을 막는" 원래 문제를
- * 되돌리지 않는다.
+ * 한 크롤에서 점수를 못 얻은 종료 경기가 하루치를 통째로 넘긴다는 것은 개별 경기의
+ * 데이터 결손이 아니라 원천의 점수 필드가 바뀐 것이고, 그때는 반토막(또는 전부
+ * scheduled 로 강등된) 산출물이 crawl_success 로 배포되는 편보다 기존 산출물을
+ * 지키는 편이 싸다. 반대로 5 이하는 1겹이 흡수하도록 통과시켜, "한 건의 결측이
+ * 문서 전체의 산출을 막는" 원래 문제를 되돌리지 않는다.
  */
-export const MAX_UNRECOVERABLE_MISSING_SCORES = 5;
+export const MAX_MISSING_FINISHED_SCORES = 5;
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -252,11 +257,16 @@ const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
  *        문서에서 사라져 앱의 "오늘 원정" 판정과 오늘 취소 감지가 통째로 어긋나는데,
  *        이 유지가 그 경로를 막는다.
  *     2) 그래도 못 살린 결측은 warn 로그 후 그 경기만 제외하되(로스터 밖 팀·구장과
- *        같은 처리), 한 번의 크롤에서 MAX_UNRECOVERABLE_MISSING_SCORES 를 넘으면
- *        예외를 던져 기존 산출물 보호 패턴(exit 1, 옛 문서 유지)에 맡긴다. 건별 skip
- *        만 두면 원천이 점수 필드를 개명했을 때 종료 경기 전원이 빠진 반토막 문서가
- *        crawl_success 로 배포된다 (games 최소 개수 제약이 없어 validate 도 통과한다).
- *   한 건의 결측이 문서 전체의 산출을 막던 원래 문제는 1) 이 흡수한다.
+ *        같은 처리), **1) 이 살렸는지와 무관하게** 결측 건수를 세어 한 번의 크롤에서
+ *        MAX_MISSING_FINISHED_SCORES 를 넘으면 예외를 던져 기존 산출물 보호
+ *        패턴(exit 1, 옛 문서 유지)에 맡긴다. 건별 skip 만 두면 원천이 점수 필드를
+ *        개명했을 때 종료 경기 전원이 빠진 반토막 문서가 crawl_success 로 배포되고
+ *        (games 최소 개수 제약이 없어 validate 도 통과한다), 못 살린 건수만 세면
+ *        같은 상황에서 전원이 1) 의 "이전 상태 유지" 경로로 흘러(20분 간격 크롤의
+ *        직전 상태는 언제나 scheduled) 카운트가 0 이 되고 점수 없이 전부 scheduled
+ *        로 강등된 문서가 배포된다.
+ *   한 건의 결측이 문서 전체의 산출을 막던 원래 문제는 1) 이 흡수한다 — 임계값 이하의
+ *   결측은 유지가 되든 skip 이 되든 문서가 그대로 산출된다.
  * - 응답이 잘렸는지(총건수 gameTotalCount 대조) 먼저 본다 — 창을 넓히면 요청 size 를
  *   넘겨 뒤쪽(미래) 경기가 조용히 사라지고 D-day 계산이 틀어진다.
  * - 지난 날짜인데 scheduled 로 남은 경기가 있으면 warn 로그를 남긴다 — 종료 판정이
@@ -302,8 +312,12 @@ export function buildScheduleDocument(payload, options = {}) {
     previousGames.filter((g) => typeof g?.id === 'string').map((g) => [g.id, g]),
   );
 
-  /** 이전 산출물로도 못 살린 신규 점수 결측 (임계값을 넘으면 실패). */
-  const unrecoverableMissingScores = [];
+  /**
+   * 원천이 종료라고 말하는데 점수를 얻지 못한 경기 (임계값을 넘으면 실패).
+   * 1겹이 이전 산출물로 살렸는지와 무관하게 센다 — 근거는
+   * MAX_MISSING_FINISHED_SCORES 주석.
+   */
+  const missingFinishedScores = [];
 
   const games = [];
   for (const raw of rawGames) {
@@ -354,17 +368,19 @@ export function buildScheduleDocument(payload, options = {}) {
         outcome = scores;
       } else {
         // 계약이 종료 경기에 점수를 요구하므로 원천 값만으로는 산출할 수 없다.
+        // 2겹의 카운트는 여기서 올린다 — 아래 1겹이 살려서 문서에 남든 아니든
+        // "원천이 종료라는데 점수가 없다"는 사실 자체가 임계값이 세는 대상이다.
+        missingFinishedScores.push(id);
         // 1겹: 이전 산출물에 있던 경기면 그 값을 그대로 유지해 문서에서 지우지 않는다.
         const carried = carryOverFromPrevious(previous);
         if (carried === null) {
-          // 2겹: 못 살린 건은 이 경기만 빼되 건수를 세어 임계값을 넘으면 실패시킨다.
+          // 못 살린 건은 이 경기만 뺀다 (임계값 이하일 때의 처리).
           logger?.warn('game_skipped', {
             gameId: id,
             reason: 'finished_without_score',
             homeTeamScore: raw.homeTeamScore,
             awayTeamScore: raw.awayTeamScore,
           });
-          unrecoverableMissingScores.push(id);
           continue;
         }
         logger?.warn('finished_score_carried_over', {
@@ -390,12 +406,12 @@ export function buildScheduleDocument(payload, options = {}) {
     });
   }
 
-  if (unrecoverableMissingScores.length > MAX_UNRECOVERABLE_MISSING_SCORES) {
+  if (missingFinishedScores.length > MAX_MISSING_FINISHED_SCORES) {
     throw new ScheduleParseError(
-      `점수 없는 종료 경기가 임계값을 넘음: ${unrecoverableMissingScores.length} > ` +
-        `${MAX_UNRECOVERABLE_MISSING_SCORES} (이전 산출물로도 살릴 수 없는 건수) — ` +
+      `점수 없는 종료 경기가 임계값을 넘음: ${missingFinishedScores.length} > ` +
+        `${MAX_MISSING_FINISHED_SCORES} (이전 산출물 유지 여부와 무관한 결측 건수) — ` +
         '원천의 점수 필드(homeTeamScore/awayTeamScore)가 바뀌었을 수 있음. ' +
-        `예: ${unrecoverableMissingScores.slice(0, 3).join(', ')}`,
+        `예: ${missingFinishedScores.slice(0, 3).join(', ')}`,
     );
   }
 

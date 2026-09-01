@@ -22,7 +22,7 @@ import {
   DEFAULT_PAST_DAYS,
   DEFAULT_WINDOW_DAYS,
   MAX_REQUEST_SIZE,
-  MAX_UNRECOVERABLE_MISSING_SCORES,
+  MAX_MISSING_FINISHED_SCORES,
 } from '../crawl-schedule.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -513,7 +513,7 @@ test('이전 산출물이 그 경기를 아직 scheduled 로 갖고 있으면 �
   assert.equal(document.games.length, 12);
 });
 
-test('CLI: 원천이 점수를 통째로 잃어도 이전 산출물이 있으면 12경기가 그대로 남는다', () => {
+test('CLI: 점수 결측이 임계값 이하면 이전 산출물 값으로 살아나 12경기가 그대로 남는다', () => {
   const dir = mkdtempSync(path.join(os.tmpdir(), 'crawl-carryover-'));
   const out = path.join(dir, 'schedule.json');
   const input = path.join(dir, 'payload.json');
@@ -523,15 +523,9 @@ test('CLI: 원천이 점수를 통째로 잃어도 이전 산출물이 있으면
   assert.equal(first.status, 0, first.stderr);
   assert.equal(loadJson(out).games.filter((g) => g.status === 'finished').length, 6);
 
-  // 2) 원천이 점수 필드를 개명한 상황 재현 — 종료 경기 전원의 점수가 사라진다.
+  // 2) 개별 경기 몇 건의 점수만 결측된 상황 — 임계값 이하이므로 유지 장치가 흡수한다.
   const payload = loadJson(fixture('naver-schedule.past-window.json'));
-  for (const g of payload.result.games) {
-    if (g.statusCode === 'RESULT') {
-      g.homeTeamScore = null;
-      g.awayTeamScore = null;
-    }
-  }
-  todayGameFinishedWithoutScore(payload);
+  stripScores(payload, MAX_MISSING_FINISHED_SCORES);
   writeFileSync(input, JSON.stringify(payload));
 
   const second = runCrawler(['--input', input, '--out', out]);
@@ -560,13 +554,13 @@ function stripScores(payload, count) {
   });
 }
 
-test('이전 산출물로도 못 살린 점수 결측이 임계값 이하면 그 경기만 빠지고 문서는 산출된다', () => {
+test('이전 산출물로도 못 살릴 점수 결측이 임계값 이하면 그 경기만 빠지고 문서는 산출된다', () => {
   // "한 건의 결측이 문서 전체의 산출을 막는" 원래 문제를 임계값이 되돌리지 않는지.
   const payload = loadJson(fixture('naver-schedule.past-window.json'));
-  const stripped = stripScores(payload, MAX_UNRECOVERABLE_MISSING_SCORES);
+  const stripped = stripScores(payload, MAX_MISSING_FINISHED_SCORES);
 
   const document = buildScheduleDocument(payload, { now: PAST_WINDOW_NOW });
-  assert.equal(document.games.length, 12 - MAX_UNRECOVERABLE_MISSING_SCORES);
+  assert.equal(document.games.length, 12 - MAX_MISSING_FINISHED_SCORES);
   for (const id of stripped) {
     assert.equal(
       document.games.some((g) => g.id === id),
@@ -576,14 +570,57 @@ test('이전 산출물로도 못 살린 점수 결측이 임계값 이하면 그
   }
 });
 
-test('이전 산출물로도 못 살린 점수 결측이 임계값을 넘으면 ScheduleParseError', () => {
+test('점수 결측이 임계값을 넘으면 ScheduleParseError (이전 산출물이 없어 살릴 수도 없는 경우)', () => {
   const payload = loadJson(fixture('naver-schedule.past-window.json'));
-  stripScores(payload, MAX_UNRECOVERABLE_MISSING_SCORES + 1);
+  stripScores(payload, MAX_MISSING_FINISHED_SCORES + 1);
 
   assert.throws(
     () => buildScheduleDocument(payload, { now: PAST_WINDOW_NOW }),
     (err) => err instanceof ScheduleParseError && /임계값/.test(err.message),
   );
+});
+
+test('이전 산출물이 scheduled 로 유지해 주더라도 종료 경기 전원의 점수 결측은 임계값을 넘는다', () => {
+  // 20분 간격 cron 에서 경기 종료 직전의 이전 산출물 상태는 언제나 scheduled 다.
+  // 임계값이 "1겹이 못 살린 건수"만 세면 이 경로에서 카운트가 0 이 되어, 원천이
+  // 점수 필드를 잃었을 때 종료 경기 전원이 점수 없는 scheduled 로 강등된 문서가
+  // crawl_success 로 배포된다 — 임계값은 유지 여부와 무관하게 세야 한다.
+  const payload = loadJson(fixture('naver-schedule.past-window.json'));
+  const stripped = stripScores(payload, MAX_MISSING_FINISHED_SCORES + 1);
+  const previousGames = stripped.map((id) => ({ id, status: 'scheduled' }));
+
+  assert.throws(
+    () => buildScheduleDocument(payload, { now: PAST_WINDOW_NOW, previousGames }),
+    (err) => err instanceof ScheduleParseError && /임계값/.test(err.message),
+  );
+});
+
+test('CLI: 이전 산출물이 scheduled 로 갖고 있어도 대량 점수 결측은 exit 1 (산출물 무변경)', () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'crawl-missing-carried-'));
+  const out = path.join(dir, 'schedule.json');
+  const input = path.join(dir, 'payload.json');
+
+  const payload = loadJson(fixture('naver-schedule.past-window.json'));
+  const stripped = stripScores(payload, MAX_MISSING_FINISHED_SCORES + 1);
+  writeFileSync(input, JSON.stringify(payload));
+
+  // 직전 크롤(20분 전) 때는 이 경기들이 아직 안 끝나 있었다 — 유지 장치가 전부 흡수한다.
+  const original = `${JSON.stringify(
+    {
+      schemaVersion: 2,
+      generatedAt: '2026-09-01T04:40:00Z',
+      games: stripped.map((id) => ({ id, status: 'scheduled' })),
+    },
+    null,
+    2,
+  )}\n`;
+  writeFileSync(out, original);
+
+  const result = runCrawler(['--input', input, '--out', out]);
+  assert.notEqual(result.status, 0, result.stderr);
+  assert.match(result.stderr, /crawl_fail/);
+  assert.equal(readFileSync(out, 'utf8'), original, '실패 시 기존 산출물을 덮어쓰면 안 됨');
+  assert.ok(!existsSync(path.join(dir, 'schedule.next.json')), '임시 파일이 남으면 안 됨');
 });
 
 test('CLI: 대량 점수 결측은 exit 1 이고 기존 산출물은 그대로 남는다', () => {
@@ -596,7 +633,7 @@ test('CLI: 대량 점수 결측은 exit 1 이고 기존 산출물은 그대로 �
   writeFileSync(out, original);
 
   const payload = loadJson(fixture('naver-schedule.past-window.json'));
-  stripScores(payload, MAX_UNRECOVERABLE_MISSING_SCORES + 1);
+  stripScores(payload, MAX_MISSING_FINISHED_SCORES + 1);
   writeFileSync(input, JSON.stringify(payload));
 
   const result = runCrawler(['--input', input, '--out', out]);
