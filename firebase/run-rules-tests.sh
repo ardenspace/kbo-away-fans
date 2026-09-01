@@ -56,5 +56,10 @@ if [ "${1:-}" = "--serve" ]; then
   exec "$firebase_bin" emulators:start --only firestore --project "$project_id"
 fi
 
+# --test-concurrency=1 은 성능 조정이 아니라 정확성 요구다. `node --test` 는 테스트
+# 파일이 둘 이상이면 파일마다 별도 프로세스를 병렬로 띄우는데, 규칙 테스트는 파일마다
+# 같은 에뮬레이터·같은 project id 를 공유하고 각 파일의 beforeEach 가
+# clearFirestore() 로 DB 전체를 지운다 — 병렬로 돌면 한 파일이 심은 문서를 다른
+# 파일이 중간에 지워 무작위로 실패한다. 파일을 하나씩 돌리면 그 겹침이 사라진다.
 exec "$firebase_bin" emulators:exec --only firestore --project "$project_id" \
-  "node --test 'firebase/test/*.test.mjs'"
+  "node --test --test-concurrency=1 'firebase/test/*.test.mjs'"

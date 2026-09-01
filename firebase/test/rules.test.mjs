@@ -28,6 +28,7 @@ import {
   seed,
   stampDoc,
   stampIdOf,
+  tierFor,
   userDoc,
 } from './helpers.mjs';
 
@@ -189,16 +190,32 @@ describe('필드 화이트리스트 — 계약 밖 필드는 서버에 닿지 �
 });
 
 describe('칸별 요약 — 사용자 문서 하나만 읽고 판을 그린다', () => {
-  it('10칸 전부를 요약으로 들 수 있고 등급 세 값이 통과한다', async () => {
+  // 이 테스트는 규칙의 표현식 예산(평가 한 번에 1000개)을 재는 자리이기도 하다 —
+  // 10칸이 전부 차고 선택 필드까지 다 든 쓰기가 이 규칙 파일의 최악이고,
+  // firestore.rules 의 validCell 에 검사를 더하면 여기서 먼저 깨진다.
+  it('10칸 전부를 선택 필드까지 채워 써도 통과한다 (등급 세 값 · 표현식 예산)', async () => {
     const db = asUser(env, OWNER_UID);
     const board = {};
     for (const [i, cellId] of CELL_IDS.entries()) {
       board[cellId] = boardCell([1, 3, 10][i % 3], '2026-09-01');
     }
-    await assertSucceeds(setDoc(doc(db, paths.user(OWNER_UID)), userDoc({ board })));
+    const full = userDoc({ board, updatedAt: new Date('2026-09-01T02:00:00Z') });
+    await assertSucceeds(setDoc(doc(db, paths.user(OWNER_UID)), full));
 
     const snap = await getDoc(doc(db, paths.user(OWNER_UID)));
     assert.equal(Object.keys(snap.data().board).length, 10);
+  });
+
+  it('칸 요약에 count·tier 가 없으면 거부된다', async () => {
+    const db = asUser(env, OWNER_UID);
+    const ref = doc(db, paths.user(OWNER_UID));
+
+    await assertFails(setDoc(ref, userDoc({ board: { jamsil_lg: { count: 1 } } })));
+    await assertFails(setDoc(ref, userDoc({ board: { jamsil_lg: { tier: 'first' } } })));
+    await assertFails(setDoc(ref, userDoc({ board: { jamsil_lg: {} } })));
+    await assertFails(
+      setDoc(ref, userDoc({ board: { jamsil_lg: { count: 1, lastStampedOn: '2026-09-01' } } })),
+    );
   });
 
   it('판에 없는 칸 id·등급·개수는 거부된다', async () => {
@@ -211,6 +228,32 @@ describe('칸별 요약 — 사용자 문서 하나만 읽고 판을 그린다',
     await assertFails(
       setDoc(ref, userDoc({ board: { jamsil_lg: { count: 1, tier: 'first', visits: 1 } } })),
     );
+  });
+
+  it('등급이 사다리(임계 1/3/10)와 어긋나면 거부된다', async () => {
+    const db = asUser(env, OWNER_UID);
+    const ref = doc(db, paths.user(OWNER_UID));
+
+    // 구간의 경계값마다 사다리를 지킨 짝은 통과한다
+    for (const count of [1, 2, 3, 4, 9, 10, 42]) {
+      await assertSucceeds(
+        setDoc(ref, userDoc({ board: { jamsil_lg: { count, tier: tierFor(count) } } })),
+      );
+    }
+
+    // 어긋난 짝은 등급 세 값 중 하나여도 거부된다
+    for (const [count, tier] of [
+      [1, 'regular'],
+      [1, 'master'],
+      [2, 'regular'],
+      [3, 'first'],
+      [3, 'master'],
+      [9, 'master'],
+      [10, 'regular'],
+      [10, 'first'],
+    ]) {
+      await assertFails(setDoc(ref, userDoc({ board: { jamsil_lg: { count, tier } } })));
+    }
   });
 
   it('도장과 요약을 같은 트랜잭션으로 함께 쓸 수 있다', async () => {

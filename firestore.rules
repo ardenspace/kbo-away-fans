@@ -3,9 +3,9 @@ rules_version = '2';
 // kbo-away-fans — Cloud Firestore 보안 규칙
 //
 // 데이터 계약 원본: docs/firestore-schema.md (필드 뜻과 배지 판 요약 규약은 거기)
-// 규칙 단위 테스트: firebase/test/rules.test.mjs (`npm --prefix firebase test`)
+// 규칙 단위 테스트: firebase/test/ (`npm --prefix firebase test`)
 //
-// 이 파일이 못 박는 것 셋:
+// 이 파일이 못 박는 것 넷:
 //
 //  1) 소유권 — 사용자 데이터는 전부 `users/{uid}` 아래에 산다. 본인
 //     (request.auth.uid == uid)만 읽고 쓰며, 미인증 요청과 남의 uid 접근은
@@ -19,6 +19,11 @@ rules_version = '2';
 //  3) 도장 문서 id 의 유일한 형태 — `{stadiumId}_{gameId}`. 문서 id 와 본문
 //     필드가 어긋난 쓰기는 거부된다. id 가 결정적이라 오프라인 재시도·중복 탭·
 //     여러 기기 동시 접속이 같은 문서로 수렴하고 쓰기가 그대로 멱등해진다.
+//
+//  4) 등급 사다리 — 칸 요약의 `tier` 는 `count` 에서 파생된 값이므로 규칙이
+//     둘의 일치를 직접 잰다(임계 1/3/10). 파생값을 저장하는 유일한 위험이
+//     둘의 어긋남인데, 임계가 앱 코드에만 있으면 버그 하나가 어긋난 판을
+//     그대로 서버에 남긴다.
 
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -48,9 +53,11 @@ service cloud.firestore {
       ];
     }
 
-    // lib/design/tokens.dart 의 BadgeTier 와 같은 값 (임계 1/3/10)
-    function tiers() {
-      return ['first', 'regular', 'master'];
+    // 등급 사다리 — lib/design/tokens.dart 의 BadgeTier 세 값과 임계(1/3/10)가 같다.
+    // 등급의 값 공간도 이 함수가 든다: 돌려주는 값 셋이 곧 허용되는 tier 전부다.
+    // count 가 1 이상인 칸에서만 부른다 (validCell 이 그 앞에서 막는다).
+    function tierFor(count) {
+      return count >= 10 ? 'master' : (count >= 3 ? 'regular' : 'first');
     }
 
     function categories() {
@@ -73,14 +80,23 @@ service cloud.firestore {
     // 판을 열 때 읽는 것은 사용자 문서 하나뿐이고 개별 도장은 칸 상세에서만
     // 읽는다. 요약은 도장 쓰기와 같은 트랜잭션에서 갱신된다.
     // 도장이 하나도 없는 칸은 요약에 아예 없다(빈 칸) — count 는 항상 1 이상.
+    // tier 는 count 에서 파생된 값이라 사다리와 어긋나면 쓰기가 거부된다.
+    //
+    // 표현식 예산: 규칙 한 번의 평가는 표현식 1000개를 넘을 수 없고, 판이 10칸
+    // 전부 찬 쓰기가 이 파일의 최악이다(validCell 이 10번 불린다). 실측 여유는
+    // conjunct 한 줄어치뿐이라 여기에 검사를 더할 때는 반드시
+    // rules.test.mjs 의 "10칸 전부" 테스트로 예산을 다시 재야 한다.
+    //
+    // `count`·`tier` 가 필수인 것은 hasAll 로 따로 적지 않는다 — 없는 키를 읽으면
+    // 규칙이 오류로 끝나 쓰기가 거부되므로 아래 두 줄이 곧 필수 검사다
+    // (rules.test.mjs 가 그 거부를 직접 잰다). 예산이 빠듯해 중복을 뺀 자리다.
 
     function validCell(cell) {
       return cell is map
-        && cell.keys().hasAll(['count', 'tier'])
         && cell.keys().hasOnly(['count', 'tier', 'lastStampedOn'])
         && cell.count is int
         && cell.count >= 1
-        && cell.tier in tiers()
+        && cell.tier == tierFor(cell.count)
         && (!('lastStampedOn' in cell) || isDay(cell.lastStampedOn));
     }
 
