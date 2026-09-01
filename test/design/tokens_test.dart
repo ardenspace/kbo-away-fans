@@ -275,8 +275,13 @@ void main() {
       expect(BadgeTokens.cellRadius, equals(RadiusTokens.pill));
       expect(BadgeTokens.boardPadding, equals(SpaceTokens.lg));
       expect(BadgeTokens.emptyBorderWidth, greaterThan(0));
-      expect(BadgeTokens.tierMarkSize, greaterThan(0));
       expect(BadgeTokens.tierRingInset, greaterThan(0));
+    });
+
+    test('빈 칸 테두리는 굵기와 색이 짝으로 있다', () {
+      // 굵기만 있으면 판을 그리는 쪽이 색을 직접 골라야 하는데, 그때 고르는
+      // 값이 `Colors.grey` 류면 hex 리터럴이 아니라 하드코딩 검사를 빠져나간다.
+      expect(BadgeTokens.emptyBorderColor, equals(ColorTokens.outline));
     });
 
     test('빈 칸 투명도는 보이되 획득 칸과 갈리는 범위다', () {

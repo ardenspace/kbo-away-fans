@@ -10,6 +10,12 @@ import 'package:kbo_away_fans/design/tokens.dart';
 /// 이 파일이 있는 이유: 예전 등급 값은 링 색 한 가지로만 갈렸는데, 링 색이
 /// 팀 대표색과 `==` 로 같지 않은지만 보던 단언은 어떤 값을 넣어도 통과해
 /// 한화·기아 위에서 세 등급이 전부 최소선 아래였다는 사실을 가렸다.
+///
+/// 대비를 재는 자리도 한 번 틀렸다. "링을 이루는 겹 중 최대"로 재던 판정은
+/// 대비를 만드는 밝은 겹이 어두운 겹 안쪽에 갇혀 몸통과 한 번도 닿지 않아도
+/// 통과해서, 실제로 그려지는 경계에서는 10팀 중 7팀이 3:1 미달(두산 1.04·
+/// 롯데 1.05·키움 1.19·kt 1.21)인 값을 통과시켰다. 지금은 **몸통과 맞닿는
+/// 겹**으로만 잰다.
 double _contrast(Color a, Color b) {
   final la = a.computeLuminance();
   final lb = b.computeLuminance();
@@ -21,24 +27,33 @@ double _contrast(Color a, Color b) {
 /// 링 한 겹을 몸통 위에 올린 실제 화면 색 (반투명이면 몸통이 비쳐 나온다).
 Color _over(Color body, Color layer) => Color.alphaBlend(layer, body);
 
-/// 몸통 [body] 위에서 등급 [style] 이 얻는 **보장 대비** — 링을 이루는 겹
-/// 가운데 몸통과 가장 크게 갈리는 겹의 대비.
+/// 링이 몸통과 맞닿는 두 끝 겹 — 이름표와 함께.
 ///
-/// 최대값을 쓰는 이유: 링은 여러 겹이 붙은 한 덩어리이고, 몸통과 같은
-/// 밝기의 겹은 몸통에 묻히지만 그 옆의 겹이 갈리면 링의 존재는 그대로
-/// 읽힌다. 밝은 겉테와 어두운 윤곽을 함께 두는 표현이 어떤 몸통 색에서도
-/// 성립하는 근거가 이것이다.
-double _guaranteedContrast(Color body, BadgeTierStyle style) => style.rings
-    .map((layer) => _contrast(_over(body, layer.color), body))
-    .reduce((a, b) => a > b ? a : b);
+/// 링 바깥은 칸 몸통이고 링 안쪽도 칸 몸통이라 **경계는 두 곳**이다. 링
+/// 한가운데 아무리 밝은 겹이 있어도 몸통과 링을 가르는 선의 세기는 끝 겹이
+/// 정하므로, 링이 몸통 위에 뜨는지는 이 두 겹으로만 잴 수 있다.
+///
+/// 두 곳 중 나은 쪽이 아니라 **양쪽 모두**를 요구하는 이유: 한쪽 경계만
+/// 갈리면 링은 한 변만 또렷한 번진 덩어리로 읽히고, 안쪽 경계가 묻으면
+/// 링과 몸통 한가운데가 이어져 보여 "가장자리에 얹은 링"이라는 형태 자체가
+/// 무너진다.
+Map<String, BadgeRingLayer> _boundaryLayers(BadgeTierStyle style) => {
+  '바깥': style.rings.first,
+  '안쪽': style.rings.last,
+};
 
 /// 비텍스트 UI 경계의 최소선 (WCAG 2.1 SC 1.4.11).
+///
+/// 요구 범위는 **10개 팀 대표색**이다. "어떤 sRGB 색 위에서도"라는 일반화는
+/// 경계 기준으로 달성 불가능하다 — 흰 몸통이 밝은 끝 겹을, 검은 몸통이 어두운
+/// 끝 겹을 각각 죽이므로 한 벌의 오버레이가 양쪽을 함께 만족할 수 없다.
 const double _minBoundary = 3;
 
-/// 충분선 — 이 위로는 대비를 더 올려도 "테두리가 또렷하다"는 판단이 달라지지
-/// 않는다고 보는 선. 밝은 겉테와 어두운 윤곽을 함께 둔 링이 **어떤 색 위에서도**
-/// 넘게 되는 값(4.16:1, 흰색과 잉크색의 대비 곡선이 만나는 지점)에서 왔다.
-const double _sufficient = 4;
+/// 경계 대비를 만드는 겹의 최소 굵기 (논리픽셀).
+///
+/// 대비 수치만 보면 굵기 0.1 짜리 겹으로도 통과한다. 배율 1x 화면에서 최소
+/// 한 장치픽셀은 칠해져야 계산한 대비가 실제로 남으므로 1 논리픽셀을 요구한다.
+const double _minBoundaryLayerWidth = 1;
 
 /// 이웃 등급이 갈렸다고 볼 최소 대비.
 const double _minTierStep = 1.5;
@@ -49,69 +64,21 @@ void main() {
   const order = [BadgeTier.first, BadgeTier.regular, BadgeTier.master];
 
   group('배지 등급이 10개 팀 대표색 위에서 읽히는가', () {
-    test('각 등급의 링이 팀 몸통색과 최소 3:1 로 갈린다', () {
+    test('링이 몸통과 맞닿는 두 경계 모두 10개 팀 색에서 3:1 이상이다', () {
       final failures = <String>[];
       for (final MapEntry(key: teamId, value: theme) in teams.entries) {
         for (final MapEntry(key: tier, value: style) in tiers.entries) {
-          final ratio = _guaranteedContrast(theme.primary, style);
-          if (ratio < _minBoundary) {
-            failures.add(
-              '$teamId × ${tier.name}: ${ratio.toStringAsFixed(2)}:1',
+          for (final MapEntry(key: side, value: layer) in _boundaryLayers(
+            style,
+          ).entries) {
+            final ratio = _contrast(
+              _over(theme.primary, layer.color),
+              theme.primary,
             );
-          }
-        }
-      }
-      expect(
-        failures,
-        isEmpty,
-        reason: '팀 색 위에서 등급 링이 묻힌다:\n${failures.join('\n')}',
-      );
-    });
-
-    test('같은 등급이 10개 팀 색 어디에서나 충분선 위에서 읽힌다', () {
-      // 균일성을 "팀 간 대비 수치의 편차"로 재지 않는 이유:
-      // 검은 몸통(kt) 위의 흰 겉테는 21:1 이고, 이 값을 기아 위의 4.6:1 에
-      // 맞추려면 legibility 를 일부러 깎아야 한다. 게다가 몸통 상대휘도가
-      // 0(kt)~0.26(한화)로 벌어져 있어, 몸통과 무관한 오버레이 한 벌로
-      // "최소 3:1 이면서 팀 간 편차 1.5배 이내"는 아예 성립하지 않는다
-      // (kt 에서 4.5:1 이하이려면 합성색 상대휘도 ≤0.175, 기아에서 3:1
-      //  이상이려면 ≥0.63 — 같은 오버레이가 두 조건을 함께 만족할 수 없다).
-      // 그래서 편차 상한 대신 **모든 팀이 충분선을 넘는지**를 잰다. 최소선
-      // 3:1 보다 높은 요구이므로 검사는 느슨해지지 않는다.
-      final failures = <String>[];
-      for (final MapEntry(key: teamId, value: theme) in teams.entries) {
-        for (final MapEntry(key: tier, value: style) in tiers.entries) {
-          final ratio = _guaranteedContrast(theme.primary, style);
-          if (ratio < _sufficient) {
-            failures.add(
-              '$teamId × ${tier.name}: ${ratio.toStringAsFixed(2)}:1',
-            );
-          }
-        }
-      }
-      expect(
-        failures,
-        isEmpty,
-        reason: '충분선($_sufficient:1)에 못 미치는 조합:\n${failures.join('\n')}',
-      );
-    });
-
-    test('보장 대비는 팀 색이 아니라 링 구조에서 온다 — 색 공간 전체', () {
-      // 팀 대표색은 "초기값이며 추후 조정할 수 있다"(team_themes.dart).
-      // 10개 색에 맞춰 튜닝한 값이 아니라 어떤 몸통 색에도 성립하는 구조인지
-      // 를 확인한다 — sRGB 큐브를 격자로 훑는다.
-      final failures = <String>[];
-      for (var r = 0; r <= 255; r += 15) {
-        for (var g = 0; g <= 255; g += 15) {
-          for (var b = 0; b <= 255; b += 15) {
-            final body = Color.fromARGB(255, r, g, b);
-            for (final MapEntry(key: tier, value: style) in tiers.entries) {
-              final ratio = _guaranteedContrast(body, style);
-              if (ratio < _sufficient) {
-                failures.add(
-                  '#$r,$g,$b × ${tier.name}: ${ratio.toStringAsFixed(2)}:1',
-                );
-              }
+            if (ratio < _minBoundary) {
+              failures.add(
+                '$teamId × ${tier.name} $side 경계: ${ratio.toStringAsFixed(2)}:1',
+              );
             }
           }
         }
@@ -119,8 +86,30 @@ void main() {
       expect(
         failures,
         isEmpty,
-        reason: '몸통 색에 따라 링이 묻히는 구간이 있다:\n'
-            '${failures.take(10).join('\n')}',
+        reason: '링과 몸통을 가르는 선이 팀 색에 묻힌다:\n${failures.join('\n')}',
+      );
+    });
+
+    test('경계 대비를 만드는 겹이 눈에 남을 굵기다', () {
+      // 위 검사는 색만 본다. 대비를 담당하는 겹이 실오라기처럼 얇아도 수치는
+      // 그대로라, 굵기를 함께 단언하지 않으면 "계산상 통과, 화면에서 안 보임"
+      // 이 가능하다.
+      final failures = <String>[];
+      for (final MapEntry(key: tier, value: style) in tiers.entries) {
+        for (final MapEntry(key: side, value: layer) in _boundaryLayers(
+          style,
+        ).entries) {
+          if (layer.width < _minBoundaryLayerWidth) {
+            failures.add('${tier.name} $side 경계: ${layer.width}lp');
+          }
+        }
+      }
+      expect(
+        failures,
+        isEmpty,
+        reason:
+            '경계 대비를 만드는 겹이 ${_minBoundaryLayerWidth}lp 보다 얇다:\n'
+            '${failures.join('\n')}',
       );
     });
 
@@ -160,29 +149,28 @@ void main() {
     test('이웃한 두 등급이 서로 갈린다', () {
       // 신호는 셋이다 — 금속색, 띠 개수, 링 전체 굵기. 색만으로 갈리던
       // 예전 값은 은색·금색의 상대휘도가 거의 같아 1.17:1 로 뭉갰다.
-      final failures = <String>[];
-      for (final MapEntry(key: teamId, value: theme) in teams.entries) {
-        for (var i = 1; i < order.length; i++) {
-          final lo = _over(theme.primary, tiers[order[i - 1]]!.ringColor);
-          final hi = _over(theme.primary, tiers[order[i]]!.ringColor);
-          final ratio = _contrast(lo, hi);
-          if (ratio < _minTierStep) {
-            failures.add(
-              '$teamId: ${order[i - 1].name} ↔ ${order[i].name} '
-              '${ratio.toStringAsFixed(2)}:1',
-            );
-          }
-        }
+      //
+      // 금속색 대비는 팀 10개를 돌지 않는다 — 링 색이 전부 불투명이라
+      // 몸통 위에 합성해도 색이 그대로여서 열 번 모두 같은 값이 나온다.
+      // 그 전제(불투명)를 먼저 단언하고 한 번만 잰다.
+      for (final MapEntry(key: tier, value: style) in tiers.entries) {
+        expect(
+          style.rings.every((layer) => layer.color.a == 1),
+          isTrue,
+          reason:
+              '${tier.name}: 링에 반투명 겹이 있어 몸통 색이 비쳐 나온다 — '
+              '등급 구분을 팀별로 다시 재야 한다',
+        );
       }
-      expect(
-        failures,
-        isEmpty,
-        reason: '이웃 등급이 색으로 구분되지 않는다:\n${failures.join('\n')}',
-      );
 
       for (var i = 1; i < order.length; i++) {
         final lo = tiers[order[i - 1]]!;
         final hi = tiers[order[i]]!;
+        expect(
+          _contrast(lo.ringColor, hi.ringColor),
+          greaterThanOrEqualTo(_minTierStep),
+          reason: '${order[i].name}: 아래 등급과 금속색이 구분되지 않는다',
+        );
         expect(
           hi.bands,
           greaterThan(lo.bands),

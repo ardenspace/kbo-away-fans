@@ -370,6 +370,9 @@ abstract final class SplashTokens {
 /// 칸 몸통 색은 `TeamTheme` 의 대표색에서 오고, 등급 표현은
 /// [BadgeTierTokens] 가 그 위에 얹는다. 판의 배치(격자/지도형)는 판을 만드는
 /// 쪽이 정하므로 열 수는 토큰으로 두지 않는다.
+///
+/// 등급은 **링 하나로만** 나타낸다 — 칸에 따로 붙는 등급 마크는 없으므로
+/// 그 크기 토큰도 두지 않는다 (두 벌의 등급 표현이 생기지 않게).
 abstract final class BadgeTokens {
   /// 판의 칸 수 — 팀 테마 10개와 1:1.
   static const int cellCount = 10;
@@ -393,8 +396,11 @@ abstract final class BadgeTokens {
   /// 빈 칸 테두리 굵기 (점선처럼 읽히는 자리 표시).
   static const double emptyBorderWidth = 2;
 
-  /// 칸에 붙는 등급 표시(작은 마크)의 한 변.
-  static const double tierMarkSize = 16;
+  /// 빈 칸 테두리 색 — 팔레트의 경계선 색 [ColorTokens.outline] 을 그대로
+  /// 쓴다. 굵기만 토큰으로 두면 판을 그리는 쪽이 색을 직접 고르게 되는데,
+  /// 그때 고르는 값은 `Colors.grey` 처럼 hex 리터럴이 아닌 형태라
+  /// `check-hardcoded-values.sh` 가 잡지 못한 채 팔레트 밖 색이 들어온다.
+  static const Color emptyBorderColor = ColorTokens.outline;
 
   /// 등급 링을 칸 가장자리에서 안쪽으로 들이는 거리.
   static const double tierRingInset = 3;
@@ -433,15 +439,21 @@ class BadgeRingLayer {
 /// 칸 몸통은 팀 대표색이므로 등급은 **색을 바꾸지 않고 위에 얹는다** —
 /// 링은 칸 가장자리에만 놓이고 몸통 한가운데는 언제나 팀 색 그대로다.
 ///
-/// 링이 어떤 몸통 색 위에서도 읽히는 근거는 **밝은 겉테와 어두운 윤곽을
-/// 함께 두는 것**이다([BadgeTierTokens.haloColor] / [BadgeTierTokens.contourColor]).
-/// 한 가지 색만으로는 안 된다 — 몸통 상대휘도가 0(kt)에서 0.26(한화)까지
-/// 벌어져 있어, 어떤 단색을 골라도 어두운 몸통과 밝은 몸통 중 한쪽에서는
-/// 3:1 아래로 떨어진다. 두 겹을 함께 두면 어떤 색 위에서든 둘 중 하나가
-/// 최소 4.16:1 로 갈린다(흰색과 잉크색의 대비 곡선이 만나는 지점).
+/// 링이 몸통 위에서 읽히는 세기를 정하는 것은 **링 전체가 아니라 몸통과
+/// 실제로 맞닿는 두 끝 겹**이다. 링 바깥도 칸 몸통이고 링 안쪽도 칸 몸통이라
+/// 경계는 두 곳이며, 링 한가운데에 아무리 밝은 겹이 있어도 끝 겹이 몸통에
+/// 묻으면 링의 실루엣은 뜨지 않는다.
 ///
-/// 등급을 가리키는 [ringColor] 금속 띠는 두 겹 안쪽에 갇혀 몸통과 맞닿지
-/// 않으므로, 등급이 읽히는 세기가 팀 색에 좌우되지 않는다.
+/// 그래서 [BadgeTierTokens.haloColor](밝은 겉테)를 **바깥 끝과 안쪽 끝 양쪽**에
+/// 둔다. 그러면 경계 대비가 곧 겉테색과 팀 대표색의 대비가 되어, 10개 팀에서
+/// 최소 3.37:1(한화) ~ 최대 21.00:1(kt)로 전부 최소선 3:1 위다.
+/// 요구 범위를 10개 팀 색으로 한정하는 이유: "어떤 sRGB 색 위에서도"는
+/// 흰 몸통이 밝은 겹을, 검은 몸통이 어두운 겹을 각각 죽이므로 경계 기준으로
+/// 달성할 수 없다 (`.wellbegun/decisions.md` 참조).
+///
+/// 등급을 가리키는 [ringColor] 금속 띠는 [BadgeTierTokens.contourColor] 윤곽
+/// 안쪽에 갇혀 몸통과 맞닿지 않으므로, 등급이 읽히는 세기가 팀 색에 좌우되지
+/// 않는다.
 @immutable
 class BadgeTierStyle {
   const BadgeTierStyle({
@@ -461,8 +473,8 @@ class BadgeTierStyle {
   /// 등급을 가리키는 금속색. [rings] 안의 금속 띠 색과 같은 값이다.
   final Color ringColor;
 
-  /// 팀 색 위에 얹는 링 — **바깥에서 안쪽 순서**. 밝은 겉테와 어두운 윤곽이
-  /// 항상 함께 들어 있고, 금속 띠는 그 안쪽에 놓인다.
+  /// 팀 색 위에 얹는 링 — **바깥에서 안쪽 순서**. 첫 겹과 마지막 겹은 몸통과
+  /// 맞닿는 밝은 겉테이고, 금속 띠는 어두운 윤곽 안쪽에 놓인다.
   final List<BadgeRingLayer> rings;
 
   /// 팀 색 위에 덧대는 흰 광택의 세기 (0이면 광택 없음).
@@ -487,11 +499,13 @@ class BadgeTierStyle {
 /// (`test/design/badge_tier_legibility_test.dart` 가 검사), 띠 개수는 색이
 /// 안 보이는 조건에서도 서열을 남긴다.
 abstract final class BadgeTierTokens {
-  /// 링의 밝은 겉테 — 어두운 몸통 위에서 링을 띄운다.
-  static const Color haloColor = Color(0xFFFFFFFF);
+  /// 링의 밝은 겉테 — 몸통과 맞닿는 두 경계(바깥 끝·안쪽 끝)를 모두 이 색이
+  /// 맡아 링의 실루엣을 팀 색 위로 띄운다. 팀 색 위의 기본 전경색
+  /// [ColorTokens.textInverse] 와 같은 값이라 새 색을 만들지 않는다.
+  static const Color haloColor = ColorTokens.textInverse;
 
-  /// 링의 어두운 윤곽 — 밝은 몸통 위에서 링을 띄우고, 금속 띠를 몸통과
-  /// 겉테 양쪽에서 떼어 놓는다. 팔레트의 [ColorTokens.textPrimary](잉크색)와
+  /// 링의 어두운 윤곽 — 금속 띠를 밝은 겉테에서 떼어 놓아 띠가 겉테에
+  /// 묻히지 않게 한다. 팔레트의 [ColorTokens.textPrimary](잉크색)와
   /// 같은 값이라 새 색을 만들지 않는다.
   static const Color contourColor = ColorTokens.textPrimary;
 
@@ -504,7 +518,9 @@ abstract final class BadgeTierTokens {
   /// 금빛 — `master` 의 금속색.
   static const Color gold = Color(0xFFFFD766);
 
-  /// 밝은 겉테의 굵기.
+  /// 밝은 겉테 한 줄의 굵기. 몸통과의 경계 대비를 만드는 겹이라 1 논리픽셀
+  /// 아래로 내려가지 않는다 — 배율 1x 에서도 최소 한 장치픽셀은 칠해져야
+  /// 대비가 화면에 남는다 (`badge_tier_legibility_test.dart` 가 검사).
   static const double haloWidth = 1.25;
 
   /// 어두운 윤곽 한 줄의 굵기.
@@ -513,16 +529,23 @@ abstract final class BadgeTierTokens {
   /// 금속 띠 한 줄의 굵기.
   static const double bandWidth = 1.5;
 
-  /// 모든 등급이 공유하는 겉 두 겹 — 어두운 윤곽 + 밝은 겉테.
-  /// 이 두 겹이 몸통과의 대비를 책임진다 (겉이 몸통과 맞닿는 쪽).
-  static const List<BadgeRingLayer> _frame = [
-    BadgeRingLayer(color: contourColor, width: contourWidth),
+  /// 링의 바깥 두 겹 — 몸통과 맞닿는 밝은 겉테와, 그 안쪽 어두운 윤곽.
+  /// 겉테가 **가장 바깥**이라 바깥 경계의 대비를 겉테색이 정한다.
+  static const List<BadgeRingLayer> _outerEdge = [
     BadgeRingLayer(color: haloColor, width: haloWidth),
+    BadgeRingLayer(color: contourColor, width: contourWidth),
   ];
 
-  /// 금속 띠와 몸통 사이를 막는 안쪽 윤곽 — 링의 가장 안쪽 겹.
-  /// 금속 띠가 몸통과 직접 맞닿지 않아야 등급이 팀 색과 무관하게 읽힌다.
-  static const BadgeRingLayer _innerContour = BadgeRingLayer(
+  /// 링의 가장 안쪽 겹 — 여기서부터 다시 칸 몸통이므로 안쪽 경계도
+  /// 겉테색이 맡는다. 바깥 끝과 같은 색·같은 굵기다.
+  static const BadgeRingLayer _innerEdge = BadgeRingLayer(
+    color: haloColor,
+    width: haloWidth,
+  );
+
+  /// 금속 띠 한 줄 뒤에 붙는 어두운 윤곽 — 띠를 이웃한 밝은 겹에서 떼어 놓아
+  /// 띠가 겉테에 묻히지 않게 한다.
+  static const BadgeRingLayer _contour = BadgeRingLayer(
     color: contourColor,
     width: contourWidth,
   );
@@ -533,10 +556,10 @@ abstract final class BadgeTierTokens {
     label: '첫 방문',
     ringColor: bronze,
     rings: [
-      ..._frame,
-      _innerContour,
+      ..._outerEdge,
       BadgeRingLayer(color: bronze, width: bandWidth),
-      _innerContour,
+      _contour,
+      _innerEdge,
     ],
     sheenOpacity: 0,
   );
@@ -547,12 +570,12 @@ abstract final class BadgeTierTokens {
     label: '단골',
     ringColor: silver,
     rings: [
-      ..._frame,
-      _innerContour,
+      ..._outerEdge,
       BadgeRingLayer(color: silver, width: bandWidth),
-      _innerContour,
+      _contour,
       BadgeRingLayer(color: silver, width: bandWidth),
-      _innerContour,
+      _contour,
+      _innerEdge,
     ],
     sheenOpacity: 0.1,
   );
@@ -563,14 +586,14 @@ abstract final class BadgeTierTokens {
     label: '마스터',
     ringColor: gold,
     rings: [
-      ..._frame,
-      _innerContour,
+      ..._outerEdge,
       BadgeRingLayer(color: gold, width: bandWidth),
-      _innerContour,
+      _contour,
       BadgeRingLayer(color: gold, width: bandWidth),
-      _innerContour,
+      _contour,
       BadgeRingLayer(color: gold, width: bandWidth),
-      _innerContour,
+      _contour,
+      _innerEdge,
     ],
     sheenOpacity: 0.18,
   );
