@@ -168,7 +168,7 @@ cycle: 2
 
 ### Step 2.3: 카카오 로그인
 1. **Goal:** 1.7 의 함수를 배포하고 앱에서 카카오 로그인 → 커스텀 토큰 → Firebase 세션까지 잇는다.
-2. **Acceptance criteria:** 카카오로 로그인하면 계정이 만들어지고, 다시 로그인해도 같은 계정에 붙는다. 함수 호출이 실패하면 로그인 화면이 이유를 안내하고 앱이 죽지 않는다. 카카오 SDK import 가 `lib/backend/` 밖에 없다.
+2. **Acceptance criteria:** 카카오로 로그인하면 계정이 만들어지고, 다시 로그인해도 같은 계정에 붙는다. 함수 호출이 실패하면 로그인 화면이 이유를 안내하고 앱이 죽지 않는다. 카카오 SDK import 가 `lib/backend/` 밖에 없다. **App Check 가 켜져 있고 `kakaoCustomToken` 에 강제 적용된다** (2.2 이월 [L] 결정: 방어가 필요해지는 시점과 서는 시점을 맞춘다 — 클라이언트 wiring, 콘솔의 증명 제공자(Play Integrity / DeviceCheck·App Attest), 함수 쪽 강제, 그리고 개발 기기·시뮬레이터·에뮬레이터의 디버그 토큰 절차가 이 단계의 범위에 함께 들어온다).
 3. **Boundary tests:**
    - `flutter test test/backend/` → exit 0 (커스텀 토큰 교환 경로를 가짜 구현으로 단언: 성공·실패 양쪽)
    - `grep -rn "package:kakao" lib --include='*.dart' | grep -v '^lib/backend/'` → 매치 없음 (grep exit 1)
