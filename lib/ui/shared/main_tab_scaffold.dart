@@ -42,7 +42,10 @@ class MainTabScaffold extends StatefulWidget {
     required this.tabs,
     this.initialIndex = 0,
   }) : assert(tabs.length > 0, '탭이 하나는 있어야 한다'),
-       assert(initialIndex >= 0, '시작 탭이 목록 안에 있어야 한다');
+       assert(
+         initialIndex >= 0 && initialIndex < tabs.length,
+         '시작 탭이 목록 안에 있어야 한다',
+       );
 
   /// 왼쪽부터의 탭 목록.
   final List<MainTab> tabs;
@@ -75,7 +78,14 @@ class _MainTabScaffoldState extends State<MainTabScaffold> {
   Widget _tabNavigator(int index) {
     return NavigatorPopHandler(
       enabled: index == _index,
-      onPopWithResult: (_) => _navigatorKeys[index].currentState?.pop(),
+      // `enabled` 는 이 route 의 PopScope.canPop 만 정한다 — pop 콜백 자체는
+      // IndexedStack 이 살려 둔 5개 핸들러 전부에 전달된다(Flutter
+      // navigator_pop_handler.dart, "onPop will still be called" 는 enabled
+      // 와 무관). 이 가드가 없으면 뒤로가기 한 번에 꺼진 탭까지 함께 pop 된다.
+      onPopWithResult: (_) {
+        if (index != _index) return;
+        _navigatorKeys[index].currentState?.pop();
+      },
       child: Navigator(
         key: _navigatorKeys[index],
         onGenerateRoute: (settings) => MaterialPageRoute<void>(
