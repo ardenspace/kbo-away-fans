@@ -7,6 +7,10 @@
           {
             "type": "command",
             "command": "if [ -f \"${CLAUDE_PROJECT_DIR:-.}/scripts/hooks/check-hardcoded-values.sh\" ]; then bash \"${CLAUDE_PROJECT_DIR:-.}/scripts/hooks/check-hardcoded-values.sh\"; fi"
+          },
+          {
+            "type": "command",
+            "command": "if [ -f \"${CLAUDE_PROJECT_DIR:-.}/scripts/hooks/check-no-location-upload.sh\" ]; then bash \"${CLAUDE_PROJECT_DIR:-.}/scripts/hooks/check-no-location-upload.sh\"; fi"
           }
         ]
       }

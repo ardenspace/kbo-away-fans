@@ -7,9 +7,9 @@
 - 백엔드를 오가는 요소는 만들기 전에 로스터부터 확인 — 이미 있으면 재사용한다.
 - 새 파일을 이 폴더에 만들면 **같은 커밋에서** REGISTRY.md 표에 행을 추가한다
   (location 열에 저장소 기준 경로를 백틱으로: 예 `lib/backend/auth.dart`).
-  `scripts/hooks/check-registry-sync.sh` 는 아직 이 폴더를 지키지 않는다 —
-  `lib/backend/` 짝을 더하는 일은 `.wellbegun/plan.md` step 1.9 에 배정되어
-  있다. 그 전까지는 로스터와 폴더가 맞는지 손으로 확인한다.
+  `scripts/hooks/check-registry-sync.sh` 가 이 폴더도 지킨다(step 1.9) —
+  로스터에 없는 파일을 두거나 로스터의 행이 가리키는 파일이 없으면
+  pre-commit 이 커밋을 막는다.
 - **SDK import 는 이 폴더 안에만.** `firebase_*`·`cloud_firestore`·카카오 SDK 를
   `lib/features/`·`lib/ui/` 에서 import 하지 않는다 (`lib/analytics/` 는 사이클 1의
   분석 래퍼라 예외). 화면은 이 계층의 타입만 소비한다.
@@ -21,7 +21,8 @@
 - **기기가 어디에 있었는지는 올리지 않는다.** 구장 근처 판정은 기기에서 하고
   결과(어느 구장·어느 경기)만 올린다 — 되돌리기 비용 XL 의 제품 결정이다.
   업로드 경로에 기기의 지점을 가리키는 필드를 더하지 않는다.
-  이를 검사할 `scripts/hooks/check-no-location-upload.sh` 는 아직 없다 —
-  `.wellbegun/plan.md` step 1.9 가 신설한다. 그 전까지는 손으로 확인한다.
+  `scripts/hooks/check-no-location-upload.sh` 가 이 폴더에서 `lat`·`lng`·
+  `latitude`·`longitude`·`coord` 필드명을 grep 으로 잡는다(step 1.9,
+  PostToolUse + pre-commit).
 - 문서 id 는 결정적으로 짓는다: 도장 `{stadiumId}_{gameId}`, 좋아요 `{placeId}`.
   id 를 만드는 코드는 write 타입 안에 둔다 — 호출자가 다른 조합을 지어낼 수 없게.

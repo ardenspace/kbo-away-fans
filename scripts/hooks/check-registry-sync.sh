@@ -5,6 +5,7 @@
 # 짝 (spec.md Enforcement plan 기준):
 #   - lib/ui/shared/          ↔ lib/ui/shared/REGISTRY.md
 #   - content-pipeline/common/ ↔ content-pipeline/REGISTRY.md
+#   - lib/backend/            ↔ lib/backend/REGISTRY.md (step 1.9 추가)
 #
 # REGISTRY 형식 규약: location 열에 저장소 기준 경로를 백틱으로 감싸 적는다
 # (예: `lib/ui/shared/place_card.dart`, `content-pipeline/common/validate.mjs`).
@@ -14,13 +15,15 @@
 #      표 행에 `basename` 또는 /basename 형태로 등장하지 않으면 FAIL
 #   2) 표 행에 백틱으로 적힌 관리 폴더 경로가 실제 파일로 없으면 FAIL
 # 위반은 stderr에 찍고 exit 2 (Claude Code PostToolUse 훅이 읽는 신호).
-# wiring(pre-commit)은 step 1.6 에서 한다.
+# wiring(pre-commit)은 step 1.6 에서 두 짝으로 시작했고, step 1.9 가
+# lib/backend/ 짝을 더했다.
 set -u
 cd "$(dirname "$0")/../.." || exit 1
 
 PAIRS=(
   "lib/ui/shared:lib/ui/shared/REGISTRY.md"
   "content-pipeline/common:content-pipeline/REGISTRY.md"
+  "lib/backend:lib/backend/REGISTRY.md"
 )
 
 fail=0

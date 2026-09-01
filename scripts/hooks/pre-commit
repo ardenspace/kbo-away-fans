@@ -1,12 +1,15 @@
 #!/usr/bin/env bash
-# pre-commit — 레지스트리 규칙의 커밋 시점 백스톱 (wellbegun enforcement, step 1.6).
+# pre-commit — 레지스트리 규칙의 커밋 시점 백스톱 (wellbegun enforcement).
+# 검사 4종은 step 1.6(hardcoded-values·registry-sync)과 step 1.9
+# (no-location-upload·firebase-import-boundary)에서 각각 얹었다.
 # 설치: git config core.hooksPath scripts/hooks  (클론 후 1회 — README "개발" 절 참조)
 # 검사 대상은 작업 트리 전체 (스테이징 여부와 무관): 위반이 남아 있으면 커밋을 막는다.
 set -u
 repo_root=$(git rev-parse --show-toplevel) || exit 1
 
 fail=0
-for check in check-hardcoded-values.sh check-registry-sync.sh; do
+for check in check-hardcoded-values.sh check-registry-sync.sh \
+  check-no-location-upload.sh check-firebase-import-boundary.sh; do
   script="$repo_root/scripts/hooks/$check"
   [ -f "$script" ] || continue
   bash "$script" || fail=1

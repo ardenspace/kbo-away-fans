@@ -28,8 +28,10 @@ uid 접근은 어떤 allow 에도 걸리지 않는다.
 이 문서와 `firestore.rules` 에 그런 뜻의 영문 표기(위도·경도·지점을 가리키는 흔한 단어와
 그 줄임말)가 하나도 없는지는 두 파일을 대상으로 한 grep 한 줄로 확인한다. 검사가 찾는
 단어를 여기 적으면 문서 자신이 걸리므로 적지 않는다 — 검사 명령의 원본은
-`.wellbegun/plan.md` 의 이 단계 boundary test 다. 지금은 그 명령을 손으로 돌리며,
-커밋 훅에 얹는 일은 아직 하지 않았다.
+`.wellbegun/plan.md` 의 이 단계 boundary test 다. `lib/backend/` 쪽은
+`scripts/hooks/check-no-location-upload.sh` 가 같은 뜻의 검사를 커밋 훅과
+PostToolUse 에 얹어 자동으로 돈다(step 1.9) — 이 두 파일(`firestore.rules`·
+이 문서)에 대한 grep 은 아직 커밋 훅에 얹지 않아 손으로 돌린다.
 
 **3. 문서 id 는 가능한 한 결정적으로 짓는다.** 도장은 `{stadiumId}_{gameId}`, 좋아요는
 `{placeId}` 다. 자동 생성 id 를 쓰지 않으므로 오프라인 재시도·중복 탭·여러 기기
