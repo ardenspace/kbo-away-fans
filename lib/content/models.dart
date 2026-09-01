@@ -382,9 +382,13 @@ class PlacesDocument {
 // schedule.json
 // ---------------------------------------------------------------------------
 
-/// 경기 상태 — schedule.schema.json status enum 3종.
+/// 경기 상태 — schedule.schema.json status enum 4종 (schemaVersion 2).
 enum GameStatus {
   scheduled('scheduled'),
+
+  /// 끝난 경기 — 점수([Game.homeScore]·[Game.awayScore])와
+  /// 승패([Game.result])를 반드시 동반한다.
+  finished('finished'),
   canceled('canceled'),
   rainCanceled('rain_canceled');
 
@@ -401,7 +405,44 @@ enum GameStatus {
   }
 }
 
+/// 종료 경기의 승패 — **홈팀 기준**. schedule.schema.json `$defs/gameResult`.
+///
+/// 무승부가 있는 리그라 점수 비교만으로는 세 값이 갈리지 않아 계약이 따로 담고,
+/// 파싱은 점수와의 정합까지 확인한다(파이프라인 validate 의미 검사와 같은 규칙).
+enum GameResult {
+  homeWin('home_win'),
+  awayWin('away_win'),
+  draw('draw');
+
+  const GameResult(this.contractValue);
+
+  /// JSON 계약의 문자열 값.
+  final String contractValue;
+
+  static GameResult parse(String value, String context) {
+    for (final result in values) {
+      if (result.contractValue == value) return result;
+    }
+    _violate('$context.result: 미지의 경기 결과 "$value"');
+  }
+}
+
+/// 종료 경기의 점수 한쪽 — schedule.schema.json `$defs/score` (0~99 정수).
+int _score(Map<String, Object?> json, String field, String context) {
+  final value = json[field];
+  if (value is! int) {
+    _violate('$context.$field: 정수가 아니거나 없음');
+  }
+  if (value < 0 || value > 99) {
+    _violate('$context.$field: $value 는 [0, 99] 범위 밖');
+  }
+  return value;
+}
+
 /// 경기 1건 — schedule.schema.json `$defs/game`.
+///
+/// 점수·승패 세 필드는 [status] 가 [GameStatus.finished] 일 때만 존재한다
+/// (계약의 if/then/else 와 같은 규칙). 예정·취소 경기에서는 셋 다 null 이다.
 class Game {
   const Game({
     required this.id,
@@ -411,6 +452,9 @@ class Game {
     required this.awayTeamId,
     required this.stadiumId,
     required this.status,
+    this.homeScore,
+    this.awayScore,
+    this.result,
   });
 
   factory Game.fromJson(Object? raw) {
@@ -425,6 +469,38 @@ class Game {
     if (!_timePattern.hasMatch(startTime)) {
       _violate('$context.startTime: HH:MM 형식이 아님 "$startTime"');
     }
+    final status = GameStatus.parse(_string(json, 'status', context), context);
+
+    int? homeScore;
+    int? awayScore;
+    GameResult? result;
+    if (status == GameStatus.finished) {
+      homeScore = _score(json, 'homeScore', context);
+      awayScore = _score(json, 'awayScore', context);
+      result = GameResult.parse(_string(json, 'result', context), context);
+      // 점수와 승패가 어긋난 문서는 화면이 "5-3 패"처럼 거짓을 보이게 된다 —
+      // 파이프라인 validate 의 의미 검사와 같은 규칙을 앱에서도 건다.
+      final expected = homeScore > awayScore
+          ? GameResult.homeWin
+          : homeScore < awayScore
+          ? GameResult.awayWin
+          : GameResult.draw;
+      if (result != expected) {
+        _violate(
+          '$context.result: "${result.contractValue}" 가 점수 '
+          '$homeScore-$awayScore 와 불일치',
+        );
+      }
+    } else {
+      // 끝나지 않은 경기의 점수는 계약이 금지한다 (중간 점수를 최종처럼
+      // 보여주는 사고를 막는 규칙이라 무시가 아니라 거부다).
+      for (final field in const ['homeScore', 'awayScore', 'result']) {
+        if (json.containsKey(field)) {
+          _violate('$context.$field: 종료되지 않은 경기에는 올 수 없음');
+        }
+      }
+    }
+
     return Game(
       id: id,
       date: date,
@@ -432,7 +508,10 @@ class Game {
       homeTeamId: _teamId(json, 'homeTeamId', context),
       awayTeamId: _teamId(json, 'awayTeamId', context),
       stadiumId: _stadiumId(json, 'stadiumId', context),
-      status: GameStatus.parse(_string(json, 'status', context), context),
+      status: status,
+      homeScore: homeScore,
+      awayScore: awayScore,
+      result: result,
     );
   }
 
@@ -447,6 +526,15 @@ class Game {
   final String awayTeamId;
   final String stadiumId;
   final GameStatus status;
+
+  /// 홈팀 최종 득점 — [GameStatus.finished] 일 때만 non-null.
+  final int? homeScore;
+
+  /// 원정팀 최종 득점 — [GameStatus.finished] 일 때만 non-null.
+  final int? awayScore;
+
+  /// 홈팀 기준 승패 — [GameStatus.finished] 일 때만 non-null.
+  final GameResult? result;
 }
 
 /// schedule.json 문서 전체.

@@ -8,7 +8,7 @@
 | name | purpose (one line) | location | use when |
 |---|---|---|---|
 | Fetch 공통 | HTTP 요청·재시도(기본 3회, 지수 백오프)·타임아웃(10s)·User-Agent 한곳 | `content-pipeline/common/fetch.mjs` | 모든 외부 요청 |
-| 스키마 검증 | 산출 JSON이 계약(schemaVersion 포함)을 지키는지 + 스키마로 못 잡는 의미 검사(schedule game id 중복) | `content-pipeline/common/validate.mjs` | 모든 JSON 산출 직전 |
+| 스키마 검증 | 산출 JSON이 계약(schemaVersion 포함)을 지키는지 + 스키마로 못 잡는 의미 검사(4종 문서의 id 중복, schedule 종료 경기의 result↔점수 정합) | `content-pipeline/common/validate.mjs` | 모든 JSON 산출 직전 |
 | 로깅 | 크롤 성공/실패 구조화 로그 (JSON Lines → stderr) | `content-pipeline/common/log.mjs` | 모든 스크립트 (console.* 대신) |
 | 배포 스텝 | 검증 통과한 4종 JSON을 GitHub Pages(gh-pages 브랜치)로 올리는 단일 경로 — 검증 실패 시 exit 1, 트리 동일 시 push 생략 | `content-pipeline/deploy.mjs` | 모든 콘텐츠 갱신 (CI: `crawl-schedule.yml`·`deploy-content.yml`, 수동: `npm --prefix content-pipeline run deploy`) |
 | 일정 크롤러 | 네이버 스포츠 API에서 KBO 일정·상태를 긁어 schedule.json 산출 — validate 통과 시에만 기존 파일 교체 | `content-pipeline/crawl-schedule.mjs` | CI cron(`.github/workflows/crawl-schedule.yml`)·수동 일정 갱신 |
@@ -25,6 +25,8 @@
 - `schema/` — 콘텐츠 JSON 계약의 원본 (JSON Schema, draft 2020-12)
   - `teams` / `stadiums` / `places` / `schedule` 4개 계약 + `common.defs`(팀 10·구장 9 안정 id 로스터)
   - 계약 변경은 마이그레이션급: 해당 스키마의 `schemaVersion` const를 올리고 앱 하위 호환 확인
+  - 현재 버전: `teams`·`stadiums`·`places` = 1, `schedule` = 2 (종료 경기 `finished` + `homeScore`/`awayScore`/`result`).
+    앱 쪽 대응값은 `lib/content/content_config.dart` 의 문서별 상수 — 문서마다 따로 올라간다
 - `data/` — 계약을 따르는 산출물/샘플 데이터 (검증 통과가 커밋 조건)
 - `test/fixtures/` — 검증이 반드시 실패시켜야 하는 깨진 픽스처 (파일명 첫 세그먼트가 대상 계약)
   - `test/fixtures/crawl/` — 크롤러 테스트용 저장 응답 픽스처 (실 네이버 응답 기반; validate 실패 픽스처 규약의 예외)
@@ -45,6 +47,9 @@ node content-pipeline/common/validate.mjs
 # 지정 파일만 (실패 픽스처 재현 — exit 1)
 node content-pipeline/common/validate.mjs content-pipeline/test/fixtures/schedule.missing-required.json
 node content-pipeline/common/validate.mjs content-pipeline/test/fixtures/schedule.unknown-status.json
+node content-pipeline/common/validate.mjs content-pipeline/test/fixtures/schedule.schema-version-1.json
+node content-pipeline/common/validate.mjs content-pipeline/test/fixtures/schedule.finished-missing-score.json
+node content-pipeline/common/validate.mjs content-pipeline/test/fixtures/schedule.result-score-mismatch.json
 node content-pipeline/common/validate.mjs content-pipeline/test/fixtures/teams.schema-version-mismatch.json
 node content-pipeline/common/validate.mjs content-pipeline/test/fixtures/places.missing-source.json
 ```

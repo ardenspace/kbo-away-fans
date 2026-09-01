@@ -99,6 +99,10 @@ void main() {
       schedule as ContentFresh<ScheduleDocument>;
       expect(schedule.data.games, isNotEmpty);
       expect(schedule.data.games.first.status, GameStatus.scheduled);
+      // 점수 없는 예정 경기도 그대로 읽힌다 (세 필드는 null).
+      expect(schedule.data.games.first.homeScore, isNull);
+      expect(schedule.data.games.first.awayScore, isNull);
+      expect(schedule.data.games.first.result, isNull);
 
       // 검증 통과본이 캐시에 기록됐다.
       for (final kind in ContentKind.values) {
@@ -143,6 +147,94 @@ void main() {
       expect(result, isA<ContentUnavailable<PlacesDocument>>());
       result as ContentUnavailable<PlacesDocument>;
       expect(result.issue.kind, ContentIssueKind.network);
+    });
+  });
+
+  group('schedule schemaVersion 2 — 종료 경기의 점수·승패', () {
+    /// 샘플의 첫 경기를 종료 경기로 바꾼 본문.
+    String finishedSample({
+      required int homeScore,
+      required int awayScore,
+      required String result,
+    }) {
+      return _mutate(_sample(ContentKind.schedule), (root) {
+        ((root['games']! as List<Object?>).first! as Map<String, Object?>)
+          ..['status'] = 'finished'
+          ..['homeScore'] = homeScore
+          ..['awayScore'] = awayScore
+          ..['result'] = result;
+      });
+    }
+
+    test('종료 경기의 점수와 승패를 읽는다', () async {
+      final loader = loaderWith(
+        _serving({
+          'schedule.json': finishedSample(
+            homeScore: 7,
+            awayScore: 3,
+            result: 'home_win',
+          ),
+        }),
+      );
+
+      final result = await loader.loadSchedule();
+
+      expect(result, isA<ContentFresh<ScheduleDocument>>());
+      result as ContentFresh<ScheduleDocument>;
+      final game = result.data.games.first;
+      expect(game.status, GameStatus.finished);
+      expect(game.homeScore, 7);
+      expect(game.awayScore, 3);
+      expect(game.result, GameResult.homeWin);
+      // 나머지 경기는 점수 없는 예정 경기 그대로다.
+      expect(result.data.games.last.status, GameStatus.scheduled);
+      expect(result.data.games.last.homeScore, isNull);
+    });
+
+    test('무승부도 읽는다 (점수 비교만으로는 안 갈리는 값)', () async {
+      final loader = loaderWith(
+        _serving({
+          'schedule.json': finishedSample(
+            homeScore: 5,
+            awayScore: 5,
+            result: 'draw',
+          ),
+        }),
+      );
+
+      final result = await loader.loadSchedule();
+
+      expect(result, isA<ContentFresh<ScheduleDocument>>());
+      result as ContentFresh<ScheduleDocument>;
+      expect(result.data.games.first.result, GameResult.draw);
+    });
+
+    test('schemaVersion 1 문서는 거부한다 (schedule 은 2를 요구)', () async {
+      final v1Body = _mutate(
+        _sample(ContentKind.schedule),
+        (root) => root['schemaVersion'] = 1,
+      );
+      final loader = loaderWith(_serving({'schedule.json': v1Body}));
+
+      final result = await loader.loadSchedule();
+
+      expect(result, isA<ContentUnavailable<ScheduleDocument>>());
+      result as ContentUnavailable<ScheduleDocument>;
+      expect(result.issue.kind, ContentIssueKind.unsupportedSchemaVersion);
+    });
+
+    test('teams 는 1을 그대로 요구한다 (문서마다 버전이 따로다)', () async {
+      final v2Body = _mutate(
+        _sample(ContentKind.teams),
+        (root) => root['schemaVersion'] = 2,
+      );
+      final loader = loaderWith(_serving({'teams.json': v2Body}));
+
+      final result = await loader.loadTeams();
+
+      expect(result, isA<ContentUnavailable<TeamsDocument>>());
+      result as ContentUnavailable<TeamsDocument>;
+      expect(result.issue.kind, ContentIssueKind.unsupportedSchemaVersion);
     });
   });
 
@@ -250,6 +342,51 @@ void main() {
       final broken = _mutate(
         _sample(ContentKind.schedule),
         (root) => firstOf(root, 'games')['stadiumId'] = 'pohang',
+      );
+      final loader = loaderWith(_serving({'schedule.json': broken}));
+
+      final result = await loader.loadSchedule();
+
+      expect(result, isA<ContentUnavailable<ScheduleDocument>>());
+      result as ContentUnavailable<ScheduleDocument>;
+      expect(result.issue.kind, ContentIssueKind.contractViolation);
+    });
+
+    test('종료 경기의 점수·승패가 어긋나면 거부', () async {
+      final broken = _mutate(_sample(ContentKind.schedule), (root) {
+        firstOf(root, 'games')
+          ..['status'] = 'finished'
+          ..['homeScore'] = 5
+          ..['awayScore'] = 3
+          ..['result'] = 'away_win';
+      });
+      final loader = loaderWith(_serving({'schedule.json': broken}));
+
+      final result = await loader.loadSchedule();
+
+      expect(result, isA<ContentUnavailable<ScheduleDocument>>());
+      result as ContentUnavailable<ScheduleDocument>;
+      expect(result.issue.kind, ContentIssueKind.contractViolation);
+    });
+
+    test('종료 경기인데 점수가 없으면 거부', () async {
+      final broken = _mutate(
+        _sample(ContentKind.schedule),
+        (root) => firstOf(root, 'games')['status'] = 'finished',
+      );
+      final loader = loaderWith(_serving({'schedule.json': broken}));
+
+      final result = await loader.loadSchedule();
+
+      expect(result, isA<ContentUnavailable<ScheduleDocument>>());
+      result as ContentUnavailable<ScheduleDocument>;
+      expect(result.issue.kind, ContentIssueKind.contractViolation);
+    });
+
+    test('끝나지 않은 경기에 점수가 붙어 있으면 거부', () async {
+      final broken = _mutate(
+        _sample(ContentKind.schedule),
+        (root) => firstOf(root, 'games')['homeScore'] = 3,
       );
       final loader = loaderWith(_serving({'schedule.json': broken}));
 

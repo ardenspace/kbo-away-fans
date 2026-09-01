@@ -46,10 +46,81 @@ test('취소 표기 픽스처 → 우천 표기는 rain_canceled, 그 외 취소
   assert.equal(byId['20260816NCLT02026'], 'canceled');
 });
 
-test('경기전/진행/종료는 전부 scheduled 로 매핑된다', () => {
-  assert.equal(mapStatus({ cancel: false, statusInfo: '경기전' }), 'scheduled');
-  assert.equal(mapStatus({ cancel: false, statusInfo: '9회말' }), 'scheduled');
-  assert.equal(mapStatus({ cancel: false, statusInfo: '종료' }), 'scheduled');
+test('경기전·진행 중은 scheduled, 끝난 경기(RESULT)는 finished 로 매핑된다', () => {
+  assert.equal(
+    mapStatus({ cancel: false, statusCode: 'BEFORE', statusInfo: '경기전' }),
+    'scheduled',
+  );
+  assert.equal(
+    mapStatus({ cancel: false, statusCode: 'STARTED', statusInfo: '9회말' }),
+    'scheduled',
+  );
+  assert.equal(
+    mapStatus({ cancel: false, statusCode: 'RESULT', statusInfo: '종료' }),
+    'finished',
+  );
+  // 서스펜디드는 재개될 경기라 종료가 아니다.
+  assert.equal(
+    mapStatus({ cancel: false, statusCode: 'RESULT', suspended: true }),
+    'scheduled',
+  );
+});
+
+test('끝난 경기는 점수와 승패(홈 기준)를 담고, 안 끝난 경기는 담지 않는다', () => {
+  const payload = loadJson(fixture('naver-schedule.finished.json'));
+  const document = buildScheduleDocument(payload, { now: FIXED_NOW });
+  const byId = Object.fromEntries(document.games.map((g) => [g.id, g]));
+
+  const outcomeOf = (game) => ({
+    status: game.status,
+    homeScore: game.homeScore,
+    awayScore: game.awayScore,
+    result: game.result,
+  });
+
+  assert.equal(document.schemaVersion, 2);
+  assert.deepEqual(outcomeOf(byId['20260823NCLG02026']), {
+    status: 'finished',
+    homeScore: 7,
+    awayScore: 3,
+    result: 'home_win',
+  });
+  assert.deepEqual(outcomeOf(byId['20260823HTSS02026']), {
+    status: 'finished',
+    homeScore: 1,
+    awayScore: 4,
+    result: 'away_win',
+  });
+  assert.deepEqual(outcomeOf(byId['20260823KTSK02026']), {
+    status: 'finished',
+    homeScore: 5,
+    awayScore: 5,
+    result: 'draw',
+  });
+
+  // 진행 중 경기는 중간 점수를 계약에 남기지 않는다.
+  const inProgress = byId['20260823LTOB02026'];
+  assert.equal(inProgress.status, 'scheduled');
+  assert.equal('homeScore' in inProgress, false);
+  assert.equal('awayScore' in inProgress, false);
+  assert.equal('result' in inProgress, false);
+});
+
+test('끝난 경기인데 점수가 없으면 ScheduleParseError', () => {
+  const payload = loadJson(fixture('naver-schedule.finished.json'));
+  delete payload.result.games[0].homeTeamScore;
+  assert.throws(() => buildScheduleDocument(payload, { now: FIXED_NOW }), ScheduleParseError);
+});
+
+test('끝난 경기 픽스처의 산출물이 validate 를 통과한다 (exit 0)', () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'crawl-finished-'));
+  const out = path.join(dir, 'schedule.json');
+
+  const result = runCrawler(['--input', fixture('naver-schedule.finished.json'), '--out', out]);
+  assert.equal(result.status, 0, result.stderr);
+
+  const validation = spawnSync(process.execPath, [validator, out], { encoding: 'utf8' });
+  assert.equal(validation.status, 0, validation.stderr);
 });
 
 test('이전 산출물의 rain_canceled 는 정규화된 취소 라벨로 강등되지 않는다', () => {

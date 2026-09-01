@@ -19,29 +19,34 @@ import 'models.dart';
 
 /// 원격으로 배포되는 콘텐츠 문서 4종.
 enum ContentKind {
-  teams('teams.json'),
-  stadiums('stadiums.json'),
-  places('places.json'),
-  schedule('schedule.json');
+  teams('teams.json', kTeamsSchemaVersion),
+  stadiums('stadiums.json', kStadiumsSchemaVersion),
+  places('places.json', kPlacesSchemaVersion),
+  schedule('schedule.json', kScheduleSchemaVersion);
 
-  const ContentKind(this.fileName);
+  const ContentKind(this.fileName, this.supportedSchemaVersion);
 
   /// 배포 원점(base URL) 아래의 파일 이름.
   final String fileName;
+
+  /// 이 문서에서 앱이 이해하는 계약 버전 (`content_config.dart`).
+  final int supportedSchemaVersion;
 }
 
 /// 원격 문서의 schemaVersion 이 앱이 지원하는 버전과 다름.
 ///
 /// 로더는 갱신을 거부하고 기존 캐시를 유지한다.
 class UnsupportedSchemaVersion implements Exception {
-  UnsupportedSchemaVersion(this.found);
+  UnsupportedSchemaVersion({required this.expected, required this.found});
+
+  /// 앱이 이해하는 값 (문서마다 다르다).
+  final int expected;
 
   /// 원격 문서가 선언한 값 (없으면 null).
   final Object? found;
 
   @override
-  String toString() =>
-      'UnsupportedSchemaVersion: 지원 $kSupportedSchemaVersion, 수신 $found';
+  String toString() => 'UnsupportedSchemaVersion: 지원 $expected, 수신 $found';
 }
 
 /// 신선한 로드가 실패한 이유의 분류.
@@ -188,7 +193,7 @@ class ContentLoader {
 
     if (body != null) {
       try {
-        final data = _parseDocument(body, parse);
+        final data = _parseDocument(kind, body, parse);
         await cache.write(kind, body);
         return ContentFresh<T>(data);
       } on UnsupportedSchemaVersion catch (error) {
@@ -215,7 +220,7 @@ class ContentLoader {
     if (cached != null) {
       try {
         return ContentFromCache<T>(
-          _parseDocument(cached, parse),
+          _parseDocument(kind, cached, parse),
           fallbackIssue,
         );
       } on Exception {
@@ -225,14 +230,17 @@ class ContentLoader {
     return ContentUnavailable<T>(fallbackIssue);
   }
 
-  T _parseDocument<T>(String body, _DocumentParser<T> parse) {
+  T _parseDocument<T>(ContentKind kind, String body, _DocumentParser<T> parse) {
     final decoded = jsonDecode(body);
     if (decoded is! Map<String, Object?>) {
       throw ContentContractViolation('문서 루트가 객체가 아님');
     }
     final version = decoded['schemaVersion'];
-    if (version != kSupportedSchemaVersion) {
-      throw UnsupportedSchemaVersion(version);
+    if (version != kind.supportedSchemaVersion) {
+      throw UnsupportedSchemaVersion(
+        expected: kind.supportedSchemaVersion,
+        found: version,
+      );
     }
     return parse(decoded);
   }

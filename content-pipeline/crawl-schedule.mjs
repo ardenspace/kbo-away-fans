@@ -95,16 +95,41 @@ export function apiUrl({ fromDate, toDate }) {
 }
 
 /**
- * 네이버 경기 상태 → 계약 status enum.
+ * 네이버 경기 상태 → 계약 status enum (schemaVersion 2 의 4분류).
  * 취소(cancel=true)면 상태 문구에 '우천'이 있을 때만 rain_canceled, 그 외 canceled.
- * 취소가 아니면(경기전·진행·종료·서스펜디드) 전부 scheduled — 계약의 3분류가 그렇다.
+ * 끝난 경기(statusCode=RESULT, 서스펜디드 아님)는 finished — 점수·승패가 붙는다.
+ * 나머지(경기전·진행 중·서스펜디드)는 scheduled.
  */
 export function mapStatus(raw) {
   if (raw.cancel === true) {
     const info = String(raw.statusInfo ?? '');
     return info.includes('우천') ? 'rain_canceled' : 'canceled';
   }
+  if (raw.statusCode === 'RESULT' && raw.suspended !== true) return 'finished';
   return 'scheduled';
+}
+
+/**
+ * 종료 경기의 점수·승패 필드. 계약상 finished 가 아닌 경기에는 붙이지 않는다.
+ *
+ * result 는 네이버의 winner 를 그대로 받지 않고 점수에서 계산한다 — validate 의
+ * 의미 검사가 "result 와 점수의 일치"를 강제하므로, 점수에서 파생해야 산출물이
+ * 항상 그 게이트를 통과한다(원천 두 필드가 어긋나도 계약은 깨지지 않는다).
+ *
+ * @throws {ScheduleParseError} 끝난 경기인데 점수가 정수가 아닐 때 —
+ *   계약이 점수를 요구하므로 산출물을 덮어쓰면 안 된다.
+ */
+export function scoreFields(raw, id) {
+  const homeScore = raw.homeTeamScore;
+  const awayScore = raw.awayTeamScore;
+  if (!Number.isInteger(homeScore) || !Number.isInteger(awayScore)) {
+    throw new ScheduleParseError(
+      `종료 경기에 점수가 없음: ${id} → ${JSON.stringify([homeScore, awayScore])}`,
+    );
+  }
+  const result =
+    homeScore > awayScore ? 'home_win' : homeScore < awayScore ? 'away_win' : 'draw';
+  return { homeScore, awayScore, result };
 }
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -117,6 +142,7 @@ const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
  * - 로스터 밖 팀 코드/구장 표기(제2구장 포항·울산 등)는 warn 로그 후 제외.
  * - 이전 산출물에서 rain_canceled 였던 경기는 새 라벨이 우천 구분 없는 취소로
  *   와도 canceled 로 강등하지 않는다 (네이버가 과거 취소를 '경기취소'로 정규화함).
+ * - 끝난 경기(finished)에는 점수·승패(homeScore/awayScore/result)를 붙인다.
  * - 산출 게임 id 중복은 오류 — 앱 파서가 중복 id 문서를 거부한다.
  *
  * @param {unknown} payload  네이버 API 응답(JSON.parse 결과)
@@ -179,7 +205,16 @@ export function buildScheduleDocument(payload, options = {}) {
       status = 'rain_canceled';
     }
 
-    games.push({ id, date, startTime, homeTeamId, awayTeamId, stadiumId, status });
+    games.push({
+      id,
+      date,
+      startTime,
+      homeTeamId,
+      awayTeamId,
+      stadiumId,
+      status,
+      ...(status === 'finished' ? scoreFields(raw, id) : {}),
+    });
   }
 
   games.sort(
@@ -194,7 +229,7 @@ export function buildScheduleDocument(payload, options = {}) {
     throw new ScheduleParseError('산출 게임 id 중복 — 앱 파서가 중복 id 문서를 거부한다');
   }
 
-  return { schemaVersion: 1, generatedAt: now().toISOString(), games };
+  return { schemaVersion: 2, generatedAt: now().toISOString(), games };
 }
 
 function parseArgs(argv) {

@@ -53,11 +53,38 @@ function duplicateIds(items, label) {
   return [...dupes].map((id) => `${label} id 중복: "${id}" (앱 파서가 문서 전체를 거부함)`);
 }
 
+// 종료 경기의 result 가 점수와 어긋나지 않는지 — JSON Schema 로는 "두 필드의
+// 대소 비교"를 표현할 수 없다. result 는 무승부 때문에 계약에 명시하는 필드라
+// (점수 비교만으로는 draw 를 별도 규칙 없이 구분 못 함) 점수와 이중 표현이
+// 되는데, 그 둘이 어긋나면 앱 화면이 "5-3 패"처럼 거짓을 보이게 된다.
+function finishedResultConsistency(games) {
+  const violations = [];
+  for (const game of games) {
+    if (game.status !== 'finished') continue;
+    const expected =
+      game.homeScore > game.awayScore
+        ? 'home_win'
+        : game.homeScore < game.awayScore
+          ? 'away_win'
+          : 'draw';
+    if (game.result !== expected) {
+      violations.push(
+        `game "${game.id}": result "${game.result}" 가 점수 ` +
+          `${game.homeScore}-${game.awayScore} 와 불일치 (기대값 "${expected}")`,
+      );
+    }
+  }
+  return violations;
+}
+
 const SEMANTIC_CHECKS = {
   teams: (data) => duplicateIds(data.teams, 'team'),
   stadiums: (data) => duplicateIds(data.stadiums, 'stadium'),
   places: (data) => duplicateIds(data.places, 'place'),
-  schedule: (data) => duplicateIds(data.games, 'game'),
+  schedule: (data) => [
+    ...duplicateIds(data.games, 'game'),
+    ...finishedResultConsistency(data.games),
+  ],
 };
 
 function main(argv) {

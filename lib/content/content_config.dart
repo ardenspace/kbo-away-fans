@@ -26,9 +26,15 @@ const String kContentBaseUrl = String.fromEnvironment(
 /// 타임아웃 10초와 같은 값.
 const Duration kContentFetchTimeout = Duration(seconds: 10);
 
-/// 앱이 이해하는 콘텐츠 계약 버전.
+/// 앱이 이해하는 콘텐츠 계약 버전 — 문서마다 따로 올라간다.
 ///
-/// `content-pipeline/schema/*.schema.json` 의 `schemaVersion` const 와
-/// 일치해야 한다. 원격 문서의 값이 이와 다르면 로더는 갱신을 거부하고
+/// 각 값은 `content-pipeline/schema/<문서>.schema.json` 의 `schemaVersion`
+/// const 와 일치해야 한다. 원격 문서의 값이 이와 다르면 로더는 갱신을 거부하고
 /// 기존 캐시를 유지한다(계약 변경은 마이그레이션급 — spec DB schema 절).
-const int kSupportedSchemaVersion = 1;
+/// 문서별로 두는 이유: 한 계약이 올라가도 나머지 3종은 그대로라 함께 올릴 수 없다.
+const int kTeamsSchemaVersion = 1;
+const int kStadiumsSchemaVersion = 1;
+const int kPlacesSchemaVersion = 1;
+
+/// 2 = 종료 경기(finished)와 점수·승패(homeScore/awayScore/result) 추가.
+const int kScheduleSchemaVersion = 2;

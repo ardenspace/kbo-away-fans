@@ -22,6 +22,9 @@ Game game({
   required String away,
   required String stadium,
   GameStatus status = GameStatus.scheduled,
+  int? homeScore,
+  int? awayScore,
+  GameResult? result,
 }) {
   return Game(
     id: id,
@@ -31,6 +34,9 @@ Game game({
     awayTeamId: away,
     stadiumId: stadium,
     status: status,
+    homeScore: homeScore,
+    awayScore: awayScore,
+    result: result,
   );
 }
 
@@ -206,6 +212,33 @@ void main() {
       expect(
         findTodayCanceledAwayGame(schedule: doc, teamId: 'lotte', now: now),
         isNull,
+      );
+    });
+
+    // schemaVersion 2 가 더한 상태 — "scheduled 가 아니면 취소"로 읽으면
+    // 끝난 경기가 플랜B를 띄운다.
+    test('finished 오늘 경기 → null (취소가 아니다)', () {
+      final doc = schedule([
+        game(
+          id: 'today',
+          date: '2026-08-25',
+          home: 'lg',
+          away: 'lotte',
+          stadium: 'jamsil',
+          status: GameStatus.finished,
+          homeScore: 3,
+          awayScore: 7,
+          result: GameResult.awayWin,
+        ),
+      ]);
+      expect(
+        findTodayCanceledAwayGame(schedule: doc, teamId: 'lotte', now: now),
+        isNull,
+      );
+      // 끝난 경기는 "갈 경기"도 아니다.
+      expect(
+        findNextAwayGame(schedule: doc, teamId: 'lotte', now: now),
+        isA<NoUpcomingAwayGame>(),
       );
     });
 
