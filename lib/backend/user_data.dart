@@ -198,6 +198,21 @@ String boardCellIdOf({
   return id;
 }
 
+/// 칸 id 의 홈팀 id — `{stadiumId}_{homeTeamId}` 의 뒷조각.
+///
+/// 판을 그리는 쪽이 칸의 팀 색을 찾으려면 이 되돌리기가 필요한데, 거기서
+/// 문자열을 직접 가르면 id 체계를 아는 자리가 둘이 된다 (`boardCellIdOf` 와
+/// 판). 체계가 바뀌면 함께 바뀌어야 하므로 짓는 쪽 옆에 둔다.
+///
+/// [kBoardCellIds] 밖의 값이면 [ArgumentError].
+String boardCellTeamId(String cellId) {
+  if (!kBoardCellIds.contains(cellId)) {
+    throw ArgumentError.value(cellId, 'cellId', '배지 판에 없는 칸 id');
+  }
+  // 구장 id 와 팀 id 모두 밑줄을 담지 않으므로 조각은 언제나 둘이다.
+  return cellId.split('_').last;
+}
+
 // ---------------------------------------------------------------------------
 // 값 검사 — 업로드 직전에 계약을 잰다
 // ---------------------------------------------------------------------------
