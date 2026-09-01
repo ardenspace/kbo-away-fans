@@ -267,6 +267,7 @@
         "awayTeamEmblemUrl": "https://sports-phinf.pstatic.net/team/kbo/default/SK.png",
         "widgetEnable": false
       }
-    ]
+    ],
+    "gameTotalCount": 12
   }
 }

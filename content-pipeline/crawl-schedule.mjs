@@ -16,6 +16,9 @@
 //      건드리지 않는다 (exit 0, generatedAt 만 바뀌는 커밋 노이즈 방지).
 //      경기 내용이 그대로인 채 계약 버전만 올라간 변경은 통과시켜야 한다 —
 //      산출물이 옛 버전에 머물면 앱이 그 문서를 통째로 거부한다.
+//   5) 원천이 조용히 반토막 나는 두 경로를 실패로 바꾼다 — 응답 총건수(gameTotalCount)
+//      보다 적게 받으면(창을 넓혔을 때의 잘림), 그리고 이전 산출물로도 못 살린 점수
+//      결측이 임계값(MAX_UNRECOVERABLE_MISSING_SCORES)을 넘으면 exit 1.
 //
 // 사용법:
 //   node content-pipeline/crawl-schedule.mjs                  # 실 크롤 → data/schedule.json
@@ -108,6 +111,37 @@ export function crawlWindow(now, { days = DEFAULT_WINDOW_DAYS, pastDays = DEFAUL
   return { fromDate, toDate };
 }
 
+/**
+ * 요청 size 상한.
+ *
+ * 네이버는 이 값을 넘는 size 를 받으면 페이지 크기를 기본값(10건)으로 떨어뜨린다 —
+ * 실측(2026-01-01~12-31, 총 843경기): size=1000 은 843건 전부, size=1010 이상은 10건.
+ * 크게 부를수록 안전한 파라미터가 아니므로 상한을 넘기지 않는다. 상한으로도 모자란
+ * 창은 [buildScheduleDocument] 의 총건수 대조가 잡아 실패시킨다(조용히 자르지 않는다).
+ */
+export const MAX_REQUEST_SIZE = 1000;
+
+/**
+ * 창 하루당 요청 여유분. KBO 정규 시즌은 하루 최대 5경기(구장 9곳 중 5곳 동시 개최)라
+ * 2배 여유다 — 더블헤더가 겹쳐도 남는다.
+ */
+export const REQUEST_SIZE_PER_DAY = 10;
+
+/**
+ * 창 길이에 맞춘 요청 size.
+ *
+ * 고정값(옛 500)을 박아 두면 기본 창(44일·약 220경기)은 안전해도 `--past-days 90`
+ * 같은 값에서 총건수가 500을 넘어 **뒤쪽(미래) 경기가 조용히 잘리고** D-day 계산이
+ * 틀어진다. 창에 비례해 부르고, 그래도 모자라면 총건수 대조가 실패로 알린다.
+ */
+export function requestSize({ fromDate, toDate }) {
+  const from = Date.parse(`${fromDate}T00:00:00Z`);
+  const to = Date.parse(`${toDate}T00:00:00Z`);
+  const spanDays =
+    Number.isFinite(from) && Number.isFinite(to) ? Math.round((to - from) / DAY_MS) + 1 : 1;
+  return Math.min(MAX_REQUEST_SIZE, Math.max(1, spanDays) * REQUEST_SIZE_PER_DAY);
+}
+
 export function apiUrl({ fromDate, toDate }) {
   const url = new URL(API_BASE);
   url.searchParams.set('fields', 'basic,stadium');
@@ -115,7 +149,7 @@ export function apiUrl({ fromDate, toDate }) {
   url.searchParams.set('categoryId', 'kbo');
   url.searchParams.set('fromDate', fromDate);
   url.searchParams.set('toDate', toDate);
-  url.searchParams.set('size', '500');
+  url.searchParams.set('size', String(requestSize({ fromDate, toDate })));
   return url;
 }
 
@@ -135,7 +169,7 @@ export function mapStatus(raw) {
 }
 
 /**
- * 종료 경기의 점수·승패 필드 — 점수가 정수가 아니면 **null**.
+ * 종료 경기의 점수·승패 필드 — 점수가 정수가 아니거나 계약 범위 밖이면 **null**.
  * 계약상 finished 가 아닌 경기에는 붙이지 않는다.
  *
  * result 는 네이버의 winner 를 그대로 받지 않고 점수에서 계산한다 — validate 의
@@ -145,13 +179,61 @@ export function mapStatus(raw) {
  * null 을 던지지 않고 반환하는 이유는 호출부([buildScheduleDocument])에 적었다.
  */
 export function scoreFields(raw) {
-  const homeScore = raw.homeTeamScore;
-  const awayScore = raw.awayTeamScore;
+  return outcomeFrom(raw.homeTeamScore, raw.awayTeamScore);
+}
+
+/** 점수 두 개 → 계약의 점수·승패 3필드. 정수가 아니거나 계약 범위 밖이면 null. */
+function outcomeFrom(homeScore, awayScore) {
   if (!Number.isInteger(homeScore) || !Number.isInteger(awayScore)) return null;
+  // schedule.schema.json 의 score 범위 (0~99) 밖이면 계약을 못 만든다.
+  if (homeScore < 0 || homeScore > 99 || awayScore < 0 || awayScore > 99) return null;
   const result =
     homeScore > awayScore ? 'home_win' : homeScore < awayScore ? 'away_win' : 'draw';
   return { homeScore, awayScore, result };
 }
+
+/**
+ * 계약상 유효한 상태값 — 이전 산출물에서 값을 되살릴 때 무엇을 쓸 수 있는지의 기준.
+ * (스키마의 status enum 과 같은 4종.)
+ */
+const CARRYABLE_STATUSES = new Set(['scheduled', 'finished', 'canceled', 'rain_canceled']);
+
+/**
+ * 점수 결측 종료 경기를 **이전 산출물의 값**으로 되살린다 (안전장치 1겹).
+ *
+ * 이전 산출물은 이미 validate 를 통과한 문서이므로 그 값은 계약을 만족한다.
+ * 그래도 승패는 점수에서 다시 파생한다 — 이전 문서가 손으로 편집돼 어긋나 있어도
+ * validate 의미 검사를 통과하는 산출물만 만들기 위해서다.
+ *
+ * @returns {{status: string, outcome: object} | null}  되살릴 수 없으면 null
+ */
+function carryOverFromPrevious(previous) {
+  if (previous === undefined || previous === null) return null;
+  const status = previous.status;
+  if (!CARRYABLE_STATUSES.has(status)) return null;
+  if (status !== 'finished') {
+    // 점수가 붙지 않는 상태 — 그대로 쓸 수 있고, 무엇보다 경기가 문서에 남는다.
+    // (아직 안 끝난 것으로 산출되면 지난 날짜일 때 stale_scheduled_games 로도 드러난다.)
+    return { status, outcome: {} };
+  }
+  const outcome = outcomeFrom(previous.homeScore, previous.awayScore);
+  return outcome === null ? null : { status, outcome };
+}
+
+/**
+ * 이전 산출물로도 못 살린 **신규** 점수 결측이 한 번의 크롤에서 이 수를 넘으면
+ * warn 이 아니라 실패다 (안전장치 2겹).
+ *
+ * 5인 근거 — KBO 정규 시즌의 하루 최대 경기 수다(구장 9곳 중 5곳 동시 개최).
+ * 안전장치 1겹이 "이전 산출물에 있던 경기"를 전부 흡수하므로, 여기 남는 것은
+ * 이 창에 처음 들어오면서 이미 끝나 있던 경기뿐이다. 한 크롤에서 그런 경기가
+ * 하루치를 통째로 넘긴다는 것은 개별 경기의 데이터 결손이 아니라 원천의 점수
+ * 필드가 바뀐 것(개명·null 화)이고, 그때는 종료 경기 전원이 조용히 빠진 반토막
+ * 산출물이 crawl_success 로 배포되는 편보다 기존 산출물을 지키는 편이 싸다.
+ * 반대로 5 이하는 통과시켜, "한 건의 결측이 문서 전체의 산출을 막는" 원래 문제를
+ * 되돌리지 않는다.
+ */
+export const MAX_UNRECOVERABLE_MISSING_SCORES = 5;
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -164,10 +246,19 @@ const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
  * - 이전 산출물에서 rain_canceled 였던 경기는 새 라벨이 우천 구분 없는 취소로
  *   와도 canceled 로 강등하지 않는다 (네이버가 과거 취소를 '경기취소'로 정규화함).
  * - 끝난 경기(finished)에는 점수·승패(homeScore/awayScore/result)를 붙인다.
- *   점수가 없는 종료 경기는 warn 로그 후 **그 경기만** 제외한다 (로스터 밖 팀·구장과
- *   같은 처리). 크롤 창이 과거로 넓어진 뒤로 이 관문을 지나는 경기가 수백 건이라
- *   예외를 던지면 한 건이 문서 전체의 산출을 막고, 20분 간격 cron 이 매번 exit 1 이
- *   되어 schedule.json 이 영구히 갱신을 멈춘다. 한 경기의 결측이 전체 정지보다 싸다.
+ *   점수가 없는 종료 경기는 두 겹의 안전장치를 거친다:
+ *     1) 이전 산출물에 그 경기가 있으면 그 상태·점수를 그대로 유지한다 — 위의
+ *        rain_canceled 유지와 같은 패턴이다. 결측이 **오늘 경기**에 걸리면 그 경기가
+ *        문서에서 사라져 앱의 "오늘 원정" 판정과 오늘 취소 감지가 통째로 어긋나는데,
+ *        이 유지가 그 경로를 막는다.
+ *     2) 그래도 못 살린 결측은 warn 로그 후 그 경기만 제외하되(로스터 밖 팀·구장과
+ *        같은 처리), 한 번의 크롤에서 MAX_UNRECOVERABLE_MISSING_SCORES 를 넘으면
+ *        예외를 던져 기존 산출물 보호 패턴(exit 1, 옛 문서 유지)에 맡긴다. 건별 skip
+ *        만 두면 원천이 점수 필드를 개명했을 때 종료 경기 전원이 빠진 반토막 문서가
+ *        crawl_success 로 배포된다 (games 최소 개수 제약이 없어 validate 도 통과한다).
+ *   한 건의 결측이 문서 전체의 산출을 막던 원래 문제는 1) 이 흡수한다.
+ * - 응답이 잘렸는지(총건수 gameTotalCount 대조) 먼저 본다 — 창을 넓히면 요청 size 를
+ *   넘겨 뒤쪽(미래) 경기가 조용히 사라지고 D-day 계산이 틀어진다.
  * - 지난 날짜인데 scheduled 로 남은 경기가 있으면 warn 로그를 남긴다 — 종료 판정이
  *   statusCode === 'RESULT' 단일 문자열에 걸려 있어, 네이버가 그 값을 바꾸면
  *   종료 경기가 전부 scheduled 로 산출되고 스키마·의미 검사·테스트가 모두 통과한다.
@@ -190,9 +281,29 @@ export function buildScheduleDocument(payload, options = {}) {
     );
   }
 
-  const previousRainCanceled = new Set(
-    previousGames.filter((g) => g.status === 'rain_canceled').map((g) => g.id),
+  // 응답 잘림 대조 — 원천이 알려주는 총건수보다 적게 받았으면 뒤쪽이 잘린 것이다.
+  // 요청 size 는 창 길이에 맞춰 커지지만(requestSize) 상한이 있으므로 여기서 막는다.
+  const totalCount = payload?.result?.gameTotalCount;
+  if (Number.isInteger(totalCount)) {
+    if (totalCount > rawGames.length) {
+      throw new ScheduleParseError(
+        `응답이 잘림: 원천 총건수 ${totalCount} 중 ${rawGames.length} 건만 수신 — ` +
+          `크롤 창을 좁히거나(--past-days/--days) 요청 size 상한(${MAX_REQUEST_SIZE})을 확인할 것`,
+      );
+    }
+  } else {
+    logger?.warn('total_count_missing', {
+      received: rawGames.length,
+      hint: 'result.gameTotalCount 가 없어 응답 잘림을 대조할 수 없음 — 원천 필드명이 바뀌었을 수 있음',
+    });
+  }
+
+  const previousById = new Map(
+    previousGames.filter((g) => typeof g?.id === 'string').map((g) => [g.id, g]),
   );
+
+  /** 이전 산출물로도 못 살린 신규 점수 결측 (임계값을 넘으면 실패). */
+  const unrecoverableMissingScores = [];
 
   const games = [];
   for (const raw of rawGames) {
@@ -229,26 +340,42 @@ export function buildScheduleDocument(payload, options = {}) {
       throw new ScheduleParseError(`gameDateTime 형식 불일치: ${id} → "${raw.gameDateTime}"`);
     }
 
+    const previous = previousById.get(id);
+
     let status = mapStatus(raw);
-    if (status === 'canceled' && previousRainCanceled.has(id)) {
+    if (status === 'canceled' && previous?.status === 'rain_canceled') {
       status = 'rain_canceled';
     }
 
     let outcome = {};
     if (status === 'finished') {
       const scores = scoreFields(raw);
-      if (scores === null) {
-        // 계약이 종료 경기에 점수를 요구하므로 이 경기는 산출할 수 없다.
-        // 문서 전체를 버리는 대신 이 한 건만 뺀다 (근거는 함수 주석).
-        logger?.warn('game_skipped', {
+      if (scores !== null) {
+        outcome = scores;
+      } else {
+        // 계약이 종료 경기에 점수를 요구하므로 원천 값만으로는 산출할 수 없다.
+        // 1겹: 이전 산출물에 있던 경기면 그 값을 그대로 유지해 문서에서 지우지 않는다.
+        const carried = carryOverFromPrevious(previous);
+        if (carried === null) {
+          // 2겹: 못 살린 건은 이 경기만 빼되 건수를 세어 임계값을 넘으면 실패시킨다.
+          logger?.warn('game_skipped', {
+            gameId: id,
+            reason: 'finished_without_score',
+            homeTeamScore: raw.homeTeamScore,
+            awayTeamScore: raw.awayTeamScore,
+          });
+          unrecoverableMissingScores.push(id);
+          continue;
+        }
+        logger?.warn('finished_score_carried_over', {
           gameId: id,
           reason: 'finished_without_score',
-          homeTeamScore: raw.homeTeamScore,
-          awayTeamScore: raw.awayTeamScore,
+          carriedStatus: carried.status,
+          ...carried.outcome,
         });
-        continue;
+        status = carried.status;
+        outcome = carried.outcome;
       }
-      outcome = scores;
     }
 
     games.push({
@@ -261,6 +388,15 @@ export function buildScheduleDocument(payload, options = {}) {
       status,
       ...outcome,
     });
+  }
+
+  if (unrecoverableMissingScores.length > MAX_UNRECOVERABLE_MISSING_SCORES) {
+    throw new ScheduleParseError(
+      `점수 없는 종료 경기가 임계값을 넘음: ${unrecoverableMissingScores.length} > ` +
+        `${MAX_UNRECOVERABLE_MISSING_SCORES} (이전 산출물로도 살릴 수 없는 건수) — ` +
+        '원천의 점수 필드(homeTeamScore/awayTeamScore)가 바뀌었을 수 있음. ' +
+        `예: ${unrecoverableMissingScores.slice(0, 3).join(', ')}`,
+    );
   }
 
   games.sort(

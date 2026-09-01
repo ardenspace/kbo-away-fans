@@ -18,8 +18,11 @@ import {
   ScheduleParseError,
   crawlWindow,
   apiUrl,
+  requestSize,
   DEFAULT_PAST_DAYS,
   DEFAULT_WINDOW_DAYS,
+  MAX_REQUEST_SIZE,
+  MAX_UNRECOVERABLE_MISSING_SCORES,
 } from '../crawl-schedule.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -438,4 +441,224 @@ test('정상 응답에는 드리프트 warn 이 붙지 않는다', () => {
     logger: { warn: (event, fields) => warns.push({ event, ...fields }) },
   });
   assert.deepEqual(warns, []);
+});
+
+// ── 점수 결측 안전장치 1겹: 이전 산출물 유지 ────────────────────────────────
+// 결측이 오늘 경기에 걸리면 그 경기가 문서에서 사라져 앱의 "오늘 원정" 판정과
+// 오늘 취소 감지가 통째로 어긋난다 — 이전 값 유지가 그 경로를 막는다.
+
+/** past-window 픽스처의 오늘(2026-09-01) 경기 하나를 "점수 없이 끝난" 상태로 만든다. */
+function todayGameFinishedWithoutScore(payload, gameId = '20260901LGOB02026') {
+  const game = payload.result.games.find((g) => g.gameId === gameId);
+  assert.ok(game, `픽스처에 ${gameId} 가 있어야 함`);
+  game.statusCode = 'RESULT';
+  game.homeTeamScore = null;
+  game.awayTeamScore = null;
+  return gameId;
+}
+
+test('점수가 사라진 오늘 경기는 이전 산출물의 종료 값(점수·승패)으로 되살아난다', () => {
+  const payload = loadJson(fixture('naver-schedule.past-window.json'));
+  const id = todayGameFinishedWithoutScore(payload);
+
+  const warns = [];
+  const document = buildScheduleDocument(payload, {
+    now: PAST_WINDOW_NOW,
+    previousGames: [
+      {
+        id,
+        date: '2026-09-01',
+        startTime: '18:30',
+        homeTeamId: 'doosan',
+        awayTeamId: 'lg',
+        stadiumId: 'jamsil',
+        status: 'finished',
+        homeScore: 6,
+        awayScore: 2,
+        result: 'home_win',
+      },
+    ],
+    logger: { warn: (event, fields) => warns.push({ event, ...fields }) },
+  });
+
+  const game = document.games.find((g) => g.id === id);
+  assert.ok(game, '오늘 경기가 문서에서 사라지면 안 됨 (오늘 원정 판정의 원천)');
+  assert.equal(document.games.length, 12, '경기 수가 줄면 안 됨');
+  assert.equal(game.status, 'finished');
+  assert.equal(game.homeScore, 6);
+  assert.equal(game.awayScore, 2);
+  assert.equal(game.result, 'home_win');
+  assert.deepEqual(
+    warns.filter((w) => w.event === 'game_skipped'),
+    [],
+    '되살린 경기는 skip 되면 안 됨',
+  );
+  assert.equal(warns.filter((w) => w.event === 'finished_score_carried_over').length, 1);
+});
+
+test('이전 산출물이 그 경기를 아직 scheduled 로 갖고 있으면 그 상태로 남는다 (사라지지 않는다)', () => {
+  // 20분 간격 cron 의 실제 모양 — 직전 크롤 때는 경기가 아직 안 끝나 있었다.
+  const payload = loadJson(fixture('naver-schedule.past-window.json'));
+  const id = todayGameFinishedWithoutScore(payload);
+
+  const document = buildScheduleDocument(payload, {
+    now: PAST_WINDOW_NOW,
+    previousGames: [{ id, status: 'scheduled' }],
+  });
+
+  const game = document.games.find((g) => g.id === id);
+  assert.ok(game, '오늘 경기가 문서에서 사라지면 안 됨');
+  assert.equal(game.status, 'scheduled');
+  assert.equal('homeScore' in game, false, '점수 없는 상태에 점수가 붙으면 안 됨');
+  assert.equal(document.games.length, 12);
+});
+
+test('CLI: 원천이 점수를 통째로 잃어도 이전 산출물이 있으면 12경기가 그대로 남는다', () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'crawl-carryover-'));
+  const out = path.join(dir, 'schedule.json');
+  const input = path.join(dir, 'payload.json');
+
+  // 1) 정상 크롤 — 산출물에 종료 6경기의 점수가 남는다.
+  const first = runCrawler(['--input', fixture('naver-schedule.past-window.json'), '--out', out]);
+  assert.equal(first.status, 0, first.stderr);
+  assert.equal(loadJson(out).games.filter((g) => g.status === 'finished').length, 6);
+
+  // 2) 원천이 점수 필드를 개명한 상황 재현 — 종료 경기 전원의 점수가 사라진다.
+  const payload = loadJson(fixture('naver-schedule.past-window.json'));
+  for (const g of payload.result.games) {
+    if (g.statusCode === 'RESULT') {
+      g.homeTeamScore = null;
+      g.awayTeamScore = null;
+    }
+  }
+  todayGameFinishedWithoutScore(payload);
+  writeFileSync(input, JSON.stringify(payload));
+
+  const second = runCrawler(['--input', input, '--out', out]);
+  assert.equal(second.status, 0, second.stderr);
+  assert.match(second.stderr, /finished_score_carried_over/);
+  assert.doesNotMatch(second.stderr, /game_skipped/, '이전 산출물이 있으면 빠지는 경기가 없어야 함');
+
+  const document = loadJson(out);
+  assert.equal(document.games.length, 12, '반토막 산출물이 되면 안 됨');
+  assert.equal(document.games.filter((g) => g.status === 'finished').length, 6);
+
+  const validation = spawnSync(process.execPath, [validator, out], { encoding: 'utf8' });
+  assert.equal(validation.status, 0, validation.stderr);
+});
+
+// ── 점수 결측 안전장치 2겹: 임계값 초과는 실패 ─────────────────────────────
+
+/** 픽스처의 종료 경기 앞 `count` 건의 점수를 지운다. 지운 gameId 목록을 준다. */
+function stripScores(payload, count) {
+  const finished = payload.result.games.filter((g) => g.statusCode === 'RESULT');
+  assert.ok(finished.length >= count, '픽스처에 종료 경기가 충분해야 함');
+  return finished.slice(0, count).map((g) => {
+    g.homeTeamScore = null;
+    g.awayTeamScore = null;
+    return g.gameId;
+  });
+}
+
+test('이전 산출물로도 못 살린 점수 결측이 임계값 이하면 그 경기만 빠지고 문서는 산출된다', () => {
+  // "한 건의 결측이 문서 전체의 산출을 막는" 원래 문제를 임계값이 되돌리지 않는지.
+  const payload = loadJson(fixture('naver-schedule.past-window.json'));
+  const stripped = stripScores(payload, MAX_UNRECOVERABLE_MISSING_SCORES);
+
+  const document = buildScheduleDocument(payload, { now: PAST_WINDOW_NOW });
+  assert.equal(document.games.length, 12 - MAX_UNRECOVERABLE_MISSING_SCORES);
+  for (const id of stripped) {
+    assert.equal(
+      document.games.some((g) => g.id === id),
+      false,
+      id,
+    );
+  }
+});
+
+test('이전 산출물로도 못 살린 점수 결측이 임계값을 넘으면 ScheduleParseError', () => {
+  const payload = loadJson(fixture('naver-schedule.past-window.json'));
+  stripScores(payload, MAX_UNRECOVERABLE_MISSING_SCORES + 1);
+
+  assert.throws(
+    () => buildScheduleDocument(payload, { now: PAST_WINDOW_NOW }),
+    (err) => err instanceof ScheduleParseError && /임계값/.test(err.message),
+  );
+});
+
+test('CLI: 대량 점수 결측은 exit 1 이고 기존 산출물은 그대로 남는다', () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'crawl-missing-'));
+  const out = path.join(dir, 'schedule.json');
+  const input = path.join(dir, 'payload.json');
+
+  // 이전 산출물에 그 경기들이 없어야 1겹이 흡수하지 못한다 (원천 개명 + 첫 산출 상황).
+  const original = '{"schemaVersion":2,"generatedAt":"2026-09-01T04:00:00Z","games":[]}\n';
+  writeFileSync(out, original);
+
+  const payload = loadJson(fixture('naver-schedule.past-window.json'));
+  stripScores(payload, MAX_UNRECOVERABLE_MISSING_SCORES + 1);
+  writeFileSync(input, JSON.stringify(payload));
+
+  const result = runCrawler(['--input', input, '--out', out]);
+  assert.notEqual(result.status, 0, result.stderr);
+  assert.match(result.stderr, /crawl_fail/);
+  assert.equal(readFileSync(out, 'utf8'), original, '실패 시 기존 산출물을 덮어쓰면 안 됨');
+  assert.ok(!existsSync(path.join(dir, 'schedule.next.json')), '임시 파일이 남으면 안 됨');
+});
+
+// ── 응답 잘림 ───────────────────────────────────────────────────────────────
+
+test('요청 size 는 창 길이에 비례하고 원천이 무시하는 상한을 넘지 않는다', () => {
+  // 기본 창(과거 14 + 미래 30 = 44일, 최대 약 220경기)
+  const base = crawlWindow(new Date('2026-09-01T05:00:00Z'));
+  assert.equal(requestSize(base), 440);
+  assert.equal(apiUrl(base).searchParams.get('size'), '440');
+
+  // 넓힌 창 — 옛 고정값 500 이면 여기서부터 뒤쪽이 조용히 잘렸다.
+  const wide = crawlWindow(new Date('2026-09-01T05:00:00Z'), { pastDays: 90 });
+  assert.ok(requestSize(wide) > 500, '창을 넓히면 요청 size 도 커져야 함');
+  assert.equal(requestSize(wide), MAX_REQUEST_SIZE);
+
+  // 상한 — 네이버는 이 값을 넘는 size 를 받으면 페이지 크기를 10 으로 떨어뜨린다.
+  const huge = crawlWindow(new Date('2026-09-01T05:00:00Z'), { pastDays: 700, days: 700 });
+  assert.equal(requestSize(huge), MAX_REQUEST_SIZE);
+});
+
+test('응답이 잘리면(총건수 > 수신 건수) ScheduleParseError — 조용히 넘어가지 않는다', () => {
+  const payload = loadJson(fixture('naver-schedule.past-window.json'));
+  payload.result.gameTotalCount = payload.result.games.length + 1;
+
+  assert.throws(
+    () => buildScheduleDocument(payload, { now: PAST_WINDOW_NOW }),
+    (err) => err instanceof ScheduleParseError && /잘림/.test(err.message),
+  );
+});
+
+test('총건수 필드가 없으면 대조 불가를 warn 으로 알린다 (원천 필드명 변경 감지)', () => {
+  const payload = loadJson(fixture('naver-schedule.past-window.json'));
+  delete payload.result.gameTotalCount;
+
+  const warns = [];
+  buildScheduleDocument(payload, {
+    now: PAST_WINDOW_NOW,
+    logger: { warn: (event, fields) => warns.push({ event, ...fields }) },
+  });
+  assert.equal(warns.filter((w) => w.event === 'total_count_missing').length, 1);
+});
+
+test('CLI: 잘린 응답은 exit 1 이고 기존 산출물은 그대로 남는다', () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'crawl-truncated-'));
+  const out = path.join(dir, 'schedule.json');
+  const input = path.join(dir, 'payload.json');
+  const original = '{"schemaVersion":2,"generatedAt":"2026-09-01T04:00:00Z","games":[]}\n';
+  writeFileSync(out, original);
+
+  const payload = loadJson(fixture('naver-schedule.past-window.json'));
+  payload.result.gameTotalCount = 200; // size 를 넘겨 뒤쪽이 잘린 응답
+  writeFileSync(input, JSON.stringify(payload));
+
+  const result = runCrawler(['--input', input, '--out', out]);
+  assert.notEqual(result.status, 0, result.stderr);
+  assert.match(result.stderr, /crawl_fail/);
+  assert.equal(readFileSync(out, 'utf8'), original);
 });
