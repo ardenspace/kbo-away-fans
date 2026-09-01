@@ -58,7 +58,8 @@ class HomeScreen extends ConsumerWidget {
     // 목적지 구장 좌표의 날씨 → 비 연출 (step 4.1).
     // 플랜B 날엔 오늘 취소된 경기의 구장이 목적지 — 비 연출과 플랜B 유도가
     // 함께 동작한다. 날씨 실패는 래퍼가 "연출 없음"으로 흡수한다.
-    final destinationGame = canceledToday ??
+    final destinationGame =
+        canceledToday ??
         switch (next) {
           AwayGameToday(:final game) || AwayGameUpcoming(:final game) => game,
           _ => null,
@@ -66,12 +67,16 @@ class HomeScreen extends ConsumerWidget {
     final destination = destinationGame == null
         ? null
         : stadiumsDoc?.byId(destinationGame.stadiumId);
-    final raining = destination != null &&
-        weatherEffectOf(ref.watch(
-              weatherEffectProvider(
-                (lat: destination.lat, lng: destination.lng),
+    final raining =
+        destination != null &&
+        weatherEffectOf(
+              ref.watch(
+                weatherEffectProvider((
+                  lat: destination.lat,
+                  lng: destination.lng,
+                )),
               ),
-            )) ==
+            ) ==
             WeatherEffect.rain;
 
     final team = teamsDoc?.byId(teamId);
@@ -150,12 +155,7 @@ class _HomeScaffold extends StatelessWidget {
         foregroundColor: barFg,
         title: Text(
           'KBO 원정러',
-          style: TextStyle(
-            fontFamily: TypeTokens.fontFamily,
-            fontSize: TypeTokens.heading,
-            fontWeight: TypeTokens.weightExtraBold,
-            color: barFg,
-          ),
+          style: TextTokens.appBarTitle.copyWith(color: barFg),
         ),
         actions: [
           // 팀 변경 진입점 (설정) — 같은 선택 화면을 변경 모드로 연다.
@@ -211,21 +211,14 @@ class _HomeScaffold extends StatelessWidget {
               Row(
                 children: [
                   Icon(
-                    rain
-                        ? Icons.umbrella_rounded
-                        : Icons.event_busy_rounded,
+                    rain ? Icons.umbrella_rounded : Icons.event_busy_rounded,
                     color: ColorTokens.warning,
                   ),
                   const SizedBox(width: SpaceTokens.sm),
                   Expanded(
                     child: Text(
                       rain ? '오늘 경기가 우천으로 취소됐어요' : '오늘 경기가 취소됐어요',
-                      style: const TextStyle(
-                        fontFamily: TypeTokens.fontFamily,
-                        fontSize: TypeTokens.heading,
-                        fontWeight: TypeTokens.weightExtraBold,
-                        color: ColorTokens.textPrimary,
-                      ),
+                      style: TextTokens.heading,
                     ),
                   ),
                 ],
@@ -233,12 +226,7 @@ class _HomeScaffold extends StatelessWidget {
               const SizedBox(height: SpaceTokens.sm),
               Text(
                 '아쉽지만 ${city ?? '근처'} 실내 놀거리로 플랜B 어때요?',
-                style: const TextStyle(
-                  fontFamily: TypeTokens.fontFamily,
-                  fontSize: TypeTokens.body,
-                  fontWeight: TypeTokens.weightMedium,
-                  color: ColorTokens.textSecondary,
-                ),
+                style: TextTokens.bodyMuted,
               ),
               const SizedBox(height: SpaceTokens.md),
               FilledButton(
@@ -312,10 +300,8 @@ class _HomeScaffold extends StatelessWidget {
           );
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => StadiumPlacesScreen(
-          stadiumId: stadiumId,
-          themeKey: themeKey,
-        ),
+        builder: (_) =>
+            StadiumPlacesScreen(stadiumId: stadiumId, themeKey: themeKey),
       ),
     );
   }
@@ -326,8 +312,11 @@ class _HomeScaffold extends StatelessWidget {
       null => _scheduleFallback(),
       NoUpcomingAwayGame() => const DdayHeader.empty(),
       AwayGameToday(:final game) => _gameFace(context, game, dDay: 0),
-      AwayGameUpcoming(:final game, :final dDay) =>
-        _gameFace(context, game, dDay: dDay),
+      AwayGameUpcoming(:final game, :final dDay) => _gameFace(
+        context,
+        game,
+        dDay: dDay,
+      ),
     };
   }
 
@@ -340,24 +329,11 @@ class _HomeScaffold extends StatelessWidget {
           : Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  '경기 일정을 불러오지 못했어요',
-                  style: TextStyle(
-                    fontFamily: TypeTokens.fontFamily,
-                    fontSize: TypeTokens.title,
-                    fontWeight: TypeTokens.weightExtraBold,
-                    color: ColorTokens.textPrimary,
-                  ),
-                ),
+                const Text('경기 일정을 불러오지 못했어요', style: TextTokens.title),
                 const SizedBox(height: SpaceTokens.sm),
                 const Text(
                   '네트워크를 확인하고 다시 시도해 주세요.',
-                  style: TextStyle(
-                    fontFamily: TypeTokens.fontFamily,
-                    fontSize: TypeTokens.body,
-                    fontWeight: TypeTokens.weightMedium,
-                    color: ColorTokens.textSecondary,
-                  ),
+                  style: TextTokens.bodyMuted,
                 ),
                 const SizedBox(height: SpaceTokens.md),
                 FilledButton(
@@ -425,12 +401,7 @@ class _HomeScaffold extends StatelessWidget {
             Expanded(
               child: Text(
                 '${stadium?.city ?? ''} 원정 미리보기'.trim(),
-                style: const TextStyle(
-                  fontFamily: TypeTokens.fontFamily,
-                  fontSize: TypeTokens.heading,
-                  fontWeight: TypeTokens.weightBold,
-                  color: ColorTokens.textPrimary,
-                ),
+                style: TextTokens.sectionTitle,
               ),
             ),
             // 추천 목록(step 3.1) 진입점 — 그 경기 홈팀 테마를 이어받는다.
@@ -457,15 +428,7 @@ class _HomeScaffold extends StatelessWidget {
       if (previewPlaces.isEmpty)
         const Padding(
           padding: EdgeInsets.symmetric(horizontal: SpaceTokens.lg),
-          child: Text(
-            '이 구장 주변 추천 장소를 준비하고 있어요.',
-            style: TextStyle(
-              fontFamily: TypeTokens.fontFamily,
-              fontSize: TypeTokens.body,
-              fontWeight: TypeTokens.weightMedium,
-              color: ColorTokens.textSecondary,
-            ),
-          ),
+          child: Text('이 구장 주변 추천 장소를 준비하고 있어요.', style: TextTokens.bodyMuted),
         )
       else
         for (final place in previewPlaces)

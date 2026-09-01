@@ -139,26 +139,10 @@ class StadiumMapView extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text(
-                '지도 준비 중',
-                style: TextStyle(
-                  fontFamily: TypeTokens.fontFamily,
-                  fontSize: TypeTokens.label,
-                  fontWeight: TypeTokens.weightBold,
-                  color: ColorTokens.textSecondary,
-                ),
-              ),
+              const Text('지도 준비 중', style: TextTokens.labelMuted),
               for (final marker in markers) ...[
                 const SizedBox(height: SpaceTokens.xs),
-                Text(
-                  marker.label,
-                  style: const TextStyle(
-                    fontFamily: TypeTokens.fontFamily,
-                    fontSize: TypeTokens.caption,
-                    fontWeight: TypeTokens.weightMedium,
-                    color: ColorTokens.textSecondary,
-                  ),
-                ),
+                Text(marker.label, style: TextTokens.caption),
               ],
             ],
           ),

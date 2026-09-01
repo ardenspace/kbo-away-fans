@@ -49,12 +49,11 @@ class TeamBadge extends StatelessWidget {
           ),
           child: Text(
             shortName,
-            style: TextStyle(
-              fontFamily: TypeTokens.fontFamily,
-              fontSize: compact ? TypeTokens.caption : TypeTokens.label,
-              fontWeight: TypeTokens.weightExtraBold,
-              color: theme.onPrimary,
-            ),
+            style:
+                (compact
+                        ? TextTokens.onTeamLabelCompact
+                        : TextTokens.onTeamLabel)
+                    .copyWith(color: theme.onPrimary),
           ),
         ),
       ),

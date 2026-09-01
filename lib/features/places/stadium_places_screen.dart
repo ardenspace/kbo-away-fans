@@ -80,10 +80,13 @@ class _StadiumPlacesScreenState extends ConsumerState<StadiumPlacesScreen> {
 
     // 이 구장 좌표의 날씨 → 배경 비 연출 (step 4.1).
     // 날씨 실패는 래퍼가 "연출 없음"으로 흡수하므로 여정에 영향이 없다.
-    final raining = stadium != null &&
-        weatherEffectOf(ref.watch(
-              weatherEffectProvider((lat: stadium.lat, lng: stadium.lng)),
-            )) ==
+    final raining =
+        stadium != null &&
+        weatherEffectOf(
+              ref.watch(
+                weatherEffectProvider((lat: stadium.lat, lng: stadium.lng)),
+              ),
+            ) ==
             WeatherEffect.rain;
 
     final body = WeatherBackdrop(
@@ -98,9 +101,7 @@ class _StadiumPlacesScreenState extends ConsumerState<StadiumPlacesScreen> {
     return TeamThemeScope.forTeam(
       teamId: themeKey,
       // 앱바가 스코프 안쪽 context 로 테마를 읽도록 Builder 를 끼운다.
-      child: Builder(
-        builder: (context) => _scaffold(context, stadium, body),
-      ),
+      child: Builder(builder: (context) => _scaffold(context, stadium, body)),
     );
   }
 
@@ -121,12 +122,7 @@ class _StadiumPlacesScreenState extends ConsumerState<StadiumPlacesScreen> {
       foregroundColor: barFg,
       title: Text(
         '${stadium?.name ?? widget.stadiumId} 주변 추천',
-        style: TextStyle(
-          fontFamily: TypeTokens.fontFamily,
-          fontSize: TypeTokens.heading,
-          fontWeight: TypeTokens.weightExtraBold,
-          color: barFg,
-        ),
+        style: TextTokens.appBarTitle.copyWith(color: barFg),
       ),
     );
   }
@@ -139,25 +135,9 @@ class _StadiumPlacesScreenState extends ConsumerState<StadiumPlacesScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            '추천 장소를 불러오지 못했어요',
-            style: TextStyle(
-              fontFamily: TypeTokens.fontFamily,
-              fontSize: TypeTokens.title,
-              fontWeight: TypeTokens.weightExtraBold,
-              color: ColorTokens.textPrimary,
-            ),
-          ),
+          const Text('추천 장소를 불러오지 못했어요', style: TextTokens.title),
           const SizedBox(height: SpaceTokens.sm),
-          const Text(
-            '네트워크를 확인하고 다시 시도해 주세요.',
-            style: TextStyle(
-              fontFamily: TypeTokens.fontFamily,
-              fontSize: TypeTokens.body,
-              fontWeight: TypeTokens.weightMedium,
-              color: ColorTokens.textSecondary,
-            ),
-          ),
+          const Text('네트워크를 확인하고 다시 시도해 주세요.', style: TextTokens.bodyMuted),
           const SizedBox(height: SpaceTokens.md),
           FilledButton(
             onPressed: () => invalidateContent(ref),
@@ -192,8 +172,7 @@ class _StadiumPlacesScreenState extends ConsumerState<StadiumPlacesScreen> {
                     SpaceTokens.lg,
                     SpaceTokens.xxl,
                   ),
-                  itemCount:
-                      filtered.length + (scratchPick == null ? 0 : 1),
+                  itemCount: filtered.length + (scratchPick == null ? 0 : 1),
                   separatorBuilder: (_, _) =>
                       const SizedBox(height: SpaceTokens.md),
                   itemBuilder: (context, index) {
@@ -225,7 +204,9 @@ class _StadiumPlacesScreenState extends ConsumerState<StadiumPlacesScreen> {
   ///
   /// 성공 지표 계측: 카드 탭이 곧 `place_tap` (step 3.4).
   void _showDetailSheet(Place place) {
-    ref.read(analyticsProvider).logPlaceTap(
+    ref
+        .read(analyticsProvider)
+        .logPlaceTap(
           stadiumId: widget.stadiumId,
           category: place.category.contractValue,
         );
@@ -236,11 +217,8 @@ class _StadiumPlacesScreenState extends ConsumerState<StadiumPlacesScreen> {
       address: place.address,
       description: place.description,
       onOpenMap: () => _openMap(place),
-      onDirections: () => launchNaverMapRoute(
-        name: place.name,
-        lat: place.lat,
-        lng: place.lng,
-      ),
+      onDirections: () =>
+          launchNaverMapRoute(name: place.name, lat: place.lat, lng: place.lng),
       onShare: () => _share(place),
     );
   }
@@ -249,12 +227,15 @@ class _StadiumPlacesScreenState extends ConsumerState<StadiumPlacesScreen> {
   ///
   /// 성공 지표 계측: 이 전이가 곧 `map_open` (step 3.4).
   void _openMap(Place place) {
-    ref.read(analyticsProvider).logMapOpen(
+    ref
+        .read(analyticsProvider)
+        .logMapOpen(
           stadiumId: widget.stadiumId,
           category: place.category.contractValue,
         );
-    final stadium =
-        contentDataOf(ref.read(stadiumsProvider))?.byId(widget.stadiumId);
+    final stadium = contentDataOf(
+      ref.read(stadiumsProvider),
+    )?.byId(widget.stadiumId);
     Navigator.of(context).pop();
     Navigator.of(context).push(
       MaterialPageRoute<void>(
@@ -337,25 +318,9 @@ class _StadiumPlacesScreenState extends ConsumerState<StadiumPlacesScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: const [
-          Text(
-            '이 조건에 맞는 장소가 아직 없어요',
-            style: TextStyle(
-              fontFamily: TypeTokens.fontFamily,
-              fontSize: TypeTokens.heading,
-              fontWeight: TypeTokens.weightBold,
-              color: ColorTokens.textPrimary,
-            ),
-          ),
+          Text('이 조건에 맞는 장소가 아직 없어요', style: TextTokens.sectionTitle),
           SizedBox(height: SpaceTokens.sm),
-          Text(
-            '다른 카테고리를 고르거나 실내 필터를 풀어 보세요.',
-            style: TextStyle(
-              fontFamily: TypeTokens.fontFamily,
-              fontSize: TypeTokens.body,
-              fontWeight: TypeTokens.weightMedium,
-              color: ColorTokens.textSecondary,
-            ),
-          ),
+          Text('다른 카테고리를 고르거나 실내 필터를 풀어 보세요.', style: TextTokens.bodyMuted),
         ],
       ),
     );

@@ -78,54 +78,24 @@ class PlaceDetailSheet extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            name,
-            style: const TextStyle(
-              fontFamily: TypeTokens.fontFamily,
-              fontSize: TypeTokens.title,
-              fontWeight: TypeTokens.weightExtraBold,
-              color: ColorTokens.textPrimary,
-            ),
-          ),
+          Text(name, style: TextTokens.title),
           const SizedBox(height: SpaceTokens.xs),
           Text(
             address == null ? categoryLabel : '$categoryLabel · $address',
-            style: const TextStyle(
-              fontFamily: TypeTokens.fontFamily,
-              fontSize: TypeTokens.label,
-              fontWeight: TypeTokens.weightMedium,
-              color: ColorTokens.textSecondary,
-            ),
+            style: TextTokens.supporting,
           ),
           if (description != null) ...[
             const SizedBox(height: SpaceTokens.sm),
-            Text(
-              description,
-              style: const TextStyle(
-                fontFamily: TypeTokens.fontFamily,
-                fontSize: TypeTokens.body,
-                fontWeight: TypeTokens.weightRegular,
-                color: ColorTokens.textPrimary,
-              ),
-            ),
+            Text(description, style: TextTokens.body),
           ],
           const SizedBox(height: SpaceTokens.lg),
           Row(
             children: [
-              TextButton(
-                onPressed: onOpenMap,
-                child: const Text('지도에서 보기'),
-              ),
+              TextButton(onPressed: onOpenMap, child: const Text('지도에서 보기')),
               const SizedBox(width: SpaceTokens.sm),
-              TextButton(
-                onPressed: onDirections,
-                child: const Text('길안내'),
-              ),
+              TextButton(onPressed: onDirections, child: const Text('길안내')),
               const SizedBox(width: SpaceTokens.sm),
-              TextButton(
-                onPressed: onShare,
-                child: const Text('공유'),
-              ),
+              TextButton(onPressed: onShare, child: const Text('공유')),
             ],
           ),
         ],

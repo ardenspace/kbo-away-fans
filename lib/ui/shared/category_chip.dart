@@ -47,10 +47,7 @@ class CategoryChip extends StatelessWidget {
         ),
         child: Text(
           label,
-          style: TextStyle(
-            fontFamily: TypeTokens.fontFamily,
-            fontSize: TypeTokens.label,
-            fontWeight: TypeTokens.weightBold,
+          style: TextTokens.label.copyWith(
             color: selected ? selectedFg : ColorTokens.textSecondary,
           ),
         ),

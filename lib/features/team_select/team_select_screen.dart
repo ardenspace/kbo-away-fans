@@ -19,11 +19,7 @@ class TeamSelectScreen extends ConsumerWidget {
   /// true 면 팀 변경 모드 — 앱바(뒤로 가기)가 있고 선택 후 pop 한다.
   final bool isChange;
 
-  Future<void> _select(
-    BuildContext context,
-    WidgetRef ref,
-    Team team,
-  ) async {
+  Future<void> _select(BuildContext context, WidgetRef ref, Team team) async {
     await ref.read(selectedTeamIdProvider.notifier).select(team.id);
     if (isChange && context.mounted) {
       Navigator.of(context).pop();
@@ -40,21 +36,19 @@ class TeamSelectScreen extends ConsumerWidget {
 
     final body = switch (teamsResult) {
       AsyncData(:final value) => switch (value) {
-          ContentFresh(:final data) ||
-          ContentFromCache(:final data) =>
-            _TeamList(
-              teams: data.teams,
-              currentId: currentId,
-              isChange: isChange,
-              onSelect: (team) => _select(context, ref, team),
-            ),
-          ContentUnavailable() => _LoadFailure(
-              onRetry: () => ref.invalidate(teamsProvider),
-            ),
-        },
-      AsyncError() => _LoadFailure(
+        ContentFresh(:final data) || ContentFromCache(:final data) => _TeamList(
+          teams: data.teams,
+          currentId: currentId,
+          isChange: isChange,
+          onSelect: (team) => _select(context, ref, team),
+        ),
+        ContentUnavailable() => _LoadFailure(
           onRetry: () => ref.invalidate(teamsProvider),
         ),
+      },
+      AsyncError() => _LoadFailure(
+        onRetry: () => ref.invalidate(teamsProvider),
+      ),
       _ => const Center(child: CircularProgressIndicator()),
     };
 
@@ -70,12 +64,7 @@ class TeamSelectScreen extends ConsumerWidget {
     );
   }
 
-  static const TextStyle _titleStyle = TextStyle(
-    fontFamily: TypeTokens.fontFamily,
-    fontSize: TypeTokens.heading,
-    fontWeight: TypeTokens.weightExtraBold,
-    color: ColorTokens.textPrimary,
-  );
+  static const TextStyle _titleStyle = TextTokens.heading;
 }
 
 /// 10팀 목록 — 전 팀이 한 번에 위젯 트리에 올라간다(스크롤 가능).
@@ -103,26 +92,10 @@ class _TeamList extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (!isChange) ...[
-            const Text(
-              '어느 팀을 응원하세요?',
-              style: TextStyle(
-                fontFamily: TypeTokens.fontFamily,
-                fontSize: TypeTokens.display,
-                fontWeight: TypeTokens.weightExtraBold,
-                color: ColorTokens.textPrimary,
-              ),
-            ),
+            const Text('어느 팀을 응원하세요?', style: TextTokens.display),
             const SizedBox(height: SpaceTokens.sm),
           ],
-          const Text(
-            '선택한 팀의 컬러로 앱이 물들어요.',
-            style: TextStyle(
-              fontFamily: TypeTokens.fontFamily,
-              fontSize: TypeTokens.body,
-              fontWeight: TypeTokens.weightMedium,
-              color: ColorTokens.textSecondary,
-            ),
-          ),
+          const Text('선택한 팀의 컬러로 앱이 물들어요.', style: TextTokens.bodyMuted),
           const SizedBox(height: SpaceTokens.xl),
           for (final team in teams)
             Padding(
@@ -179,10 +152,7 @@ class _TeamCard extends StatelessWidget {
                   Expanded(
                     child: Text(
                       team.name,
-                      style: TextStyle(
-                        fontFamily: TypeTokens.fontFamily,
-                        fontSize: TypeTokens.heading,
-                        fontWeight: TypeTokens.weightBold,
+                      style: TextTokens.sectionTitle.copyWith(
                         color: theme.onPrimary,
                       ),
                     ),
@@ -213,27 +183,11 @@ class _LoadFailure extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Text(
-            '팀 목록을 불러오지 못했어요.',
-            style: TextStyle(
-              fontFamily: TypeTokens.fontFamily,
-              fontSize: TypeTokens.body,
-              fontWeight: TypeTokens.weightBold,
-              color: ColorTokens.textPrimary,
-            ),
-          ),
+          const Text('팀 목록을 불러오지 못했어요.', style: TextTokens.bodyStrong),
           const SizedBox(height: SpaceTokens.md),
           TextButton(
             onPressed: onRetry,
-            child: const Text(
-              '다시 시도',
-              style: TextStyle(
-                fontFamily: TypeTokens.fontFamily,
-                fontSize: TypeTokens.label,
-                fontWeight: TypeTokens.weightBold,
-                color: ColorTokens.textPrimary,
-              ),
-            ),
+            child: const Text('다시 시도', style: TextTokens.label),
           ),
         ],
       ),

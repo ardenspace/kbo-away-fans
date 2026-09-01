@@ -20,9 +20,9 @@ class DdayHeader extends StatelessWidget {
 
   /// 남은 원정 일정이 없을 때(시즌 종료)의 명시적 빈 상태.
   const DdayHeader.empty({super.key})
-      : dDay = null,
-        matchLabel = null,
-        opponentShortName = null;
+    : dDay = null,
+      matchLabel = null,
+      opponentShortName = null;
 
   /// 경기까지 남은 일수. 0이면 오늘. null 이면 빈 상태.
   final int? dDay;
@@ -48,17 +48,11 @@ class DdayHeader extends StatelessWidget {
     final title = remaining == null
         ? '남은 원정 경기가 없어요'
         : remaining <= 0
-            ? '오늘'
-            : 'D-$remaining';
-    final subtitle =
-        matchLabel ?? '이번 시즌 원정 일정을 다 소화했어요. 다음 시즌에 만나요!';
+        ? '오늘'
+        : 'D-$remaining';
+    final subtitle = matchLabel ?? '이번 시즌 원정 일정을 다 소화했어요. 다음 시즌에 만나요!';
 
-    const subtitleStyle = TextStyle(
-      fontFamily: TypeTokens.fontFamily,
-      fontSize: TypeTokens.body,
-      fontWeight: TypeTokens.weightMedium,
-      color: ColorTokens.textSecondary,
-    );
+    const subtitleStyle = TextTokens.bodyMuted;
     final subtitleText = Text(subtitle, style: subtitleStyle);
 
     final opponent = opponentShortName;
@@ -79,14 +73,9 @@ class DdayHeader extends StatelessWidget {
         children: [
           Text(
             title,
-            style: TextStyle(
-              fontFamily: TypeTokens.fontFamily,
-              // 빈 상태는 문장형이라 display 대신 title 크기.
-              fontSize:
-                  remaining == null ? TypeTokens.title : TypeTokens.display,
-              fontWeight: TypeTokens.weightExtraBold,
-              color: accent,
-            ),
+            // 빈 상태는 문장형이라 display 대신 title 크기.
+            style: (remaining == null ? TextTokens.title : TextTokens.display)
+                .copyWith(color: accent),
           ),
           const SizedBox(height: SpaceTokens.xs),
           subtitleLine,

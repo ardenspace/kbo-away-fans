@@ -16,11 +16,7 @@ class StadiumPickerItem {
 
 /// 구장 골라 구경하기 진입 (탐색 모드) — 경기 없는 날·탐색 진입점.
 class StadiumPicker extends StatelessWidget {
-  const StadiumPicker({
-    super.key,
-    required this.stadiums,
-    this.onSelected,
-  });
+  const StadiumPicker({super.key, required this.stadiums, this.onSelected});
 
   /// 표시할 구장 목록 (콘텐츠의 구장 9곳).
   final List<StadiumPickerItem> stadiums;
@@ -34,15 +30,7 @@ class StadiumPicker extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        const Text(
-          '구장 골라 구경하기',
-          style: TextStyle(
-            fontFamily: TypeTokens.fontFamily,
-            fontSize: TypeTokens.heading,
-            fontWeight: TypeTokens.weightExtraBold,
-            color: ColorTokens.textPrimary,
-          ),
-        ),
+        const Text('구장 골라 구경하기', style: TextTokens.heading),
         const SizedBox(height: SpaceTokens.md),
         Wrap(
           spacing: SpaceTokens.sm,
@@ -61,15 +49,7 @@ class StadiumPicker extends StatelessWidget {
                     border: Border.all(color: ColorTokens.outline),
                     borderRadius: BorderRadius.circular(RadiusTokens.pill),
                   ),
-                  child: Text(
-                    stadium.label,
-                    style: const TextStyle(
-                      fontFamily: TypeTokens.fontFamily,
-                      fontSize: TypeTokens.label,
-                      fontWeight: TypeTokens.weightBold,
-                      color: ColorTokens.textPrimary,
-                    ),
-                  ),
+                  child: Text(stadium.label, style: TextTokens.label),
                 ),
               ),
           ],

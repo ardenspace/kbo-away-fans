@@ -82,8 +82,10 @@ class _ScratchCardState extends State<ScratchCard> {
     final cellHeight = size.height / _gridRows;
     for (var row = 0; row < _gridRows; row++) {
       for (var col = 0; col < _gridCols; col++) {
-        final center =
-            Offset((col + 0.5) * cellWidth, (row + 0.5) * cellHeight);
+        final center = Offset(
+          (col + 0.5) * cellWidth,
+          (row + 0.5) * cellHeight,
+        );
         if ((center - point).distance <= _brushRadius) {
           _scratchedCells.add(row * _gridCols + col);
         }
@@ -133,37 +135,23 @@ class _ScratchCardState extends State<ScratchCard> {
             Text(
               _revealed ? widget.hiddenLabel : '',
               textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontFamily: TypeTokens.fontFamily,
-                fontSize: TypeTokens.heading,
-                fontWeight: TypeTokens.weightBold,
-                color: ColorTokens.textPrimary,
-              ),
+              style: TextTokens.sectionTitle,
             ),
             if (sublabel != null) ...[
               const SizedBox(height: SpaceTokens.xs),
               Text(
                 _revealed ? sublabel : '',
                 textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontFamily: TypeTokens.fontFamily,
-                  fontSize: TypeTokens.label,
-                  fontWeight: TypeTokens.weightMedium,
-                  color: ColorTokens.textSecondary,
-                ),
+                style: TextTokens.supporting,
               ),
             ],
             if (_revealed && widget.onRescratch != null) ...[
               const SizedBox(height: SpaceTokens.sm),
               TextButton(
                 onPressed: _rescratch,
-                child: const Text(
+                child: Text(
                   '다시 긁기',
-                  style: TextStyle(
-                    fontFamily: TypeTokens.fontFamily,
-                    fontSize: TypeTokens.label,
-                    fontWeight: TypeTokens.weightBold,
-                  ),
+                  style: TextTokens.inheritColor(TextTokens.label),
                 ),
               ),
             ],
@@ -210,12 +198,7 @@ class _ScratchCardState extends State<ScratchCard> {
                         child: Text(
                           '오늘 뭐하지? 긁어 보기',
                           textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontFamily: TypeTokens.fontFamily,
-                            fontSize: TypeTokens.heading,
-                            fontWeight: TypeTokens.weightBold,
-                            color: ColorTokens.textSecondary,
-                          ),
+                          style: TextTokens.sectionTitleMuted,
                         ),
                       ),
                     ),

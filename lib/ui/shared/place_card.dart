@@ -41,27 +41,11 @@ class PlaceCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                name,
-                style: const TextStyle(
-                  fontFamily: TypeTokens.fontFamily,
-                  fontSize: TypeTokens.heading,
-                  fontWeight: TypeTokens.weightBold,
-                  color: ColorTokens.textPrimary,
-                ),
-              ),
+              Text(name, style: TextTokens.sectionTitle),
               const SizedBox(height: SpaceTokens.sm),
               Row(
                 children: [
-                  Text(
-                    categoryLabel,
-                    style: const TextStyle(
-                      fontFamily: TypeTokens.fontFamily,
-                      fontSize: TypeTokens.label,
-                      fontWeight: TypeTokens.weightMedium,
-                      color: ColorTokens.textSecondary,
-                    ),
-                  ),
+                  Text(categoryLabel, style: TextTokens.supporting),
                   if (source != null) ...[
                     const SizedBox(width: SpaceTokens.sm),
                     Container(
@@ -71,18 +55,9 @@ class PlaceCard extends StatelessWidget {
                       ),
                       decoration: BoxDecoration(
                         color: ColorTokens.surfaceDim,
-                        borderRadius:
-                            BorderRadius.circular(RadiusTokens.pill),
+                        borderRadius: BorderRadius.circular(RadiusTokens.pill),
                       ),
-                      child: Text(
-                        source,
-                        style: const TextStyle(
-                          fontFamily: TypeTokens.fontFamily,
-                          fontSize: TypeTokens.caption,
-                          fontWeight: TypeTokens.weightMedium,
-                          color: ColorTokens.textSecondary,
-                        ),
-                      ),
+                      child: Text(source, style: TextTokens.caption),
                     ),
                   ],
                 ],

@@ -56,8 +56,12 @@ class PlaceMapScreen extends StatelessWidget {
         ),
     ];
     // 구장이 있으면 두 마커가 같이 보이게 중점을 중심으로 잡는다.
-    final centerLat = stadium == null ? place.lat : (place.lat + stadium.lat) / 2;
-    final centerLng = stadium == null ? place.lng : (place.lng + stadium.lng) / 2;
+    final centerLat = stadium == null
+        ? place.lat
+        : (place.lat + stadium.lat) / 2;
+    final centerLng = stadium == null
+        ? place.lng
+        : (place.lng + stadium.lng) / 2;
 
     return Scaffold(
       backgroundColor: ColorTokens.background,
@@ -98,12 +102,7 @@ class PlaceMapScreen extends StatelessWidget {
       foregroundColor: barFg,
       title: Text(
         place.name,
-        style: TextStyle(
-          fontFamily: TypeTokens.fontFamily,
-          fontSize: TypeTokens.heading,
-          fontWeight: TypeTokens.weightExtraBold,
-          color: barFg,
-        ),
+        style: TextTokens.appBarTitle.copyWith(color: barFg),
       ),
     );
   }
