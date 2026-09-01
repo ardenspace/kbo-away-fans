@@ -34,7 +34,8 @@ cycle: 2
       probes: round 1 은 3개 작성·1개 인계(등급 가독성), round 2 는 5개 작성·1개 인계(경계 대비), round 3 은 9개 작성·1개 인계(칠해지는 몸통 기준) — 셋 다 badge_tier_legibility_test.dart 로 합쳐 커밋됨.
       함께 정리된 것: haloColor 를 ColorTokens.textInverse 참조로 통일, 좌초 토큰 tierMarkSize 제거, emptyBorderColor 추가, BadgeTierStyle.bodyColor 로 "칠해지는 몸통"을 토큰이 소유(다음에 몸통에 무언가 얹혀도 검사가 따라오게), 은색을 #969FAB 로 옮겨 금속 사다리를 균등화.
       text.* 15항목은 round 1 검증에서 실제 사용처 37곳(12개 파일)을 전부 덮는 것이 전수 확인됨 — 1.4 가 손조합으로 남길 자리 없음.
-- [>] 1.4 타이포 조합 스타일 기존 38곳 일괄 교체 — implementing (mid-tier, sonnet)
+- [x] 1.4 verified (basic) — 커밋 d0b00b5 (12개 파일, +116/-358); 경계 5개 전부 통과: 손조합 잔여 grep **0**, tokens_test 23통과, 전체 197통과·1스킵, 하드코딩 훅 exit 0, analyze 무지적. 지휘자가 렌더 불변을 기계적으로 대조 — 삭제된 손조합 35개 중 29개가 조합 스타일의 (크기·굵기·색)과 정확히 일치하고, 나머지 6개(앱바 3곳의 동적 색, dday_header 와 team_badge 의 조건부 크기, scratch_card 의 색 상속)는 대응 조합의 크기·굵기가 원래 값과 같고 색만 copyWith 으로 얹힘. 새 조합을 만들 필요가 없었고 ADR 도 없음.
+- [>] 1.5 Firestore 데이터 모델과 보안 규칙 — implementing (high-tier, opus)
 - [ ] 1.3 디자인 토큰 확장 네 그룹 (fresh)
 - [ ] 1.4 타이포 조합 스타일 기존 38곳 일괄 교체 (basic)
 - [ ] 1.5 Firestore 데이터 모델과 보안 규칙 (fresh)
