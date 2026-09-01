@@ -122,10 +122,15 @@ npm ci --prefix functions      # 배포·에뮬레이터에 필요한 SDK 설치
    필요하다.
 
 앱 쪽 구현은 `lib/backend/auth_firebase.dart` 하나이며, 위 설정이 없는 클론에서도
-`flutter analyze`·`flutter test`·안드로이드 빌드는 그대로 통과한다. iOS 빌드만
-예외다 — `ios/Runner.xcodeproj` 가 `GoogleService-Info.plist` 를 번들 리소스로
-참조하고 있어(사이클 1의 분석 연결) 파일이 없으면 Xcode 가 "Build input file cannot
-be found" 로 멈춘다. iOS 를 빌드하려면 3번의 설정 파일을 먼저 놓아야 한다.
+`flutter analyze`·`flutter test`·안드로이드 빌드·iOS 빌드가 그대로 통과한다.
+설정 파일을 양쪽 빌드가 **있으면 쓰고 없으면 넘어가는** 방식으로 집어 들기 때문이다:
+안드로이드는 `android/app/build.gradle.kts` 가 `google-services.json` 이 있을 때만
+`com.google.gms.google-services` 플러그인을 적용하고, iOS 는 Runner 타깃의
+"Copy GoogleService-Info.plist (if present)" 빌드 단계가 파일이 있을 때만
+앱 번들로 복사한다(Copy Bundle Resources 에 넣어 두면 파일이 없는 클론에서
+Xcode 가 "Build input file cannot be found" 로 멈춘다). 설정 파일을 놓았다가
+치운 경우에도 같은 단계가 번들에 남은 옛 사본을 지우므로, 빌드에 설정이 실렸는지는
+설정 파일의 유무 하나로 정해진다.
 
 ### 자격 증명 주입 지점 (전부 선택 사항 — 없어도 빌드·테스트 통과)
 
