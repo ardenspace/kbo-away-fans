@@ -50,7 +50,7 @@ cycle: 2
 - [x] 1.8 verified (fresh, high-tier) — 커밋 de61f36 + 46060df; 경계 테스트 4종 전부 통과(test/ui/shared 71케이스 exit 0 / registry-sync·하드코딩 훅 exit 0 / analyze 무지적), 전체 회귀 flutter 277통과·1스킵 / 파이프라인 61 / firebase 규칙 54 / functions 41.
       round 1 REJECT: 시스템 뒤로가기 한 번이 모든 탭의 스택을 되돌림 — NavigatorPopHandler.enabled 는 canPop 만 정하고 콜백은 IndexedStack 이 살려 둔 5개 핸들러 전부에 전달되어 각자 pop(구현 자신의 주석이 막겠다고 적은 바로 그 동작). 검증자가 가드 한 줄(if (index != _index) return)로 해소됨을 실측하고 red 탐침을 남김. 수정 커밋 46060df (mid-tier, sonnet) — 가드 추가 + initialIndex assert 상한 보강, 탐침 13개를 shared_skeleton_edge_cases_test.dart 로 흡수(전부 기존과 중복 없음). 지휘자가 직접 재확인: 71케이스·전체 277 통과. 해법까지 실측된 단일 시나리오라 새 문맥의 이득이 비용을 넘지 않는다고 판단, phase 1 integration 이 다시 본다.
       이후 단계로 넘기는 사실 3건: (a) 구글·애플 로그인 버튼은 제공자 표기 지침(전용 자산·색·문구)이 심사에 걸림 — 2.2 실연동 때 SocialSignInButton 모습을 지침에 맞춰 재손질 필요, (b) LikeButton 의 실패 되돌리기는 탭 시점 값으로 되돌림 — 쓰기 대기 중 부모가 liked 를 바꾸는 호출부가 생기면(3.2) 최신 값이 아닌 탭 이전 값으로 돌아가는 경계 존재, (c) BadgeTokens.cellRadius 는 현재 미소비(StampBadge 가 원형) — 판 배치를 바꾸는 단계가 소비하거나 정리해야 함.
-- [ ] 1.9 강제 장치 3종 설치와 wiring (basic)
+- [x] 1.9 verified (basic) — 커밋 30272a7; 지휘자가 경계 시나리오를 직접 재현: 깨끗한 트리 4검사 전부 exit 0 / lib/backend 로스터 없는 파일 → registry-sync exit 2 / lib/backend 업로드 경로 lat 필드 → no-location-upload exit 2 / lib/features cloud_firestore import → import-boundary exit 2 / 위반 스테이징 상태 git commit → exit 1 차단 / 정리 후 전부 exit 0·트리 원상 복구. flutter 277통과·1스킵, analyze 무지적. PostToolUse 는 hardcoded-values(기존)+no-location-upload(신규) 2종, registry-sync·import-boundary 는 pre-commit 전용. 1.6 이 예고로 남긴 CLAUDE.md 두 서술을 현재형으로 갱신. ADR 2줄(전부 S).
 - [ ] phase 1 integration
 
 ## Phase 2 — 계정: 로그인 게이트에서 사용자 문서까지
