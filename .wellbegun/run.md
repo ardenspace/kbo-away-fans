@@ -40,7 +40,9 @@ cycle: 2
       수정 중 구현자가 [L] 로 보고한 발견을 지휘자가 [M] 재등급: firestore.rules 가 표현식 한도(평가당 1000)에 임박 — 만판 쓰기를 그대로 재는 파수꾼 테스트와 문서 못박기까지만 하고 재구성은 유보 (decisions.md 기록).
       round 2 새 검증자 ACCEPT — 서버 변환 공격(serverTimestamp·increment·deleteField·merge·batch) 전부 방어, 로스터·정규식을 실데이터 168+12건과 전수 대조, 표현식 예산을 별도 에뮬레이터로 실측 재확인(여유 칸당 conjunct 2줄 — 문서 기록 1줄은 안전한 방향의 보수). probes: 20개 작성·커밋(4e25d65, rules-writes.test.mjs).
       이후 단계로 넘기는 사실 5건: (a) board 는 자기신고 값 — 규칙은 count↔tier 일치만 재고 실제 도장 문서 수와의 일치는 재지 못하므로 4.2 의 "요약이 어긋나지 않는다"는 앱 트랜잭션이 보장해야 함, (b) 사용자 문서를 지워도 하위 컬렉션(stamps·likes)은 남음 — 계정 삭제 흐름이 직접 지워야 함, (c) 계약 밖 필드가 한 번 낀 문서는 hasOnly 때문에 소유자 update 가 전부 거부됨 — 마이그레이션은 Admin SDK 로만 가능, (d) 사용자 문서가 없어도 도장 쓰기가 통과 — 4.2 의 전제(온보딩 완료)는 규칙이 아니라 앱 흐름이 보장, (e) 컬렉션 그룹 질의는 규칙·인덱스 모두 미지원 — 3.3·4.3 이 쓰려면 둘을 함께 고쳐야 함.
-- [ ] 1.6 `lib/backend/` 공통 계층 골격 + 로스터·read-first 문서 (fresh)
+- [x] 1.6 verified (fresh, high-tier) — 커밋 4405bbd + f190a61; 경계 테스트 4종 전부 통과(test/backend 40케이스 exit 0 / SDK import grep 매치 없음 / 하드코딩 훅 exit 0 / analyze 무지적), 전체 회귀 flutter 237통과·1스킵 / 파이프라인 61통과 / registry-sync exit 0.
+      round 1 REJECT: 코드·타입 경계는 전부 버텼으나 read-first 문서(CLAUDE.md)가 미신설 강제 장치 2개(registry-sync 의 backend 짝, check-no-location-upload.sh — 둘 다 1.9 몫)를 현재형 사실로 서술. 검증자 탐침 17케이스는 3중 복제(규칙↔문서↔앱 상수) 전수 대조·등급 사다리·읽기 모델 공격·provider 조용한 대역 부재까지 전부 통과 확인. 수정 커밋 f190a61 (mid-tier, sonnet — 결정 없는 시제 교정 2문장) 후 지휘자가 직접 재확인: 두 서술이 오늘의 사실과 일치, 훅 2종·analyze 통과. 수정 범위가 검증자가 해법까지 제시한 문장 2곳이라 새 문맥의 이득이 비용을 넘지 않는다고 판단, phase 1 integration 이 다시 본다.
+      이후 단계로 넘기는 사실 5건: (a) UserProfile.fromData 가 board 에만 관대 — board 키 없음·map 아님이면 예외 없이 빈 판, 2.4 어댑터 변환 오류가 "도장 잃은 판"으로 조용히 그려질 수 있음, (b) guardBackend 는 Future 전용 — 스트림 2개(authStateChanges·watchProfile)의 오류를 도메인 오류로 옮기는 공용 경로가 없어 2.2/2.4 가 손으로 붙이면 흩어짐, (c) 닉네임 길이 셈이 앱(runes)과 규칙(size())에서 다를 수 있음 — 규칙 테스트가 ASCII 만 재서 한글·이모지 경계 미확정, 2.4 전에 규칙 테스트 한 줄로 확정 권장, (d) LikeRecord.fromData 가 문서 id↔placeId 일치를 확인 안 함(쓰기는 규칙이 강제), (e) StampWrite.documentId 는 검사 없이 문자열 연결 — 호출자가 toData() 전에 문서 참조를 만들면 로스터 밖 경로가 잠깐 존재.
 - [ ] 1.7 카카오 커스텀 토큰 Cloud Function (fresh)
 - [ ] 1.8 공유 컴포넌트 7종 골격 + 로스터 갱신 (fresh)
 - [ ] 1.9 강제 장치 3종 설치와 wiring (basic)
