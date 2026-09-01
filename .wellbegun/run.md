@@ -35,10 +35,11 @@ cycle: 2
       함께 정리된 것: haloColor 를 ColorTokens.textInverse 참조로 통일, 좌초 토큰 tierMarkSize 제거, emptyBorderColor 추가, BadgeTierStyle.bodyColor 로 "칠해지는 몸통"을 토큰이 소유(다음에 몸통에 무언가 얹혀도 검사가 따라오게), 은색을 #969FAB 로 옮겨 금속 사다리를 균등화.
       text.* 15항목은 round 1 검증에서 실제 사용처 37곳(12개 파일)을 전부 덮는 것이 전수 확인됨 — 1.4 가 손조합으로 남길 자리 없음.
 - [x] 1.4 verified (basic) — 커밋 d0b00b5 (12개 파일, +116/-358); 경계 5개 전부 통과: 손조합 잔여 grep **0**, tokens_test 23통과, 전체 197통과·1스킵, 하드코딩 훅 exit 0, analyze 무지적. 지휘자가 렌더 불변을 기계적으로 대조 — 삭제된 손조합 35개 중 29개가 조합 스타일의 (크기·굵기·색)과 정확히 일치하고, 나머지 6개(앱바 3곳의 동적 색, dday_header 와 team_badge 의 조건부 크기, scratch_card 의 색 상속)는 대응 조합의 크기·굵기가 원래 값과 같고 색만 copyWith 으로 얹힘. 새 조합을 만들 필요가 없었고 ADR 도 없음.
-- [>] 1.5 Firestore 데이터 모델과 보안 규칙 — implementing (high-tier, opus)
-- [ ] 1.3 디자인 토큰 확장 네 그룹 (fresh)
-- [ ] 1.4 타이포 조합 스타일 기존 38곳 일괄 교체 (basic)
-- [ ] 1.5 Firestore 데이터 모델과 보안 규칙 (fresh)
+- [x] 1.5 verified (fresh, high-tier) — 커밋 27003a8 + 10ef1b0 + 4e25d65; 경계 테스트 2종 통과(규칙 테스트 50개 exit 0 / firestore.rules·docs/firestore-schema.md 좌표 grep 매치 없음), 전체 회귀 flutter 197통과·1스킵 / 파이프라인 통과 / validate exit 0 / 훅 2종 exit 0 / analyze 무지적. 세션 중단으로 부분 작업이 트리에 남았던 단계 — 새 구현자가 이어받아 완성(27003a8).
+      round 1 REJECT: 테스트 하네스가 파일 2개를 못 견딤 — node --test 가 파일별 프로세스를 병렬로 띄워 한 에뮬레이터 DB 를 서로 clearFirestore(11회 중 8회 실패 재현). 함께 확인된 문서-사실 불일치 2건: 계약 문서가 "규칙 테스트가 사다리를 단언한다"·"grep 검사를 받는다"라고 썼으나 당시 사실이 아니었음. 수정 커밋 10ef1b0 — --test-concurrency=1, 규칙이 tierFor(count) 로 임계 1/3/10 을 직접 강제, 문서 교정. round 1 탐침 13개는 rules-surface.test.mjs 로 다듬어져 같은 커밋에 흡수.
+      수정 중 구현자가 [L] 로 보고한 발견을 지휘자가 [M] 재등급: firestore.rules 가 표현식 한도(평가당 1000)에 임박 — 만판 쓰기를 그대로 재는 파수꾼 테스트와 문서 못박기까지만 하고 재구성은 유보 (decisions.md 기록).
+      round 2 새 검증자 ACCEPT — 서버 변환 공격(serverTimestamp·increment·deleteField·merge·batch) 전부 방어, 로스터·정규식을 실데이터 168+12건과 전수 대조, 표현식 예산을 별도 에뮬레이터로 실측 재확인(여유 칸당 conjunct 2줄 — 문서 기록 1줄은 안전한 방향의 보수). probes: 20개 작성·커밋(4e25d65, rules-writes.test.mjs).
+      이후 단계로 넘기는 사실 5건: (a) board 는 자기신고 값 — 규칙은 count↔tier 일치만 재고 실제 도장 문서 수와의 일치는 재지 못하므로 4.2 의 "요약이 어긋나지 않는다"는 앱 트랜잭션이 보장해야 함, (b) 사용자 문서를 지워도 하위 컬렉션(stamps·likes)은 남음 — 계정 삭제 흐름이 직접 지워야 함, (c) 계약 밖 필드가 한 번 낀 문서는 hasOnly 때문에 소유자 update 가 전부 거부됨 — 마이그레이션은 Admin SDK 로만 가능, (d) 사용자 문서가 없어도 도장 쓰기가 통과 — 4.2 의 전제(온보딩 완료)는 규칙이 아니라 앱 흐름이 보장, (e) 컬렉션 그룹 질의는 규칙·인덱스 모두 미지원 — 3.3·4.3 이 쓰려면 둘을 함께 고쳐야 함.
 - [ ] 1.6 `lib/backend/` 공통 계층 골격 + 로스터·read-first 문서 (fresh)
 - [ ] 1.7 카카오 커스텀 토큰 Cloud Function (fresh)
 - [ ] 1.8 공유 컴포넌트 7종 골격 + 로스터 갱신 (fresh)
