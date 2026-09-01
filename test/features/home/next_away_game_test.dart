@@ -239,6 +239,133 @@ void main() {
       });
     });
 
+    // step 1.2: 크롤 창이 과거 14일로 넓어지면서 산출물에 지난 경기가 상시로
+    // 섞인다(실측 108 → 168경기, 종료 48건). 소수의 픽스처가 아니라 "과거가
+    // 대량으로 들어와도 결과가 같다"를 직접 단언한다.
+    group('과거 구간이 섞인 산출물 (크롤 창 과거 확장)', () {
+      // 오늘(8/25) 이전 14일 × 하루 5경기 = 70경기. 내 팀이 원정인 경기와
+      // 아닌 경기, 종료·취소가 섞이도록 만든다.
+      List<Game> pastWindow() {
+        final games = <Game>[];
+        for (var back = 14; back >= 1; back -= 1) {
+          final day = DateTime.utc(2026, 8, 25).subtract(Duration(days: back));
+          final date = '${day.year.toString().padLeft(4, '0')}-'
+              '${day.month.toString().padLeft(2, '0')}-'
+              '${day.day.toString().padLeft(2, '0')}';
+          for (var slot = 0; slot < 5; slot += 1) {
+            final canceled = (back + slot) % 7 == 0;
+            games.add(
+              game(
+                id: 'past-$date-$slot',
+                date: date,
+                // 절반은 내 팀(lotte)이 원정인 경기 — 날짜로 안 거르면 후보가 된다.
+                home: slot.isEven ? 'lg' : 'samsung',
+                away: slot.isEven ? 'lotte' : 'kia',
+                stadium: slot.isEven ? 'jamsil' : 'daegu',
+                status: canceled
+                    ? GameStatus.rainCanceled
+                    : GameStatus.finished,
+                homeScore: canceled ? null : 3,
+                awayScore: canceled ? null : 7,
+                result: canceled ? null : GameResult.awayWin,
+              ),
+            );
+          }
+        }
+        return games;
+      }
+
+      final future = <Game>[
+        game(
+          id: 'next',
+          date: '2026-08-30',
+          home: 'samsung',
+          away: 'lotte',
+          stadium: 'daegu',
+        ),
+        game(
+          id: 'later',
+          date: '2026-09-02',
+          home: 'kia',
+          away: 'lotte',
+          stadium: 'gwangju',
+        ),
+      ];
+
+      test('다음 원정 D-day 가 과거 구간 유무와 무관하게 같다', () {
+        final before = findNextAwayGame(
+          schedule: schedule(future),
+          teamId: 'lotte',
+          now: now,
+        );
+        final after = findNextAwayGame(
+          schedule: schedule([...pastWindow(), ...future]),
+          teamId: 'lotte',
+          now: now,
+        );
+
+        expect(before, isA<AwayGameUpcoming>());
+        expect((after as AwayGameUpcoming).game.id,
+            (before as AwayGameUpcoming).game.id);
+        expect(after.dDay, before.dDay);
+        expect(after.dDay, 5);
+      });
+
+      test('오늘 취소 감지가 과거 구간 유무와 무관하게 같다', () {
+        final todayCanceled = game(
+          id: 'today',
+          date: '2026-08-25',
+          home: 'lg',
+          away: 'lotte',
+          stadium: 'jamsil',
+          status: GameStatus.rainCanceled,
+        );
+
+        final before = findTodayCanceledAwayGame(
+          schedule: schedule([todayCanceled, ...future]),
+          teamId: 'lotte',
+          now: now,
+        );
+        final after = findTodayCanceledAwayGame(
+          schedule: schedule([...pastWindow(), todayCanceled, ...future]),
+          teamId: 'lotte',
+          now: now,
+        );
+
+        expect(before?.id, 'today');
+        expect(after?.id, before?.id);
+      });
+
+      test('과거 구간에 취소 경기가 널려 있어도 오늘 취소만 잡는다', () {
+        // 과거 창에는 rain_canceled 가 10건 들어 있다 — 날짜를 안 보면 플랜B가
+        // 아무 날에나 켜진다.
+        final past = pastWindow();
+        expect(
+          past.where((g) => g.status == GameStatus.rainCanceled).length,
+          greaterThan(0),
+        );
+        expect(
+          findTodayCanceledAwayGame(
+            schedule: schedule([...past, ...future]),
+            teamId: 'lotte',
+            now: now,
+          ),
+          isNull,
+        );
+      });
+
+      test('과거 종료 경기만 있고 미래가 비면 빈 상태 — 지난 경기를 집어 들지 않는다', () {
+        expect(
+          findNextAwayGame(
+            schedule: schedule(pastWindow()),
+            teamId: 'lotte',
+            now: now,
+          ),
+          isA<NoUpcomingAwayGame>(),
+        );
+      });
+    });
+
     test('일정 소진 픽스처(과거 경기만) → 빈 상태 (NoUpcomingAwayGame)', () {
       final doc = schedule([
         game(

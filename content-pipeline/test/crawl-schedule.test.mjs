@@ -4,6 +4,7 @@
 //   2) 취소 표기 픽스처 → rain_canceled 매핑
 //   3) 깨진 픽스처 → CLI exit 비0 + 산출물 미변경
 //   4) 산출물이 validate 를 통과 (exit 0)
+//   5) 과거 구간이 든 픽스처 → 종료 경기의 점수·승패 산출 + 크롤 창의 과거 확장
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
@@ -16,6 +17,9 @@ import {
   mapStatus,
   ScheduleParseError,
   crawlWindow,
+  apiUrl,
+  DEFAULT_PAST_DAYS,
+  DEFAULT_WINDOW_DAYS,
 } from '../crawl-schedule.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -108,10 +112,37 @@ test('끝난 경기는 점수와 승패(홈 기준)를 담고, 안 끝난 경기
   assert.equal('result' in inProgress, false);
 });
 
-test('끝난 경기인데 점수가 없으면 ScheduleParseError', () => {
+test('끝난 경기인데 점수가 없으면 그 경기만 warn 로그와 함께 빠진다 (문서 전체는 산출된다)', () => {
+  // 창이 과거로 넓어진 뒤로 이 관문을 지나는 경기가 수백 건이라, 한 건의 결측이
+  // 문서 전체의 산출을 막으면 고빈도 cron 이 매번 실패해 산출물이 영구히 멈춘다.
   const payload = loadJson(fixture('naver-schedule.finished.json'));
   delete payload.result.games[0].homeTeamScore;
-  assert.throws(() => buildScheduleDocument(payload, { now: FIXED_NOW }), ScheduleParseError);
+  const dropped = payload.result.games[0].gameId;
+
+  const warns = [];
+  const document = buildScheduleDocument(payload, {
+    now: FIXED_NOW,
+    logger: { warn: (event, fields) => warns.push({ event, ...fields }) },
+  });
+
+  assert.equal(
+    document.games.some((g) => g.id === dropped),
+    false,
+    '점수 없는 종료 경기는 산출물에 남으면 안 됨 (계약이 점수를 요구)',
+  );
+  assert.ok(document.games.length > 0, '나머지 경기는 그대로 산출되어야 함');
+  assert.deepEqual(
+    warns.filter((w) => w.event === 'game_skipped'),
+    [
+      {
+        event: 'game_skipped',
+        gameId: dropped,
+        reason: 'finished_without_score',
+        homeTeamScore: undefined,
+        awayTeamScore: 3,
+      },
+    ],
+  );
 });
 
 test('끝난 경기 픽스처의 산출물이 validate 를 통과한다 (exit 0)', () => {
@@ -147,9 +178,17 @@ test('로스터 밖 구장(제2구장) 경기는 warn 로그와 함께 제외된
     logger: { warn: (event, fields) => warns.push({ event, ...fields }) },
   });
   assert.equal(document.games.length, 7);
-  assert.deepEqual(warns, [
-    { event: 'game_skipped', gameId: '20260822KTSK02026', reason: 'unknown_stadium', stadium: '울산' },
-  ]);
+  assert.deepEqual(
+    warns.filter((w) => w.event === 'game_skipped'),
+    [
+      {
+        event: 'game_skipped',
+        gameId: '20260822KTSK02026',
+        reason: 'unknown_stadium',
+        stadium: '울산',
+      },
+    ],
+  );
 });
 
 test('result.games 가 없는 응답은 ScheduleParseError', () => {
@@ -167,8 +206,27 @@ test('산출 게임 id 가 중복되면 ScheduleParseError', () => {
 
 test('크롤 창은 KST 달력 날짜 기준이다', () => {
   // 2026-08-25 23:30 UTC = 2026-08-26 08:30 KST — KST 로는 이미 다음 날
-  const window = crawlWindow(new Date('2026-08-25T23:30:00Z'), 3);
+  const window = crawlWindow(new Date('2026-08-25T23:30:00Z'), { days: 3, pastDays: 0 });
   assert.deepEqual(window, { fromDate: '2026-08-26', toDate: '2026-08-28' });
+});
+
+test('크롤 창은 과거 구간을 포함한다 — fromDate 가 오늘(KST)보다 pastDays 만큼 앞선다', () => {
+  const window = crawlWindow(new Date('2026-08-25T23:30:00Z'), { days: 3, pastDays: 5 });
+  assert.deepEqual(window, { fromDate: '2026-08-21', toDate: '2026-08-28' });
+});
+
+test('크롤 창 기본값은 과거 14일 + 오늘 포함 미래 30일', () => {
+  assert.equal(DEFAULT_PAST_DAYS, 14);
+  assert.equal(DEFAULT_WINDOW_DAYS, 30);
+  // 기본 인자 그대로 — 과거 구간이 실제로 요청 범위에 들어가는지 단언한다.
+  const window = crawlWindow(new Date('2026-09-01T05:00:00Z'));
+  assert.deepEqual(window, { fromDate: '2026-08-18', toDate: '2026-09-30' });
+});
+
+test('과거 창은 API 요청 URL 의 fromDate 로 실제로 전달된다', () => {
+  const url = apiUrl(crawlWindow(new Date('2026-09-01T05:00:00Z')));
+  assert.equal(url.searchParams.get('fromDate'), '2026-08-18');
+  assert.equal(url.searchParams.get('toDate'), '2026-09-30');
 });
 
 test('CLI: 깨진 픽스처 → exit 비0, 기존 산출물 미변경', () => {
@@ -230,4 +288,154 @@ test('CLI: games 가 같아도 schemaVersion 이 다르면 산출물을 갱신�
   assert.doesNotMatch(second.stderr, /no_change/, 'schemaVersion 차이는 변경으로 봐야 함');
   assert.match(second.stderr, /crawl_success/);
   assert.equal(loadJson(out).schemaVersion, 2);
+});
+
+// ── 과거 구간 픽스처 (step 1.2) ─────────────────────────────────────────────
+// naver-schedule.past-window.json 은 실제 네이버 응답(2026-08-18~09-01 구간)에서
+// 뽑은 12경기다. 기준 시각 2026-09-01 14:00 KST 로 보면 08-21~08-30 이 과거,
+// 09-01 이 오늘이다 — 크롤 창이 과거로 넓어졌을 때 실제로 들어오는 모양.
+const PAST_WINDOW_NOW = () => new Date('2026-09-01T05:00:00Z');
+
+test('과거 구간 픽스처: 종료 경기는 점수·승패를 담고 미래 경기는 종전대로 점수 없는 예정이다', () => {
+  const payload = loadJson(fixture('naver-schedule.past-window.json'));
+  const document = buildScheduleDocument(payload, { now: PAST_WINDOW_NOW });
+  const byId = Object.fromEntries(document.games.map((g) => [g.id, g]));
+
+  assert.equal(document.schemaVersion, 2);
+  assert.equal(document.games.length, 12);
+
+  // 지난 종료 경기 — 승패 세 갈래가 점수에서 파생되어 붙는다.
+  assert.deepEqual(byId['20260821KTSK02026'], {
+    id: '20260821KTSK02026',
+    date: '2026-08-21',
+    startTime: '19:00',
+    homeTeamId: 'ssg',
+    awayTeamId: 'kt',
+    stadiumId: 'munhak',
+    status: 'finished',
+    homeScore: 3,
+    awayScore: 3,
+    result: 'draw',
+  });
+  assert.deepEqual(byId['20260821LTOB02026'], {
+    id: '20260821LTOB02026',
+    date: '2026-08-21',
+    startTime: '19:00',
+    homeTeamId: 'doosan',
+    awayTeamId: 'lotte',
+    stadiumId: 'jamsil',
+    status: 'finished',
+    homeScore: 4,
+    awayScore: 11,
+    result: 'away_win',
+  });
+  assert.deepEqual(byId['20260822HTWO02026'], {
+    id: '20260822HTWO02026',
+    date: '2026-08-22',
+    startTime: '18:00',
+    homeTeamId: 'kiwoom',
+    awayTeamId: 'kia',
+    stadiumId: 'gocheok',
+    status: 'finished',
+    homeScore: 3,
+    awayScore: 1,
+    result: 'home_win',
+  });
+
+  // 지난 취소 경기 — 점수 필드가 붙지 않는다 (원천에 0-0 이 들어 있어도).
+  for (const id of ['20260822KTSK02026', '20260828WOOB02026', '20260830LGLT02026']) {
+    assert.equal(byId[id].status, 'canceled', id);
+    assert.equal('homeScore' in byId[id], false, id);
+    assert.equal('awayScore' in byId[id], false, id);
+    assert.equal('result' in byId[id], false, id);
+  }
+
+  // 오늘·미래 경기 — 종전대로 점수 없는 예정 상태.
+  for (const id of ['20260901HHKT02026', '20260901LGOB02026', '20260901SKWO02026']) {
+    assert.equal(byId[id].status, 'scheduled', id);
+    assert.deepEqual(Object.keys(byId[id]).filter((k) => k.endsWith('Score')), [], id);
+    assert.equal('result' in byId[id], false, id);
+  }
+
+  // 날짜 → 시작 시각 정렬은 과거 경기가 섞여도 그대로다.
+  const dates = document.games.map((g) => g.date);
+  assert.deepEqual(dates, [...dates].sort());
+  assert.equal(dates[0], '2026-08-21');
+  assert.equal(dates.at(-1), '2026-09-01');
+
+  // 산출물이 실제로 최근 결과를 담는지 — 종료 6건.
+  assert.equal(document.games.filter((g) => g.status === 'finished').length, 6);
+});
+
+test('과거 구간 픽스처의 산출물이 validate 를 통과한다 (exit 0) — 보호 패턴 그대로', () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'crawl-past-'));
+  const out = path.join(dir, 'schedule.json');
+
+  const result = runCrawler(['--input', fixture('naver-schedule.past-window.json'), '--out', out]);
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stderr, /crawl_success/);
+
+  const validation = spawnSync(process.execPath, [validator, out], { encoding: 'utf8' });
+  assert.equal(validation.status, 0, validation.stderr);
+
+  const document = loadJson(out);
+  assert.equal(document.games.length, 12);
+  assert.equal(document.games.filter((g) => g.status === 'finished').length, 6);
+});
+
+test('과거 구간 픽스처: 점수 없는 종료 경기가 있어도 나머지 11경기는 그대로 산출된다', () => {
+  // "한 건이 전부를 막는" 구조를 없앤 자리 — CLI 가 exit 0 이고 산출물이 남아야 한다.
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'crawl-past-noscore-'));
+  const input = path.join(dir, 'payload.json');
+  const out = path.join(dir, 'schedule.json');
+
+  const payload = loadJson(fixture('naver-schedule.past-window.json'));
+  const broken = payload.result.games.find((g) => g.gameId === '20260825NCLG02026');
+  broken.homeTeamScore = null;
+  writeFileSync(input, JSON.stringify(payload));
+
+  const result = runCrawler(['--input', input, '--out', out]);
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stderr, /finished_without_score/);
+
+  const document = loadJson(out);
+  assert.equal(document.games.length, 11);
+  assert.equal(
+    document.games.some((g) => g.id === '20260825NCLG02026'),
+    false,
+  );
+
+  const validation = spawnSync(process.execPath, [validator, out], { encoding: 'utf8' });
+  assert.equal(validation.status, 0, validation.stderr);
+});
+
+test('지난 경기가 scheduled 로 남아 있으면 종료 판정 드리프트를 warn 으로 알린다', () => {
+  // 종료 판정은 statusCode === 'RESULT' 단일 문자열에 걸려 있어, 네이버가 그 값을
+  // 바꾸면 스키마·의미 검사·테스트가 전부 통과한 채 조용히 실패한다.
+  const payload = loadJson(fixture('naver-schedule.past-window.json'));
+  for (const g of payload.result.games) {
+    if (g.statusCode === 'RESULT') g.statusCode = 'ENDED';
+  }
+
+  const warns = [];
+  const document = buildScheduleDocument(payload, {
+    now: PAST_WINDOW_NOW,
+    logger: { warn: (event, fields) => warns.push({ event, ...fields }) },
+  });
+
+  assert.equal(document.games.filter((g) => g.status === 'finished').length, 0);
+  const stale = warns.filter((w) => w.event === 'stale_scheduled_games');
+  assert.equal(stale.length, 1);
+  assert.equal(stale[0].count, 6);
+  assert.equal(stale[0].today, '2026-09-01');
+});
+
+test('정상 응답에는 드리프트 warn 이 붙지 않는다', () => {
+  const payload = loadJson(fixture('naver-schedule.past-window.json'));
+  const warns = [];
+  buildScheduleDocument(payload, {
+    now: PAST_WINDOW_NOW,
+    logger: { warn: (event, fields) => warns.push({ event, ...fields }) },
+  });
+  assert.deepEqual(warns, []);
 });

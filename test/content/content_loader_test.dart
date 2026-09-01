@@ -98,11 +98,20 @@ void main() {
       expect(schedule, isA<ContentFresh<ScheduleDocument>>());
       schedule as ContentFresh<ScheduleDocument>;
       expect(schedule.data.games, isNotEmpty);
-      expect(schedule.data.games.first.status, GameStatus.scheduled);
+      // 크롤 창이 과거 구간을 포함하므로 산출물에는 두 모양이 함께 들어 있다.
+      final scheduledGame = schedule.data.games
+          .firstWhere((g) => g.status == GameStatus.scheduled);
       // 점수 없는 예정 경기도 그대로 읽힌다 (세 필드는 null).
-      expect(schedule.data.games.first.homeScore, isNull);
-      expect(schedule.data.games.first.awayScore, isNull);
-      expect(schedule.data.games.first.result, isNull);
+      expect(scheduledGame.homeScore, isNull);
+      expect(scheduledGame.awayScore, isNull);
+      expect(scheduledGame.result, isNull);
+
+      // 지난 종료 경기는 점수·승패를 달고 읽힌다 (step 1.2 의 과거 창 확장).
+      final finishedGame = schedule.data.games
+          .firstWhere((g) => g.status == GameStatus.finished);
+      expect(finishedGame.homeScore, isNotNull);
+      expect(finishedGame.awayScore, isNotNull);
+      expect(finishedGame.result, isNotNull);
 
       // 검증 통과본이 캐시에 기록됐다.
       for (final kind in ContentKind.values) {
@@ -278,6 +287,16 @@ void main() {
     Map<String, Object?> firstOf(Map<String, Object?> root, String field) =>
         (root[field]! as List<Object?>).first! as Map<String, Object?>;
 
+    /// 산출물에서 [status] 인 첫 경기. 크롤 창이 과거로 넓어진 뒤로 games 앞쪽은
+    /// 지난 종료 경기라, "점수 없는 예정 경기"를 쓰는 변형은 순서에 기대면 안 된다.
+    Map<String, Object?> firstGameWithStatus(
+      Map<String, Object?> root,
+      String status,
+    ) =>
+        (root['games']! as List<Object?>)
+            .cast<Map<String, Object?>>()
+            .firstWhere((g) => g['status'] == status);
+
     test('필수 필드 누락 — 캐시 없으면 에러 상태', () async {
       final broken = _mutate(
         _sample(ContentKind.teams),
@@ -372,7 +391,7 @@ void main() {
     test('종료 경기인데 점수가 없으면 거부', () async {
       final broken = _mutate(
         _sample(ContentKind.schedule),
-        (root) => firstOf(root, 'games')['status'] = 'finished',
+        (root) => firstGameWithStatus(root, 'scheduled')['status'] = 'finished',
       );
       final loader = loaderWith(_serving({'schedule.json': broken}));
 
@@ -386,7 +405,7 @@ void main() {
     test('끝나지 않은 경기에 점수가 붙어 있으면 거부', () async {
       final broken = _mutate(
         _sample(ContentKind.schedule),
-        (root) => firstOf(root, 'games')['homeScore'] = 3,
+        (root) => firstGameWithStatus(root, 'scheduled')['homeScore'] = 3,
       );
       final loader = loaderWith(_serving({'schedule.json': broken}));
 

@@ -172,6 +172,60 @@ void main() {
       );
     });
 
+    // step 1.2: 크롤 창이 과거 14일로 넓어져 산출물에 지난 경기가 상시로 섞인다.
+    // 잠실은 홈팀이 2팀이라 "그날의 홈팀"을 지난 경기에서 고르면 테마가 틀린다.
+    group('과거 구간이 섞인 산출물 (크롤 창 과거 확장)', () {
+      // 오늘(8/25) 이전 14일치 잠실 경기 — LG·두산이 번갈아 홈이고 전부 종료.
+      List<Game> pastJamsil() => [
+            for (var back = 14; back >= 1; back -= 1)
+              game(
+                id: 'past-$back',
+                date: '2026-08-${(25 - back).toString().padLeft(2, '0')}',
+                startTime: '14:00', // 오늘 경기보다 이른 시각 — 정렬만 보면 이긴다
+                home: back.isEven ? 'doosan' : 'lg',
+                away: 'lotte',
+                stadium: 'jamsil',
+                status: GameStatus.finished,
+              ),
+          ];
+
+      test('과거 잠실 경기가 대량으로 섞여도 당일 홈팀 테마는 그대로다', () {
+        final today = game(
+          id: 'today',
+          date: '2026-08-25',
+          home: 'lg',
+          away: 'lotte',
+          stadium: 'jamsil',
+        );
+        final before = browseThemeKeyForStadium(
+          stadium: jamsil,
+          teams: teams,
+          schedule: schedule([today]),
+          now: now,
+        );
+        final after = browseThemeKeyForStadium(
+          stadium: jamsil,
+          teams: teams,
+          schedule: schedule([...pastJamsil(), today]),
+          now: now,
+        );
+        expect(after, before);
+        expect(after, teams.byId('lg')!.themeKey);
+      });
+
+      test('과거 잠실 경기만 있고 당일 경기가 없으면 중립(null)', () {
+        expect(
+          browseThemeKeyForStadium(
+            stadium: jamsil,
+            teams: teams,
+            schedule: schedule(pastJamsil()),
+            now: now,
+          ),
+          isNull,
+        );
+      });
+    });
+
     test('당일 경기가 여럿이면 시작 시각이 빠른 경기의 홈팀', () {
       final doc = schedule([
         game(
