@@ -19,7 +19,13 @@ cycle: 2
       round 2 새 검증자 ACCEPT — 제품 결정 2건이 코드에 반영됨을 확인, 계약 위반 없음.
       probes: round 1 은 23개 작성·2개 커밋(models_test.dart 로 흡수, schedule.canceled-with-score.json), round 2 는 12개 작성·4개 커밋(9556b25, finished_game_fanout_test.dart).
       1.2 로 넘기는 사실 3건: (a) `homeScore: 5.0` 은 validate 가 통과시키지만 앱 파서가 문서 전체를 거부 — 현재 크롤 경로로는 도달 불가, (b) 점수 없는 RESULT 경기 한 건이 크롤 전체를 exit 1 로 세움 — 창을 과거로 넓히면 노출이 커짐, (c) 종료 판정이 `statusCode === 'RESULT'` 단일 문자열에 걸려 있고 값이 바뀌면 조용히 전부 scheduled 가 됨.
-- [ ] 1.2 크롤 창 과거 확장 + 경기 결과 산출 (fresh)
+- [x] 1.2 verified (fresh, high-tier) — 커밋 5f6cfec + 3bf8626 + f8872b1; 경계 테스트 4개 전부 exit 0, 전체 회귀 flutter 180통과·1스킵 / 파이프라인 61통과 / validate 4종 / 훅 2종. 산출물 108→168경기(finished 48·canceled 12·scheduled 108), 2026-08-18~09-30, 23KB→39KB.
+      round 1 ACCEPT + 계약 밖 위험 6건. 그중 "점수 결측 경기를 건별 warn 후 제외하는 처리에 집계 게이트가 없어 원천이 점수 필드를 개명하면 종료 경기 전원이 빠진 채 crawl_success 로 배포됨"과 "결측이 오늘 경기에 걸리면 홈이 오늘의 원정을 잃음"을 지휘자가 [M] 으로 등급 → 이전 산출물 값 유지 + 임계값 초과 시 exit 1 의 두 겹으로 결정, 응답 잘림 방지와 함께 수정 커밋 3bf8626.
+      round 2 새 검증자 ACCEPT + 지휘자 결정 자체의 사각지대 지적: 20분 cron 에서 종료 직전 상태가 언제나 scheduled 라 전원 결측이 "이전 상태 유지" 경로로 흘러 임계값이 0 을 봄(3회 반복 고착까지 재현). 지휘자가 [M] 으로 임계값이 세는 대상을 "살리지 못한 결측"에서 "원천이 종료라는데 점수를 못 얻은 모든 경기"로 옮기기로 결정 → 수정 커밋 f8872b1 (구현자가 수정 전 새 테스트의 실패를 먼저 확인).
+      round 3 은 fresh 검증자 대신 지휘자가 직접 재현: 점수 필드 개명본을 실제 CLI 에 통과시켜 exit 1 · 기존 산출물 바이트 무변경 · 임시 파일 미잔류를 확인. 수정 범위가 round 2 검증자가 진단하고 해법까지 제시한 단일 시나리오의 카운트 기준 한 곳이라 새 문맥의 이득이 비용을 넘지 않는다고 판단. phase 1 integration 에서 fresh 눈이 이 단계를 다시 본다.
+      probes: round 1 은 12개 작성·2케이스 커밋(crawl-schedule.window.test.mjs), round 2 는 6개 작성·2케이스 커밋(crawl-schedule.carryover.test.mjs — 유지 장치가 낡은 값을 고착시키지 않는 반대 방향).
+      이후 단계로 넘기는 사실 3건: (a) 실 응답에서 미시작·취소 경기의 점수가 0/DRAW 로 채워져 있어 statusCode 가 점수보다 먼저 뒤집히면 거짓 무승부가 산출됨 — KBO 에 0-0 무승부가 실재해 0-0 자체를 신호로 쓸 수 없음, (b) 이전이 canceled 인 경기를 원천이 점수 없는 finished 로 주면 canceled 로 남음 — 발생 경로가 사실상 서스펜디드 재개뿐이고 그때는 점수가 함께 옴, (c) 과거 취소는 원천이 '경기취소'로 정규화해 우천 구분이 유실됨 — 창 확장 1회성이고 앱의 소비 지점 두 곳이 두 상태를 동등하게 다룸.
+- [>] 1.3 디자인 토큰 확장 네 그룹 — implementing (high-tier, opus)
 - [ ] 1.3 디자인 토큰 확장 네 그룹 (fresh)
 - [ ] 1.4 타이포 조합 스타일 기존 38곳 일괄 교체 (basic)
 - [ ] 1.5 Firestore 데이터 모델과 보안 규칙 (fresh)
