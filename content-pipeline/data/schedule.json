@@ -1,52 +1,7 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-08-31T18:01:04.230Z",
+  "generatedAt": "2026-09-01T17:50:27.295Z",
   "games": [
-    {
-      "id": "20260901HHKT02026",
-      "date": "2026-09-01",
-      "startTime": "18:30",
-      "homeTeamId": "kt",
-      "awayTeamId": "hanwha",
-      "stadiumId": "suwon",
-      "status": "scheduled"
-    },
-    {
-      "id": "20260901HTNC02026",
-      "date": "2026-09-01",
-      "startTime": "18:30",
-      "homeTeamId": "nc",
-      "awayTeamId": "kia",
-      "stadiumId": "changwon",
-      "status": "scheduled"
-    },
-    {
-      "id": "20260901LGOB02026",
-      "date": "2026-09-01",
-      "startTime": "18:30",
-      "homeTeamId": "doosan",
-      "awayTeamId": "lg",
-      "stadiumId": "jamsil",
-      "status": "scheduled"
-    },
-    {
-      "id": "20260901LTSS02026",
-      "date": "2026-09-01",
-      "startTime": "18:30",
-      "homeTeamId": "samsung",
-      "awayTeamId": "lotte",
-      "stadiumId": "daegu",
-      "status": "scheduled"
-    },
-    {
-      "id": "20260901SKWO02026",
-      "date": "2026-09-01",
-      "startTime": "18:30",
-      "homeTeamId": "kiwoom",
-      "awayTeamId": "ssg",
-      "stadiumId": "gocheok",
-      "status": "scheduled"
-    },
     {
       "id": "20260902HHKT02026",
       "date": "2026-09-02",
@@ -972,6 +927,42 @@
       "homeTeamId": "lotte",
       "awayTeamId": "kiwoom",
       "stadiumId": "sajik",
+      "status": "scheduled"
+    },
+    {
+      "id": "20261001HHSS02026",
+      "date": "2026-10-01",
+      "startTime": "18:30",
+      "homeTeamId": "samsung",
+      "awayTeamId": "hanwha",
+      "stadiumId": "daegu",
+      "status": "scheduled"
+    },
+    {
+      "id": "20261001KTHT02026",
+      "date": "2026-10-01",
+      "startTime": "18:30",
+      "homeTeamId": "kia",
+      "awayTeamId": "kt",
+      "stadiumId": "gwangju",
+      "status": "scheduled"
+    },
+    {
+      "id": "20261001LGSK02026",
+      "date": "2026-10-01",
+      "startTime": "18:30",
+      "homeTeamId": "ssg",
+      "awayTeamId": "lg",
+      "stadiumId": "munhak",
+      "status": "scheduled"
+    },
+    {
+      "id": "20261001NCOB02026",
+      "date": "2026-10-01",
+      "startTime": "18:30",
+      "homeTeamId": "doosan",
+      "awayTeamId": "nc",
+      "stadiumId": "jamsil",
       "status": "scheduled"
     }
   ]
