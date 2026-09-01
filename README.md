@@ -7,10 +7,15 @@ KBO 원정 팬을 위한 구장 주변 가이드 앱 (Flutter).
 - `lib/design/` — 디자인 토큰 (색·간격·타이포·모션). 토큰 파일 밖 raw 리터럴 금지.
 - `lib/ui/shared/` — 공유 컴포넌트 (`REGISTRY.md` 로스터와 짝 유지).
 - `lib/features/` — 화면·기능 단위 코드.
+- `lib/backend/` — 사용자 데이터·인증 공통 계층. Firebase·카카오 SDK import 는 이 폴더
+  (와 `lib/analytics/`) 안에만 두고, 화면·상태 계층은 여기가 내보내는 타입만 소비한다
+  (`REGISTRY.md` 로스터와 짝 유지, 상세는 `lib/backend/CLAUDE.md`).
 - `content-pipeline/` — 서버 없는 콘텐츠 파이프라인 (크롤링 → 검증 → 정적 JSON 배포).
-- `firestore.rules` / `firestore.indexes.json` — 사용자 데이터의 보안 규칙과 인덱스.
-  필드 계약은 `docs/firestore-schema.md`, 규칙 테스트는 `firebase/`.
+- `firebase.json` / `firestore.rules` / `firestore.indexes.json` — Firestore 보안 규칙·
+  인덱스·에뮬레이터 설정. 필드 계약은 `docs/firestore-schema.md`, 규칙 테스트는 `firebase/`.
 - `functions/` — Cloud Functions (카카오 액세스 토큰 → Firebase 커스텀 토큰).
+- `docs/` — 계약·제안 문서 (`firestore-schema.md` 등).
+- `scripts/hooks/` — 커밋 시점 백스톱 4종 (아래 "pre-commit 훅" 절 참조).
 - `.wellbegun/` — 파이프라인 문서 (spec/plan/decisions).
 
 ## 클론 후 최초 설정
@@ -24,9 +29,19 @@ git config core.hooksPath scripts/hooks   # pre-commit 훅 설치 (아래 참조
 ### pre-commit 훅
 
 git hook은 클론으로 전파되지 않으므로 위처럼 저장소 내 훅 경로를 1회 지정한다.
-이후 커밋마다 `check-hardcoded-values.sh`(토큰 밖 raw 디자인 값)와
-`check-registry-sync.sh`(공유 폴더 ↔ REGISTRY.md 로스터 동기화)가 실행되어 위반 커밋을 막는다.
-Claude Code 세션에서는 `.claude/settings.json`의 PostToolUse 훅이 편집 직후에도 같은 검사를 돌린다.
+이후 커밋마다 검사 4종이 작업 트리 전체를 훑어 위반 커밋을 막는다:
+
+- `check-hardcoded-values.sh` — 토큰 밖 raw 디자인 값.
+- `check-registry-sync.sh` — 공유 폴더 ↔ REGISTRY.md 로스터 동기화.
+- `check-no-location-upload.sh` — `lib/backend/` 업로드 payload 에 위도·경도로 읽히는
+  필드가 없는지 (기기 위치는 서버에 올리지 않는다는 데이터 소유권 결정의 강제).
+- `check-firebase-import-boundary.sh` — Firebase·카카오 SDK import 가
+  `lib/backend/`·`lib/analytics/` 밖으로 새지 않는지.
+
+Claude Code 세션에서는 `.claude/settings.json`의 PostToolUse 훅이 편집 직후에도 검사를
+돌리지만 범위가 다르다 — `check-hardcoded-values.sh`와 `check-no-location-upload.sh`
+2종뿐이고, `check-registry-sync.sh`·`check-firebase-import-boundary.sh`는 커밋 시점
+(pre-commit)에서만 돈다.
 
 ## 개발
 
