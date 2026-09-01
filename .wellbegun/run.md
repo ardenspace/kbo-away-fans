@@ -47,7 +47,9 @@ cycle: 2
       round 1 REJECT: 닉네임 길이를 세 겹이 서로 다른 단위로 셈 — 규칙 size() 는 UTF-16 코드 단위(에뮬레이터 실측으로 확정), 함수는 코드 포인트 절단, Dart 는 runes. "코드포인트 ≤20, UTF-16 >20" 닉네임(이모지 혼합)이 함수·앱을 통과하고 규칙에서 거부되어 2.3/2.4 사용자 문서 생성이 실패하는 경로. 1.6 이 넘긴 사실 (c)가 결함으로 확정된 사례. 수정 커밋 7b7716a — [M] 기준 단위를 UTF-16 코드 단위로 확정(규칙 언어가 단위를 못 바꾸는 유일한 자리라서), 함수 절단(서러게이트·ZWJ 꼬리 방지)·Dart _checkNickname·규칙 테스트 경계 케이스·REGISTRY·schema 문서 네 자리 정합.
       round 2 새 검증자 ACCEPT — 함수가 실제로 내놓은 닉네임을 에뮬레이터 규칙에 그대로 태우는 층간 탐침 포함 11개 전부 통과, uid `kakao:{id}` 가 규칙 경로 매칭과 정합함도 확인. probes: round 1 은 8개 작성·수정 커밋에 정식화(kakao-e2e.test.js), round 2 는 11개 작성·커밋(b7ad78b).
       이후 단계로 넘기는 사실 4건: (a) 429 가 internal 로 나감 — 2.3 이 BackendError 로 옮길 때 재시도 가능 실패가 "알 수 없음"으로 떨어짐, (b) 함수 nickname 은 null 일 수 있는데 규칙은 nickname 필수·size≥1 — 대체값을 정하는 자리가 아직 없어 2.4 의 문서 생성 경로가 정해야 함, (c) kakaoCustomToken 은 미인증 공개 callable 이고 App Check 없음(비용 브레이크는 maxInstances:10 뿐) — 2.3 배포 시점에 App Check 여부 결정 필요, (d) index.js 가 err.message 를 클라이언트로 그대로 보냄 — 예상 밖 예외의 메시지 노출 표면.
-- [ ] 1.8 공유 컴포넌트 7종 골격 + 로스터 갱신 (fresh)
+- [x] 1.8 verified (fresh, high-tier) — 커밋 de61f36 + 46060df; 경계 테스트 4종 전부 통과(test/ui/shared 71케이스 exit 0 / registry-sync·하드코딩 훅 exit 0 / analyze 무지적), 전체 회귀 flutter 277통과·1스킵 / 파이프라인 61 / firebase 규칙 54 / functions 41.
+      round 1 REJECT: 시스템 뒤로가기 한 번이 모든 탭의 스택을 되돌림 — NavigatorPopHandler.enabled 는 canPop 만 정하고 콜백은 IndexedStack 이 살려 둔 5개 핸들러 전부에 전달되어 각자 pop(구현 자신의 주석이 막겠다고 적은 바로 그 동작). 검증자가 가드 한 줄(if (index != _index) return)로 해소됨을 실측하고 red 탐침을 남김. 수정 커밋 46060df (mid-tier, sonnet) — 가드 추가 + initialIndex assert 상한 보강, 탐침 13개를 shared_skeleton_edge_cases_test.dart 로 흡수(전부 기존과 중복 없음). 지휘자가 직접 재확인: 71케이스·전체 277 통과. 해법까지 실측된 단일 시나리오라 새 문맥의 이득이 비용을 넘지 않는다고 판단, phase 1 integration 이 다시 본다.
+      이후 단계로 넘기는 사실 3건: (a) 구글·애플 로그인 버튼은 제공자 표기 지침(전용 자산·색·문구)이 심사에 걸림 — 2.2 실연동 때 SocialSignInButton 모습을 지침에 맞춰 재손질 필요, (b) LikeButton 의 실패 되돌리기는 탭 시점 값으로 되돌림 — 쓰기 대기 중 부모가 liked 를 바꾸는 호출부가 생기면(3.2) 최신 값이 아닌 탭 이전 값으로 돌아가는 경계 존재, (c) BadgeTokens.cellRadius 는 현재 미소비(StampBadge 가 원형) — 판 배치를 바꾸는 단계가 소비하거나 정리해야 함.
 - [ ] 1.9 강제 장치 3종 설치와 wiring (basic)
 - [ ] phase 1 integration
 
