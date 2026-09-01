@@ -154,6 +154,18 @@ void main() {
       }
     });
 
+    test('motion.stamp 는 지속과 커브를 함께 담는다', () {
+      const stamp = MotionTokens.stamp;
+      expect(stamp, isA<MotionSpec>());
+      expect(stamp.duration, greaterThan(Duration.zero));
+      expect(stamp.curve, isA<Curve>());
+      expect(
+        stamp.curve,
+        same(MotionTokens.emphasized),
+        reason: '커브는 기존 motion 커브 토큰에서 와야 한다',
+      );
+    });
+
     test('motion 기본 커브는 탄성(오버슈트)이다', () {
       final samples = List<double>.generate(
         101,
@@ -164,6 +176,159 @@ void main() {
         peak,
         greaterThan(1.0),
         reason: '탄성 커브라면 진행값이 1.0을 넘는 오버슈트 구간이 있어야 한다',
+      );
+    });
+  });
+
+  group('text.* 조합 스타일', () {
+    test('조합 스타일 목록이 비어 있지 않고 서로 다르다', () {
+      expect(TextTokens.all, isNotEmpty);
+      expect(
+        TextTokens.all.toSet(),
+        hasLength(TextTokens.all.length),
+        reason: '같은 값의 조합이 두 이름으로 있으면 사용처가 갈린다',
+      );
+    });
+
+    test('모든 조합 스타일이 폰트·크기·굵기·색을 다 갖춘다', () {
+      // Color·FontWeight 는 primitive equality 가 없어 const Set 을 못 만든다.
+      final sizes = <double>{
+        TypeTokens.display,
+        TypeTokens.title,
+        TypeTokens.heading,
+        TypeTokens.body,
+        TypeTokens.label,
+        TypeTokens.caption,
+      };
+      final weights = <FontWeight>{
+        TypeTokens.weightRegular,
+        TypeTokens.weightMedium,
+        TypeTokens.weightBold,
+        TypeTokens.weightExtraBold,
+      };
+      final colors = <Color>{
+        ColorTokens.textPrimary,
+        ColorTokens.textSecondary,
+        ColorTokens.textInverse,
+      };
+
+      for (final style in TextTokens.all) {
+        expect(
+          style.fontFamily,
+          equals(TypeTokens.fontFamily),
+          reason: '폰트는 TypeTokens.fontFamily 에서 와야 한다',
+        );
+        expect(
+          style.fontSize,
+          isNotNull,
+          reason: '조합 스타일은 크기까지 완성돼 있어야 한다',
+        );
+        expect(
+          sizes,
+          contains(style.fontSize),
+          reason: '크기 ${style.fontSize} 가 TypeTokens 크기 스케일 밖이다',
+        );
+        expect(
+          weights,
+          contains(style.fontWeight),
+          reason: '굵기 ${style.fontWeight} 가 TypeTokens 굵기 토큰 밖이다',
+        );
+        expect(
+          colors,
+          contains(style.color),
+          reason: '색 ${style.color} 가 ColorTokens 텍스트 색 밖이다',
+        );
+      }
+    });
+
+    test('이름 있는 조합이 낱개 토큰 조합과 정확히 같다', () {
+      expect(TextTokens.display.fontSize, equals(TypeTokens.display));
+      expect(TextTokens.display.fontWeight, equals(TypeTokens.weightExtraBold));
+      expect(TextTokens.display.color, equals(ColorTokens.textPrimary));
+
+      expect(TextTokens.bodyMuted.fontSize, equals(TypeTokens.body));
+      expect(TextTokens.bodyMuted.fontWeight, equals(TypeTokens.weightMedium));
+      expect(TextTokens.bodyMuted.color, equals(ColorTokens.textSecondary));
+
+      expect(TextTokens.caption.fontSize, equals(TypeTokens.caption));
+      expect(TextTokens.onTeamLabel.color, equals(ColorTokens.textInverse));
+    });
+
+    test('inheritColor 는 크기·굵기를 남기고 색만 뗀다', () {
+      final inherited = TextTokens.inheritColor(TextTokens.label);
+      expect(inherited.color, isNull);
+      expect(inherited.fontSize, equals(TextTokens.label.fontSize));
+      expect(inherited.fontWeight, equals(TextTokens.label.fontWeight));
+      expect(inherited.fontFamily, equals(TextTokens.label.fontFamily));
+    });
+  });
+
+  group('badge.* / badgeTier.*', () {
+    test('판은 팀 테마 10개와 1:1 대응하는 10칸이다', () {
+      expect(BadgeTokens.cellCount, equals(kboTeamIds.length));
+      expect(BadgeTokens.cellCount, equals(TeamThemes.byId.length));
+    });
+
+    test('배지 판 수치가 낱개 토큰에서 오거나 양수다', () {
+      expect(BadgeTokens.cellSize, greaterThan(0));
+      expect(BadgeTokens.cellGap, equals(SpaceTokens.md));
+      expect(BadgeTokens.cellRadius, equals(RadiusTokens.pill));
+      expect(BadgeTokens.boardPadding, equals(SpaceTokens.lg));
+      expect(BadgeTokens.emptyBorderWidth, greaterThan(0));
+      expect(BadgeTokens.tierMarkSize, greaterThan(0));
+      expect(BadgeTokens.tierRingInset, greaterThan(0));
+    });
+
+    test('빈 칸 투명도는 보이되 획득 칸과 갈리는 범위다', () {
+      expect(BadgeTokens.emptyOpacity, greaterThan(0));
+      expect(BadgeTokens.emptyOpacity, lessThan(0.5));
+    });
+
+    test('등급은 3단계이고 각각 표현 값을 가진다', () {
+      expect(BadgeTier.values, hasLength(3));
+      expect(BadgeTierTokens.byTier, hasLength(BadgeTier.values.length));
+      for (final tier in BadgeTier.values) {
+        final style = BadgeTierTokens.byTier[tier];
+        expect(style, isNotNull, reason: '$tier 에 대응하는 표현 값이 없다');
+        expect(style!.label, isNotEmpty);
+        expect(style.ringWidth, greaterThan(0));
+        expect(style.sheenOpacity, inInclusiveRange(0, 1));
+      }
+    });
+
+    test('등급은 팀 색을 갈아치우지 않고 위에 얹는다', () {
+      // 링·광택만으로 갈려야 10개 팀 색 어디에 올라가도 같은 등급이
+      // 같은 세기로 읽힌다 — 몸통 색을 대신하는 값이 있으면 안 된다.
+      final teamColors = TeamThemes.byId.values.map((t) => t.primary).toSet();
+      for (final style in BadgeTierTokens.byTier.values) {
+        expect(
+          teamColors,
+          isNot(contains(style.ringColor)),
+          reason: '등급 색이 팀 대표색과 겹치면 얹힌 것이 아니라 대체가 된다',
+        );
+      }
+    });
+
+    test('임계 개수는 오름차순이고 도장 개수로 등급이 갈린다', () {
+      final tiers = BadgeTier.values
+          .map((t) => BadgeTierTokens.byTier[t]!)
+          .toList();
+      for (var i = 1; i < tiers.length; i++) {
+        expect(tiers[i].minStamps, greaterThan(tiers[i - 1].minStamps));
+      }
+
+      expect(BadgeTierTokens.tierFor(0), isNull, reason: '빈 칸은 등급이 없다');
+      expect(
+        BadgeTierTokens.tierFor(BadgeTierTokens.first.minStamps),
+        equals(BadgeTier.first),
+      );
+      expect(
+        BadgeTierTokens.tierFor(BadgeTierTokens.regular.minStamps),
+        equals(BadgeTier.regular),
+      );
+      expect(
+        BadgeTierTokens.tierFor(BadgeTierTokens.master.minStamps + 100),
+        equals(BadgeTier.master),
       );
     });
   });

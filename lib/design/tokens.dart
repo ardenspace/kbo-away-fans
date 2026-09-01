@@ -79,6 +79,189 @@ abstract final class TypeTokens {
   static const FontWeight weightExtraBold = FontWeight.w800;
 }
 
+/// `text.*` — 폰트·크기·굵기·색을 묶은 **이름 있는 조합 스타일**.
+///
+/// 화면 코드에서 `TextStyle(fontFamily:…, fontSize:…, fontWeight:…, color:…)`
+/// 네 줄을 손으로 다시 쓰지 않는다. 모든 값은 [TypeTokens]·[ColorTokens] 의
+/// 낱개 토큰에서 오며 여기서 새 수치를 만들지 않는다.
+///
+/// 이름 규약 — `<역할>` + 선택 접미사:
+/// * 접미사 없음: 본문색([ColorTokens.textPrimary]) 위 기본 굵기
+/// * `Muted`: 보조색([ColorTokens.textSecondary])
+/// * `Strong`: 같은 크기에서 한 단계 굵게
+/// * `onTeam*`: 팀 대표색 위 (기본 전경은 [ColorTokens.textInverse],
+///   실제 팀 테마 색은 사용처에서 `.copyWith(color: theme.onPrimary)`)
+///
+/// | 이름 | 크기 | 굵기 | 색 |
+/// |---|---|---|---|
+/// | `display` | display | extraBold | textPrimary |
+/// | `title` | title | extraBold | textPrimary |
+/// | `heading` | heading | extraBold | textPrimary |
+/// | `sectionTitle` | heading | bold | textPrimary |
+/// | `sectionTitleMuted` | heading | bold | textSecondary |
+/// | `body` | body | regular | textPrimary |
+/// | `bodyStrong` | body | bold | textPrimary |
+/// | `bodyMuted` | body | medium | textSecondary |
+/// | `label` | label | bold | textPrimary |
+/// | `labelMuted` | label | bold | textSecondary |
+/// | `supporting` | label | medium | textSecondary |
+/// | `caption` | caption | medium | textSecondary |
+/// | `appBarTitle` | heading | extraBold | textInverse |
+/// | `onTeamLabel` | label | extraBold | textInverse |
+/// | `onTeamLabelCompact` | caption | extraBold | textInverse |
+abstract final class TextTokens {
+  /// 화면 하나를 여는 가장 큰 글자 (온보딩 첫 문장, D-day 숫자).
+  static const TextStyle display = TextStyle(
+    fontFamily: TypeTokens.fontFamily,
+    fontSize: TypeTokens.display,
+    fontWeight: TypeTokens.weightExtraBold,
+    color: ColorTokens.textPrimary,
+  );
+
+  /// 화면·시트의 제목.
+  static const TextStyle title = TextStyle(
+    fontFamily: TypeTokens.fontFamily,
+    fontSize: TypeTokens.title,
+    fontWeight: TypeTokens.weightExtraBold,
+    color: ColorTokens.textPrimary,
+  );
+
+  /// 구역을 여는 제목 (가장 굵은 단계).
+  static const TextStyle heading = TextStyle(
+    fontFamily: TypeTokens.fontFamily,
+    fontSize: TypeTokens.heading,
+    fontWeight: TypeTokens.weightExtraBold,
+    color: ColorTokens.textPrimary,
+  );
+
+  /// 카드·목록 항목의 제목 ([heading] 과 같은 크기에서 한 단계 얇게).
+  static const TextStyle sectionTitle = TextStyle(
+    fontFamily: TypeTokens.fontFamily,
+    fontSize: TypeTokens.heading,
+    fontWeight: TypeTokens.weightBold,
+    color: ColorTokens.textPrimary,
+  );
+
+  /// 아직 내용이 없는 자리의 제목 (빈 상태·자리 표시).
+  static const TextStyle sectionTitleMuted = TextStyle(
+    fontFamily: TypeTokens.fontFamily,
+    fontSize: TypeTokens.heading,
+    fontWeight: TypeTokens.weightBold,
+    color: ColorTokens.textSecondary,
+  );
+
+  /// 읽는 문장 본문.
+  static const TextStyle body = TextStyle(
+    fontFamily: TypeTokens.fontFamily,
+    fontSize: TypeTokens.body,
+    fontWeight: TypeTokens.weightRegular,
+    color: ColorTokens.textPrimary,
+  );
+
+  /// 본문 중 강조 (버튼 문구, 골라야 하는 항목 이름).
+  static const TextStyle bodyStrong = TextStyle(
+    fontFamily: TypeTokens.fontFamily,
+    fontSize: TypeTokens.body,
+    fontWeight: TypeTokens.weightBold,
+    color: ColorTokens.textPrimary,
+  );
+
+  /// 제목 아래 한 줄 설명 — 가장 많이 쓰이는 보조 문구.
+  static const TextStyle bodyMuted = TextStyle(
+    fontFamily: TypeTokens.fontFamily,
+    fontSize: TypeTokens.body,
+    fontWeight: TypeTokens.weightMedium,
+    color: ColorTokens.textSecondary,
+  );
+
+  /// 칩·버튼 등 누를 수 있는 것의 짧은 이름.
+  static const TextStyle label = TextStyle(
+    fontFamily: TypeTokens.fontFamily,
+    fontSize: TypeTokens.label,
+    fontWeight: TypeTokens.weightBold,
+    color: ColorTokens.textPrimary,
+  );
+
+  /// 고르지 않은 칩처럼 눌리지 않은 상태의 짧은 이름.
+  static const TextStyle labelMuted = TextStyle(
+    fontFamily: TypeTokens.fontFamily,
+    fontSize: TypeTokens.label,
+    fontWeight: TypeTokens.weightBold,
+    color: ColorTokens.textSecondary,
+  );
+
+  /// 카드 안의 부가 정보 한 줄 (주소, 카테고리 등).
+  static const TextStyle supporting = TextStyle(
+    fontFamily: TypeTokens.fontFamily,
+    fontSize: TypeTokens.label,
+    fontWeight: TypeTokens.weightMedium,
+    color: ColorTokens.textSecondary,
+  );
+
+  /// 가장 작은 보조 문구 (뱃지 밑 주석, 안내 소문자).
+  static const TextStyle caption = TextStyle(
+    fontFamily: TypeTokens.fontFamily,
+    fontSize: TypeTokens.caption,
+    fontWeight: TypeTokens.weightMedium,
+    color: ColorTokens.textSecondary,
+  );
+
+  /// 팀 테마 앱바의 제목. 실제 색은 사용처가
+  /// `.copyWith(color: theme.onPrimary)` 로 팀 전경색을 덮어쓴다.
+  static const TextStyle appBarTitle = TextStyle(
+    fontFamily: TypeTokens.fontFamily,
+    fontSize: TypeTokens.heading,
+    fontWeight: TypeTokens.weightExtraBold,
+    color: ColorTokens.textInverse,
+  );
+
+  /// 팀 대표색 몸통 위에 얹는 짧은 글자 (팀 약칭, 도장 칸 라벨).
+  static const TextStyle onTeamLabel = TextStyle(
+    fontFamily: TypeTokens.fontFamily,
+    fontSize: TypeTokens.label,
+    fontWeight: TypeTokens.weightExtraBold,
+    color: ColorTokens.textInverse,
+  );
+
+  /// [onTeamLabel] 의 좁은 자리 판 (compact 뱃지).
+  static const TextStyle onTeamLabelCompact = TextStyle(
+    fontFamily: TypeTokens.fontFamily,
+    fontSize: TypeTokens.caption,
+    fontWeight: TypeTokens.weightExtraBold,
+    color: ColorTokens.textInverse,
+  );
+
+  /// 색만 떼어낸 사본 — 전경색을 주변에서 물려받아야 하는 자리용
+  /// (`TextButton` 처럼 버튼 테마가 색을 정하는 경우).
+  ///
+  /// `copyWith(color: null)` 은 색을 지우지 못하므로 이 경로가 필요하다.
+  /// 색이 정해져 있는 자리라면 이걸 쓰지 말고 조합 스타일을 그대로 쓴다.
+  static TextStyle inheritColor(TextStyle style) => TextStyle(
+    fontFamily: style.fontFamily,
+    fontSize: style.fontSize,
+    fontWeight: style.fontWeight,
+  );
+
+  /// 위 조합 스타일 전체 — 토큰 검사·테스트가 훑는 목록.
+  static const List<TextStyle> all = [
+    display,
+    title,
+    heading,
+    sectionTitle,
+    sectionTitleMuted,
+    body,
+    bodyStrong,
+    bodyMuted,
+    label,
+    labelMuted,
+    supporting,
+    caption,
+    appBarTitle,
+    onTeamLabel,
+    onTeamLabelCompact,
+  ];
+}
+
 /// `rain.*` — 비 연출(WeatherBackdrop 빗줄기) 수치 토큰.
 ///
 /// 색은 [ColorTokens.rainDrop]/[ColorTokens.rainOverlay],
@@ -181,6 +364,150 @@ abstract final class SplashTokens {
   static const Duration handoff = Duration(milliseconds: 350);
 }
 
+/// `badge.*` — 배지 판(10칸)과 도장 칸의 수치 토큰.
+///
+/// 판은 팀 테마 10개와 1:1 대응하는 10칸이다 (잠실은 그날 홈팀 기준으로 두 칸).
+/// 칸 몸통 색은 `TeamTheme` 의 대표색에서 오고, 등급 표현은
+/// [BadgeTierTokens] 가 그 위에 얹는다. 판의 배치(격자/지도형)는 판을 만드는
+/// 쪽이 정하므로 열 수는 토큰으로 두지 않는다.
+abstract final class BadgeTokens {
+  /// 판의 칸 수 — 팀 테마 10개와 1:1.
+  static const int cellCount = 10;
+
+  /// 칸 한 변의 기본 크기 (원형이라 지름).
+  static const double cellSize = 72;
+
+  /// 칸과 칸 사이 간격.
+  static const double cellGap = SpaceTokens.md;
+
+  /// 칸 모서리 — 도장이라 완전한 원.
+  static const double cellRadius = RadiusTokens.pill;
+
+  /// 판 바깥 여백.
+  static const double boardPadding = SpaceTokens.lg;
+
+  /// 아직 못 간 구장 칸의 팀 색 투명도. 빈 칸도 처음부터 전부 보여주므로
+  /// "무엇을 채우면 되는지"는 읽히되 획득 칸과는 확실히 갈려야 한다.
+  static const double emptyOpacity = 0.16;
+
+  /// 빈 칸 테두리 굵기 (점선처럼 읽히는 자리 표시).
+  static const double emptyBorderWidth = 2;
+
+  /// 칸에 붙는 등급 표시(작은 마크)의 한 변.
+  static const double tierMarkSize = 16;
+
+  /// 등급 링을 칸 가장자리에서 안쪽으로 들이는 거리.
+  static const double tierRingInset = 3;
+}
+
+/// 배지 등급 3단계. 값은 [BadgeTierTokens].
+///
+/// 한 칸(=한 구장)에 쌓인 도장 개수로 갈린다.
+enum BadgeTier {
+  /// 첫 도장 — 그 구장에 가 봤다.
+  first,
+
+  /// 단골 — 여러 번 갔다.
+  regular,
+
+  /// 마스터 — 그 구장을 제집처럼 다녔다.
+  master,
+}
+
+/// 등급 하나의 표현 값.
+///
+/// 칸 몸통은 팀 대표색이므로 등급은 **색을 바꾸지 않고 위에 얹는다** —
+/// 테두리 링과 흰 광택만으로 갈라야 10개 팀 색 어디에 올라가도 같은 등급이
+/// 같은 세기로 읽힌다.
+@immutable
+class BadgeTierStyle {
+  const BadgeTierStyle({
+    required this.minStamps,
+    required this.label,
+    required this.ringColor,
+    required this.ringWidth,
+    required this.sheenOpacity,
+  });
+
+  /// 이 등급이 되는 최소 도장 개수.
+  final int minStamps;
+
+  /// 화면에 보이는 등급 이름.
+  final String label;
+
+  /// 팀 색 위에 얹는 링 색.
+  final Color ringColor;
+
+  /// 링 굵기.
+  final double ringWidth;
+
+  /// 팀 색 위에 덧대는 흰 광택의 세기 (0이면 광택 없음).
+  final double sheenOpacity;
+}
+
+/// `badgeTier.*` — 등급 3단계의 표현 값.
+///
+/// 임계 개수(1/3/10)는 초기값이다 — 한 시즌 한 구장에 서너 번 가는 팬이
+/// 흔하다는 가정에서 잡았고, 실사용을 보고 조정한다.
+abstract final class BadgeTierTokens {
+  /// 첫 도장 — 팀 색이 그대로 드러나고 얇은 흰 링만 두른다.
+  static const BadgeTierStyle first = BadgeTierStyle(
+    minStamps: 1,
+    label: '첫 방문',
+    ringColor: Color(0x59FFFFFF),
+    ringWidth: 2,
+    sheenOpacity: 0,
+  );
+
+  /// 단골 — 은빛 링과 옅은 광택.
+  static const BadgeTierStyle regular = BadgeTierStyle(
+    minStamps: 3,
+    label: '단골',
+    ringColor: Color(0xFFC9CFD8),
+    ringWidth: 3,
+    sheenOpacity: 0.1,
+  );
+
+  /// 마스터 — 금빛 링과 또렷한 광택.
+  static const BadgeTierStyle master = BadgeTierStyle(
+    minStamps: 10,
+    label: '마스터',
+    ringColor: Color(0xFFE8B94A),
+    ringWidth: 4,
+    sheenOpacity: 0.18,
+  );
+
+  /// 등급 → 표현 값. 3단계 전부가 여기 있다.
+  static const Map<BadgeTier, BadgeTierStyle> byTier = {
+    BadgeTier.first: first,
+    BadgeTier.regular: regular,
+    BadgeTier.master: master,
+  };
+
+  /// 도장 [stamps] 개인 칸의 등급. 0개면 빈 칸이라 등급이 없다(null).
+  static BadgeTier? tierFor(int stamps) {
+    if (stamps >= master.minStamps) return BadgeTier.master;
+    if (stamps >= regular.minStamps) return BadgeTier.regular;
+    if (stamps >= first.minStamps) return BadgeTier.first;
+    return null;
+  }
+}
+
+/// 지속시간과 커브를 함께 든 모션 한 벌.
+///
+/// 낱개 [Duration]·[Curve] 토큰과 달리, 둘을 따로 고르면 조합이 어긋나는
+/// 연출(도장 찍기처럼 타이밍과 감속이 한 몸인 것)에 쓴다.
+@immutable
+class MotionSpec {
+  const MotionSpec({required this.duration, required this.curve});
+
+  /// 구간 길이.
+  final Duration duration;
+
+  /// 구간 안의 진행 곡선.
+  final Curve curve;
+}
+
 /// `motion.*` — 지속시간·커브. 탄성(bouncy spring)이 기본 톤.
 abstract final class MotionTokens {
   // 지속시간
@@ -211,4 +538,15 @@ abstract final class MotionTokens {
   /// 튀어나오듯 시작해 급격히 감속하며 멎는 구간.
   /// 첫 프레임에 거리 대부분을 지나가므로 아주 짧은 구간에서도 속도가 읽힌다.
   static const Curve swoop = Curves.easeOutQuart;
+
+  /// `motion.stamp` — 도장이 찍히는 순간. 이 사이클의 대표 연출이라
+  /// 지속과 커브를 [MotionSpec] 한 벌로 묶어 둔다(따로 고르면 어긋난다).
+  ///
+  /// [emphasized](easeOutBack)는 목표를 살짝 지나쳤다 되돌아오므로 도장이
+  /// 눌렸다 자리를 잡는 인상을 준다. 길이는 [base] 와 [slow] 사이 —
+  /// "쿵" 이 읽힐 만큼 길고, 판으로 돌아가는 흐름을 끊지 않을 만큼 짧다.
+  static const MotionSpec stamp = MotionSpec(
+    duration: Duration(milliseconds: 420),
+    curve: emphasized,
+  );
 }
