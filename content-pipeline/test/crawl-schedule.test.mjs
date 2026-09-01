@@ -55,8 +55,10 @@ test('경기전·진행 중은 scheduled, 끝난 경기(RESULT)는 finished 로 
     mapStatus({ cancel: false, statusCode: 'STARTED', statusInfo: '9회말' }),
     'scheduled',
   );
+  // 종료 판정은 statusCode 만 본다 — 실제 응답의 statusInfo 는 끝난 경기에도
+  // '종료'가 아니라 마지막 이닝('9회말' 등)이 담긴다.
   assert.equal(
-    mapStatus({ cancel: false, statusCode: 'RESULT', statusInfo: '종료' }),
+    mapStatus({ cancel: false, statusCode: 'RESULT', statusInfo: '9회말' }),
     'finished',
   );
   // 서스펜디드는 재개될 경기라 종료가 아니다.
@@ -209,4 +211,23 @@ test('CLI: games 내용이 같으면 파일을 덮어쓰지 않는다 (no_change
   assert.equal(second.status, 0, second.stderr);
   assert.match(second.stderr, /no_change/);
   assert.equal(readFileSync(out, 'utf8'), afterFirst, 'generatedAt 까지 그대로여야 함');
+});
+
+test('CLI: games 가 같아도 schemaVersion 이 다르면 산출물을 갱신한다', () => {
+  // 경기 내용은 그대로인 채 계약 버전만 오르는 변경 — games 만 비교하면 산출물이
+  // 옛 버전에 머물고 앱이 그 문서를 통째로 거부한다.
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'crawl-version-'));
+  const out = path.join(dir, 'schedule.json');
+
+  const first = runCrawler(['--input', fixture('naver-schedule.sample.json'), '--out', out]);
+  assert.equal(first.status, 0, first.stderr);
+
+  const stale = { ...loadJson(out), schemaVersion: 1 };
+  writeFileSync(out, `${JSON.stringify(stale, null, 2)}\n`);
+
+  const second = runCrawler(['--input', fixture('naver-schedule.sample.json'), '--out', out]);
+  assert.equal(second.status, 0, second.stderr);
+  assert.doesNotMatch(second.stderr, /no_change/, 'schemaVersion 차이는 변경으로 봐야 함');
+  assert.match(second.stderr, /crawl_success/);
+  assert.equal(loadJson(out).schemaVersion, 2);
 });

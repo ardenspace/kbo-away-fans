@@ -11,7 +11,7 @@
 | 스키마 검증 | 산출 JSON이 계약(schemaVersion 포함)을 지키는지 + 스키마로 못 잡는 의미 검사(4종 문서의 id 중복, schedule 종료 경기의 result↔점수 정합) | `content-pipeline/common/validate.mjs` | 모든 JSON 산출 직전 |
 | 로깅 | 크롤 성공/실패 구조화 로그 (JSON Lines → stderr) | `content-pipeline/common/log.mjs` | 모든 스크립트 (console.* 대신) |
 | 배포 스텝 | 검증 통과한 4종 JSON을 GitHub Pages(gh-pages 브랜치)로 올리는 단일 경로 — 검증 실패 시 exit 1, 트리 동일 시 push 생략 | `content-pipeline/deploy.mjs` | 모든 콘텐츠 갱신 (CI: `crawl-schedule.yml`·`deploy-content.yml`, 수동: `npm --prefix content-pipeline run deploy`) |
-| 일정 크롤러 | 네이버 스포츠 API에서 KBO 일정·상태를 긁어 schedule.json 산출 — validate 통과 시에만 기존 파일 교체 | `content-pipeline/crawl-schedule.mjs` | CI cron(`.github/workflows/crawl-schedule.yml`)·수동 일정 갱신 |
+| 일정 크롤러 | 네이버 스포츠 API에서 KBO 일정·상태를 긁어 schedule.json 산출 — validate 통과 시에만 기존 파일 교체, `schemaVersion` 과 games 가 둘 다 같을 때만 미변경(no_change) | `content-pipeline/crawl-schedule.mjs` | CI cron(`.github/workflows/crawl-schedule.yml`)·수동 일정 갱신 |
 | 장소 병합기 | `curation/*.json` 큐레이션 입력을 병합·검증해 places.json 산출 — validate 통과 시에만 기존 파일 교체, 구장별 커버리지 로그 | `content-pipeline/build-places.mjs` | 장소 큐레이션 갱신 (워크플로는 `CURATION.md`) |
 <!-- 공통 레이어가 실제로 만들어질 때 행을 추가한다. -->
 
@@ -50,6 +50,7 @@ node content-pipeline/common/validate.mjs content-pipeline/test/fixtures/schedul
 node content-pipeline/common/validate.mjs content-pipeline/test/fixtures/schedule.schema-version-1.json
 node content-pipeline/common/validate.mjs content-pipeline/test/fixtures/schedule.finished-missing-score.json
 node content-pipeline/common/validate.mjs content-pipeline/test/fixtures/schedule.result-score-mismatch.json
+node content-pipeline/common/validate.mjs content-pipeline/test/fixtures/schedule.canceled-with-score.json
 node content-pipeline/common/validate.mjs content-pipeline/test/fixtures/teams.schema-version-mismatch.json
 node content-pipeline/common/validate.mjs content-pipeline/test/fixtures/places.missing-source.json
 ```

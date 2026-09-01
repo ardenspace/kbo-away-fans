@@ -4,6 +4,7 @@
 /// - 미래 경기 픽스처 → 올바른 D-day 수
 /// - 일정 소진 픽스처 → 빈 상태
 /// - 잠실 경기 픽스처 → 홈팀 기준 테마 선택
+/// - (schemaVersion 2) 오늘 끝난 경기는 자정까지 "오늘", 지난 종료 경기는 제외
 library;
 
 import 'dart:convert';
@@ -164,6 +165,80 @@ void main() {
       expect(result.dDay, 4);
     });
 
+    // schemaVersion 2 가 더한 finished 상태 — "오늘 경기는 그날 자정까지 오늘"
+    // 불변식이 종료 경기에도 그대로 적용된다 (decisions.md 2026-09-01 [M]).
+    group('오늘 끝난 원정 경기 (status: finished)', () {
+      Game finishedToday({String id = 'today', String date = '2026-08-25'}) =>
+          game(
+            id: id,
+            date: date,
+            home: 'lg',
+            away: 'lotte',
+            stadium: 'jamsil',
+            status: GameStatus.finished,
+            homeScore: 3,
+            awayScore: 7,
+            result: GameResult.awayWin,
+          );
+
+      test('뒤에 내일 경기가 있어도 오늘 경기로 남는다 (D-1 로 넘어가지 않는다)', () {
+        final doc = schedule([
+          finishedToday(),
+          game(
+            id: 'tomorrow',
+            date: '2026-08-26',
+            home: 'lg',
+            away: 'lotte',
+            stadium: 'jamsil',
+          ),
+        ]);
+
+        final result =
+            findNextAwayGame(schedule: doc, teamId: 'lotte', now: now);
+        expect(result, isA<AwayGameToday>());
+        expect((result as AwayGameToday).game.id, 'today');
+      });
+
+      test('그날 자정 직전(23:30)까지 오늘 경기다', () {
+        final doc = schedule([finishedToday()]);
+        final lateNight = DateTime.parse('2026-08-25T23:30:00+09:00');
+        expect(
+          findNextAwayGame(schedule: doc, teamId: 'lotte', now: lateNight),
+          isA<AwayGameToday>(),
+        );
+      });
+
+      test('자정을 넘긴 어제의 종료 경기는 후보에서 빠진다', () {
+        final doc = schedule([finishedToday(id: 'yesterday')]);
+        final afterMidnight = DateTime.parse('2026-08-26T00:10:00+09:00');
+        expect(
+          findNextAwayGame(schedule: doc, teamId: 'lotte', now: afterMidnight),
+          isA<NoUpcomingAwayGame>(),
+        );
+      });
+
+      // step 1.2 가 크롤 창을 과거로 넓히면 지난 종료 경기가 대량으로 들어온다.
+      test('지난 날짜의 종료 경기가 섞여 있어도 다음 예정 경기를 고른다', () {
+        final doc = schedule([
+          finishedToday(id: 'past-1', date: '2026-08-10'),
+          finishedToday(id: 'past-2', date: '2026-08-24'),
+          game(
+            id: 'next',
+            date: '2026-08-30',
+            home: 'samsung',
+            away: 'lotte',
+            stadium: 'daegu',
+          ),
+        ]);
+
+        final result =
+            findNextAwayGame(schedule: doc, teamId: 'lotte', now: now);
+        expect(result, isA<AwayGameUpcoming>());
+        expect((result as AwayGameUpcoming).game.id, 'next');
+        expect(result.dDay, 5);
+      });
+    });
+
     test('일정 소진 픽스처(과거 경기만) → 빈 상태 (NoUpcomingAwayGame)', () {
       final doc = schedule([
         game(
@@ -235,10 +310,10 @@ void main() {
         findTodayCanceledAwayGame(schedule: doc, teamId: 'lotte', now: now),
         isNull,
       );
-      // 끝난 경기는 "갈 경기"도 아니다.
+      // 끝난 경기는 플랜B 근거가 아니지만, 오늘 경기라면 여전히 "오늘 경기"다.
       expect(
         findNextAwayGame(schedule: doc, teamId: 'lotte', now: now),
-        isA<NoUpcomingAwayGame>(),
+        isA<AwayGameToday>(),
       );
     });
 

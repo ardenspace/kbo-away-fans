@@ -12,8 +12,10 @@
 //   1) 파싱 결과를 임시 파일(schedule.next.json)에 쓰고
 //   2) common/validate.mjs 검증을 통과한 경우에만 기존 파일을 교체(rename)한다.
 //   3) fetch/파싱/검증 어느 단계든 실패하면 exit 1 — 기존 schedule.json 무변경.
-//   4) games 내용이 기존 산출물과 같으면 파일을 건드리지 않는다 (exit 0,
-//      generatedAt 만 바뀌는 커밋 노이즈 방지).
+//   4) 계약 버전(schemaVersion)과 games 내용이 둘 다 기존 산출물과 같으면 파일을
+//      건드리지 않는다 (exit 0, generatedAt 만 바뀌는 커밋 노이즈 방지).
+//      경기 내용이 그대로인 채 계약 버전만 올라간 변경은 통과시켜야 한다 —
+//      산출물이 옛 버전에 머물면 앱이 그 문서를 통째로 거부한다.
 //
 // 사용법:
 //   node content-pipeline/crawl-schedule.mjs                # 실 크롤 → data/schedule.json
@@ -292,8 +294,17 @@ async function main(argv) {
       logger: log,
     });
 
-    if (existing !== null && JSON.stringify(existing.games) === JSON.stringify(document.games)) {
-      log.info('no_change', { games: document.games.length });
+    // 변경 없음 판정에는 계약 버전도 포함한다 — games 만 보면 계약 버전만 오른
+    // 변경에서 산출물이 옛 버전에 머물고 앱이 문서를 통째로 거부한다.
+    const unchanged =
+      existing !== null &&
+      existing.schemaVersion === document.schemaVersion &&
+      JSON.stringify(existing.games) === JSON.stringify(document.games);
+    if (unchanged) {
+      log.info('no_change', {
+        games: document.games.length,
+        schemaVersion: document.schemaVersion,
+      });
       return 0;
     }
 

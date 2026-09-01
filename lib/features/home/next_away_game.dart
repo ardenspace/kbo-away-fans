@@ -51,10 +51,15 @@ final class NoUpcomingAwayGame extends NextAwayGame {
 
 /// [teamId] 팀의 다음 원정 경기를 [schedule] 에서 찾는다.
 ///
-/// - 대상: `awayTeamId == teamId` 이고 status 가 scheduled 인 경기만.
-///   (취소·우천취소 경기는 "갈 경기"가 아니므로 건너뛴다.)
-/// - 오늘(KST) 경기는 시작 시각이 지났어도 그날 자정까지 "오늘"로 본다.
-/// - 같은 날짜가 여럿이면 시작 시각이 빠른 경기를 고른다.
+/// - 대상: `awayTeamId == teamId` 인 경기 중 "갈 경기"만. status 별로:
+///   - `scheduled` — 오늘(KST) 이후면 후보.
+///   - `finished` — **오늘(KST) 경기만** 후보. 지난 날짜의 종료 경기는 제외한다
+///     (크롤 창이 과거로 넓어져도 홈이 지난 경기를 집어 들면 안 되므로).
+///   - `canceled`·`rain_canceled` — "갈 경기"가 아니므로 항상 건너뛴다.
+///     오늘 취소는 [findTodayCanceledAwayGame] 이 따로 본다.
+/// - 오늘(KST) 경기는 시작 시각이 지났어도, 끝나서 `finished` 로 바뀌었어도
+///   그날 자정까지 "오늘"로 본다 (경기 후 밤에도 오늘의 원정 맥락을 남긴다).
+/// - 같은 날짜가 여럿이면(더블헤더) 종료 여부와 무관하게 시작 시각이 빠른 경기.
 NextAwayGame findNextAwayGame({
   required ScheduleDocument schedule,
   required String teamId,
@@ -64,8 +69,15 @@ NextAwayGame findNextAwayGame({
   Game? next;
   for (final game in schedule.games) {
     if (game.awayTeamId != teamId) continue;
-    if (game.status != GameStatus.scheduled) continue;
-    if (gameDateOf(game).isBefore(today)) continue;
+    final date = gameDateOf(game);
+    if (date.isBefore(today)) continue;
+    // "갈 경기" 판정 — 위 불변식과 1:1. 상태를 늘리면 여기서 분기가 강제된다.
+    final goable = switch (game.status) {
+      GameStatus.scheduled => true,
+      GameStatus.finished => date == today,
+      GameStatus.canceled || GameStatus.rainCanceled => false,
+    };
+    if (!goable) continue;
     if (next == null || _byDateThenStart(game, next) < 0) next = game;
   }
   if (next == null) return const NoUpcomingAwayGame();
