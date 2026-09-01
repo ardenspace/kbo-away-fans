@@ -1,0 +1,46 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "stamps",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "stadiumId", "order": "ASCENDING" },
+        { "fieldPath": "homeTeamId", "order": "ASCENDING" },
+        { "fieldPath": "gameDate", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "likes",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "category", "order": "ASCENDING" },
+        { "fieldPath": "likedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "likes",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "stadiumId", "order": "ASCENDING" },
+        { "fieldPath": "likedAt", "order": "DESCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": [
+    {
+      "collectionGroup": "users",
+      "fieldPath": "board",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "stamps",
+      "fieldPath": "stampedAt",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "stamps",
+      "fieldPath": "gameId",
+      "indexes": []
+    }
+  ]
+}

@@ -47,6 +47,9 @@ app.*.map.json
 # Content pipeline (Node)
 content-pipeline/node_modules/
 
+# Firestore 규칙 테스트 하네스 (Node)
+firebase/node_modules/
+
 # Xcode Swift Package Manager 상태 파일 — Xcode 가 프로젝트를 열 때 두 워크스페이스
 # (project.xcworkspace / Runner.xcworkspace) 양쪽에 각각 재생성하므로 추적하지 않는다.
 /ios/**/xcshareddata/swiftpm/

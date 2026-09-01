@@ -1,0 +1,16 @@
+{
+  "name": "kbo-away-fans-firebase",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Firestore 보안 규칙의 단위 테스트 하네스 — 규칙 원본은 저장소 루트의 firestore.rules 이고 데이터 계약은 docs/firestore-schema.md 다.",
+  "scripts": {
+    "test": "bash run-rules-tests.sh",
+    "emulator": "bash run-rules-tests.sh --serve"
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^5.0.0",
+    "firebase": "^12.0.0",
+    "firebase-tools": "^14.0.0"
+  }
+}

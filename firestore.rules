@@ -1,0 +1,168 @@
+rules_version = '2';
+
+// kbo-away-fans — Cloud Firestore 보안 규칙
+//
+// 데이터 계약 원본: docs/firestore-schema.md (필드 뜻과 배지 판 요약 규약은 거기)
+// 규칙 단위 테스트: firebase/test/rules.test.mjs (`npm --prefix firebase test`)
+//
+// 이 파일이 못 박는 것 셋:
+//
+//  1) 소유권 — 사용자 데이터는 전부 `users/{uid}` 아래에 산다. 본인
+//     (request.auth.uid == uid)만 읽고 쓰며, 미인증 요청과 남의 uid 접근은
+//     아래 어떤 규칙에도 걸리지 않아 기본 거부로 떨어진다.
+//
+//  2) 필드 화이트리스트 — 문서마다 가질 수 있는 키를 열거하고 hasOnly 로 닫는다.
+//     열거에 없는 키가 하나라도 있으면 쓰기가 통째로 거부되므로, 기기의 현재
+//     지점을 담은 필드는 이름이 무엇이든 서버에 올라갈 수 없다.
+//     (begin 의 데이터 소유권 결정: 구장 근처 판정은 기기에서 하고 결과만 올린다)
+//
+//  3) 도장 문서 id 의 유일한 형태 — `{stadiumId}_{gameId}`. 문서 id 와 본문
+//     필드가 어긋난 쓰기는 거부된다. id 가 결정적이라 오프라인 재시도·중복 탭·
+//     여러 기기 동시 접속이 같은 문서로 수렴하고 쓰기가 그대로 멱등해진다.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---- 로스터 (content-pipeline/schema/common.defs.schema.json 과 같은 값) ----
+
+    function teamIds() {
+      return [
+        'lg', 'doosan', 'kiwoom', 'ssg', 'kt',
+        'kia', 'samsung', 'lotte', 'nc', 'hanwha'
+      ];
+    }
+
+    function stadiumIds() {
+      return [
+        'jamsil', 'gocheok', 'munhak', 'suwon', 'daejeon',
+        'daegu', 'sajik', 'changwon', 'gwangju'
+      ];
+    }
+
+    // 배지 판의 10칸. 칸 id = `{stadiumId}_{homeTeamId}` — 구장은 9곳이지만
+    // 잠실만 두 홈팀으로 갈려 팀 테마 10개와 1:1 이 된다.
+    function cellIds() {
+      return [
+        'jamsil_lg', 'jamsil_doosan', 'gocheok_kiwoom', 'munhak_ssg', 'suwon_kt',
+        'daejeon_hanwha', 'daegu_samsung', 'sajik_lotte', 'changwon_nc', 'gwangju_kia'
+      ];
+    }
+
+    // lib/design/tokens.dart 의 BadgeTier 와 같은 값 (임계 1/3/10)
+    function tiers() {
+      return ['first', 'regular', 'master'];
+    }
+
+    function categories() {
+      return ['food', 'cafe', 'escape_room', 'activity', 'landmark'];
+    }
+
+    // ---- 공통 술어 ----
+
+    function isOwner(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+
+    // KST 달력 날짜 YYYY-MM-DD — schedule.json 계약의 date 와 같은 표기
+    function isDay(value) {
+      return value is string && value.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$');
+    }
+
+    // ---- 배지 판 칸별 요약 ----
+    //
+    // 판을 열 때 읽는 것은 사용자 문서 하나뿐이고 개별 도장은 칸 상세에서만
+    // 읽는다. 요약은 도장 쓰기와 같은 트랜잭션에서 갱신된다.
+    // 도장이 하나도 없는 칸은 요약에 아예 없다(빈 칸) — count 는 항상 1 이상.
+
+    function validCell(cell) {
+      return cell is map
+        && cell.keys().hasAll(['count', 'tier'])
+        && cell.keys().hasOnly(['count', 'tier', 'lastStampedOn'])
+        && cell.count is int
+        && cell.count >= 1
+        && cell.tier in tiers()
+        && (!('lastStampedOn' in cell) || isDay(cell.lastStampedOn));
+    }
+
+    function validBoard(board) {
+      return board is map
+        && board.keys().hasOnly(cellIds())
+        && (!('jamsil_lg' in board) || validCell(board['jamsil_lg']))
+        && (!('jamsil_doosan' in board) || validCell(board['jamsil_doosan']))
+        && (!('gocheok_kiwoom' in board) || validCell(board['gocheok_kiwoom']))
+        && (!('munhak_ssg' in board) || validCell(board['munhak_ssg']))
+        && (!('suwon_kt' in board) || validCell(board['suwon_kt']))
+        && (!('daejeon_hanwha' in board) || validCell(board['daejeon_hanwha']))
+        && (!('daegu_samsung' in board) || validCell(board['daegu_samsung']))
+        && (!('sajik_lotte' in board) || validCell(board['sajik_lotte']))
+        && (!('changwon_nc' in board) || validCell(board['changwon_nc']))
+        && (!('gwangju_kia' in board) || validCell(board['gwangju_kia']));
+    }
+
+    // ---- 문서별 계약 ----
+
+    function validUser(d) {
+      return d.keys().hasAll(['nickname', 'favoriteTeamId', 'profileThemeKey', 'joinedAt', 'board'])
+        && d.keys().hasOnly(['nickname', 'favoriteTeamId', 'profileThemeKey', 'joinedAt', 'updatedAt', 'board'])
+        && d.nickname is string
+        && d.nickname.size() >= 1
+        && d.nickname.size() <= 20
+        && d.favoriteTeamId in teamIds()
+        && d.profileThemeKey in teamIds()
+        && d.joinedAt is timestamp
+        && (!('updatedAt' in d) || d.updatedAt is timestamp)
+        && validBoard(d.board);
+    }
+
+    function validStamp(stampId, d) {
+      return d.keys().hasAll(['stadiumId', 'gameId', 'homeTeamId', 'gameDate', 'stampedAt'])
+        && d.keys().hasOnly(['stadiumId', 'gameId', 'homeTeamId', 'gameDate', 'stampedAt'])
+        && d.stadiumId in stadiumIds()
+        && d.homeTeamId in teamIds()
+        // 구장과 그날 홈팀의 짝이 판의 10칸 중 하나여야 한다 (예: gocheok_lg 는 없다)
+        && (d.stadiumId + '_' + d.homeTeamId) in cellIds()
+        && d.gameId is string
+        && d.gameId.matches('^[A-Za-z0-9-]{1,64}$')
+        && isDay(d.gameDate)
+        && d.stampedAt is timestamp
+        // 도장 문서 id 의 유일한 형태
+        && stampId == d.stadiumId + '_' + d.gameId;
+    }
+
+    function validLike(likeId, d) {
+      return d.keys().hasAll(['placeId', 'stadiumId', 'category', 'likedAt'])
+        && d.keys().hasOnly(['placeId', 'stadiumId', 'category', 'likedAt'])
+        && d.placeId is string
+        // places.json 계약의 slug 형태
+        && d.placeId.matches('^[a-z][a-z0-9-]{0,63}$')
+        && d.stadiumId in stadiumIds()
+        && d.category in categories()
+        && d.likedAt is timestamp
+        && likeId == d.placeId;
+    }
+
+    // ---- 경로 ----
+
+    match /users/{uid} {
+      allow read: if isOwner(uid);
+      allow create, update: if isOwner(uid) && validUser(request.resource.data);
+      allow delete: if isOwner(uid);
+
+      match /stamps/{stampId} {
+        allow read: if isOwner(uid);
+        allow create, update: if isOwner(uid) && validStamp(stampId, request.resource.data);
+        allow delete: if isOwner(uid);
+      }
+
+      match /likes/{likeId} {
+        allow read: if isOwner(uid);
+        allow create, update: if isOwner(uid) && validLike(likeId, request.resource.data);
+        allow delete: if isOwner(uid);
+      }
+    }
+
+    // 위에 열거하지 않은 모든 경로는 규칙이 없으므로 기본 거부다.
+    // (Firestore 규칙은 OR 결합이라 "전부 거부" 규칙을 따로 두어도 위의 allow 를
+    //  덮지 못한다 — 그래서 catch-all 을 두지 않는 편이 오해가 없다.)
+  }
+}

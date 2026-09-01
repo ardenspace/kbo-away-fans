@@ -8,6 +8,8 @@ KBO 원정 팬을 위한 구장 주변 가이드 앱 (Flutter).
 - `lib/ui/shared/` — 공유 컴포넌트 (`REGISTRY.md` 로스터와 짝 유지).
 - `lib/features/` — 화면·기능 단위 코드.
 - `content-pipeline/` — 서버 없는 콘텐츠 파이프라인 (크롤링 → 검증 → 정적 JSON 배포).
+- `firestore.rules` / `firestore.indexes.json` — 사용자 데이터의 보안 규칙과 인덱스.
+  필드 계약은 `docs/firestore-schema.md`, 규칙 테스트는 `firebase/`.
 - `.wellbegun/` — 파이프라인 문서 (spec/plan/decisions).
 
 ## 클론 후 최초 설정
@@ -33,6 +35,36 @@ flutter test
 npm --prefix content-pipeline test   # 파이프라인 테스트
 node content-pipeline/common/validate.mjs   # data/ 4종 JSON 계약 검증
 ```
+
+### Firestore 규칙 테스트
+
+사용자 데이터의 보안 규칙(`firestore.rules`)은 Firestore 에뮬레이터 위에서 실제 규칙
+파일을 평가하는 단위 테스트로 검증한다. 클라우드에 붙지 않으므로 Firebase 로그인도
+실제 프로젝트도 필요 없다 (에뮬레이터 전용 프로젝트 id `demo-kbo-away-fans` 를 쓴다).
+
+```sh
+npm ci --prefix firebase              # 최초 1회 — firebase-tools + 규칙 테스트 하네스
+npm --prefix firebase test            # 에뮬레이터 기동 → 규칙 테스트 → 종료
+npm --prefix firebase run emulator    # 에뮬레이터만 띄워 둔 채 대기 (수동 확인용)
+```
+
+에뮬레이터는 127.0.0.1:8791 을 쓴다.
+
+**JDK 21 (에뮬레이터 선행 조건).** Firestore 에뮬레이터는 Java 런타임 위에서 돈다.
+macOS 의 `/usr/bin/java` 는 JVM 이 없어도 존재하는 스텁이라 `java -version` 이 실패하면
+설치가 필요하다.
+
+```sh
+brew install openjdk@21                          # macOS
+sudo apt-get install -y openjdk-21-jre-headless  # Debian/Ubuntu
+```
+
+Homebrew 의 `openjdk@21` 은 keg-only 라 PATH 에 노출되지 않는데, 셸 설정을 고치지
+않아도 된다 — `firebase/run-rules-tests.sh` 가 흔한 설치 경로를 스스로 뒤져 PATH 를
+주입한다. 다른 위치에 설치했다면 `JAVA_HOME` 을 지정하고 실행한다.
+
+계약 문서는 `docs/firestore-schema.md` 다. 필드를 더하거나 지우는 변경은 그 문서와
+`firestore.rules`, `firebase/test/rules.test.mjs` 를 같은 커밋에서 함께 옮긴다.
 
 ### 자격 증명 주입 지점 (전부 선택 사항 — 없어도 빌드·테스트 통과)
 
