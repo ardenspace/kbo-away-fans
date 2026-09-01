@@ -118,6 +118,20 @@ class RootGate extends ConsumerStatefulWidget {
 }
 
 class _RootGateState extends ConsumerState<RootGate> {
+  /// 게이트가 올라앉은 route — 되감기가 멈춰야 하는 자리다.
+  ///
+  /// `isFirst` 로 대신하지 않는 것은 그 술어가 "첫 route"를 뜻할 뿐이어서,
+  /// 게이트가 첫 route 밖으로 나가는 순간(예: 앱 위에 온보딩 흐름을 하나 더
+  /// 밀어 올린 구조) 서술과 코드가 조용히 어긋나기 때문이다. inherited
+  /// 조회라 [didChangeDependencies] 에서 잡는다.
+  ModalRoute<Object?>? _gateRoute;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _gateRoute = ModalRoute.of(context);
+  }
+
   @override
   Widget build(BuildContext context) {
     ref.listen(authStateProvider, (previous, next) {
@@ -143,14 +157,24 @@ class _RootGateState extends ConsumerState<RootGate> {
   /// 게이트 위에 쌓인 route 를 전부 내린다.
   ///
   /// 프레임이 끝난 뒤로 미루는 것은, 인증 상태가 build 도중에 바뀌는 경우에도
-  /// Navigator 를 건드리는 시점이 프레임 밖이 되게 하려는 것이다.
+  /// Navigator 를 건드리는 시점이 프레임 밖이 되게 하려는 것이다. 미루는 이상
+  /// 예약과 실행 사이가 벌어지므로, 실행하는 자리에서 인증 상태를 **다시 본다**
+  /// — 세션이 한 프레임 안에서 null 로 깜빡였다가 같은 계정으로 돌아오는 모양
+  /// (토큰 갱신 중의 순간적 null, 재인증, 계정 링크)에서 전이만 보고 예약한
+  /// 되감기가 그대로 실행되면, 로그아웃한 적 없는 사람이 밀어 올린 화면을
+  /// 잃는다. 전이 판정은 예약의 조건이고, 지금 로그아웃 상태인지는 실행의
+  /// 조건이다.
   void _dismissRoutesAboveGate() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      Navigator.maybeOf(
-        context,
-        rootNavigator: true,
-      )?.popUntil((route) => route.isFirst);
+      if (_isSignedIn(ref.read(authStateProvider))) return;
+      final gateRoute = _gateRoute;
+      Navigator.maybeOf(context, rootNavigator: true)?.popUntil(
+        // `isFirst` 를 함께 두는 것은 멈출 자리를 못 찾은 popUntil 이 스택을
+        // 통째로 비우지 않게 하는 바닥이다 (게이트가 루트 Navigator 밖의
+        // 중첩 Navigator 안에 있으면 그 route 는 여기서 만날 수 없다).
+        (route) => identical(route, gateRoute) || route.isFirst,
+      );
     });
   }
 }

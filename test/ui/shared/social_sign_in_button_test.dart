@@ -51,4 +51,27 @@ void main() {
     final button = tester.widget<OutlinedButton>(find.byType(OutlinedButton));
     expect(button.onPressed, isNull);
   });
+
+  testWidgets('busy 면 아이콘 자리가 스피너가 된다 (문구는 그대로)', (tester) async {
+    const provider = AuthProviderId.kakao;
+    await tester.pumpWidget(
+      host(const SocialSignInButton(provider: provider, busy: true)),
+    );
+
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(
+      find.byIcon(SocialSignInButton.iconOf(provider)),
+      findsNothing,
+      reason: '스피너가 아이콘 옆에 붙으면 버튼의 글자가 밀린다',
+    );
+    expect(find.text(SocialSignInButton.labelOf(provider)), findsOneWidget);
+  });
+
+  testWidgets('busy 가 아니면 스피너가 없다', (tester) async {
+    await tester.pumpWidget(
+      host(SocialSignInButton(provider: AuthProviderId.apple, onPressed: () {})),
+    );
+
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+  });
 }

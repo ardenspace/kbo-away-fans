@@ -27,4 +27,4 @@
 | `StampBoard` | 10칸 배지 판 — `kBoardCellIds` 를 훑어 빈 칸까지 전부 격자로 렌더, 사용자 문서의 칸별 요약(`board` map) 하나만 읽는다 | `lib/ui/shared/stamp_board.dart` | 배지 탭, 그리고 판을 요약해 보여줄 곳 |
 | `StampBadge` | 칸 하나 — 빈 상태·획득·등급 세 모습(도장 개수 하나로 갈린다). 등급 링은 `BadgeTierTokens` 값을 `BadgeTierRingPainter` 가 그대로 그린다 | `lib/ui/shared/stamp_badge.dart` | 판 안, 도장 획득 연출, 칸 상세 |
 | `LikeButton` | 좋아요 토글 — 낙관적 반영 + 실패 시 되돌림 + `onFailed` 통지, 응답 대기 중 연타 무시 | `lib/ui/shared/like_button.dart` | 장소 카드·상세 시트 등 좋아요가 붙는 모든 곳 |
-| `SocialSignInButton` | 제공자별 로그인 버튼 (구글·카카오·애플) 한 모양 — 몸통은 팔레트 한 벌이고 아이콘·문구가 제공자를 가른다 | `lib/ui/shared/social_sign_in_button.dart` | 로그인 화면 |
+| `SocialSignInButton` | 제공자별 로그인 버튼 (구글·카카오·애플) 한 모양 — 몸통은 팔레트 한 벌이고 아이콘·문구가 제공자를 가르며, 진행 중(`busy`)이면 아이콘 자리가 스피너가 된다 | `lib/ui/shared/social_sign_in_button.dart` | 로그인 화면 |

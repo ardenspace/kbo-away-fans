@@ -12,12 +12,16 @@ import '../../design/tokens.dart';
 /// 붙는 단계(phase 2)에서 각 제공자의 표기 지침과 함께 들어온다.
 ///
 /// [onPressed] 가 null 이면 눌리지 않는다 — 로그인 진행 중에 다른 제공자를
-/// 눌러 두 흐름이 겹치지 않게 하는 자리다.
+/// 눌러 두 흐름이 겹치지 않게 하는 자리다. 그때 **어느 제공자로** 진행 중인지는
+/// [busy] 가 말한다: 아이콘 자리에 스피너가 들어서 사용자가 누른 그 버튼에서
+/// 진행 중이라는 신호가 난다. 잠긴 버튼 셋만으로는 로그인이 도는 중인지
+/// 그냥 꺼진 화면인지 구분되지 않는다.
 class SocialSignInButton extends StatelessWidget {
   const SocialSignInButton({
     super.key,
     required this.provider,
     this.onPressed,
+    this.busy = false,
   });
 
   /// 이 버튼이 여는 로그인 제공자.
@@ -25,6 +29,13 @@ class SocialSignInButton extends StatelessWidget {
 
   /// 누를 때. null 이면 꺼진 버튼이다.
   final VoidCallback? onPressed;
+
+  /// 이 제공자의 로그인이 진행 중인가 — 아이콘 자리가 스피너가 된다.
+  ///
+  /// 진행 중인 버튼도 눌리지 않아야 하므로 [onPressed] 는 따로 비운다.
+  /// 두 값을 하나로 합치지 않은 것은, 진행 중이 아니어도 잠기는 버튼(다른
+  /// 제공자의 로그인이 도는 동안의 나머지 둘)이 있기 때문이다.
+  final bool busy;
 
   /// 제공자별 버튼 문구.
   static String labelOf(AuthProviderId provider) => switch (provider) {
@@ -40,13 +51,27 @@ class SocialSignInButton extends StatelessWidget {
     AuthProviderId.kakao => Icons.chat_bubble_rounded,
   };
 
+  /// 진행 중 스피너에 붙는 스크린 리더 문구 — 스피너는 눈으로만 읽힌다.
+  static const String busyLabel = '로그인하는 중';
+
   @override
   Widget build(BuildContext context) {
     return SizedBox(
       width: double.infinity,
       child: OutlinedButton.icon(
         onPressed: onPressed,
-        icon: Icon(iconOf(provider)),
+        // 스피너가 아이콘 자리를 그대로 차지한다 — 상자를 아이콘 기본 크기
+        // (`SpaceTokens.xl` 과 같은 값)로 잡아서, 진행 중으로 바뀌는 순간
+        // 버튼의 글자가 옆으로 밀리지 않는다.
+        icon: busy
+            ? const SizedBox.square(
+                dimension: SpaceTokens.xl,
+                child: CircularProgressIndicator(
+                  color: ColorTokens.textSecondary,
+                  semanticsLabel: busyLabel,
+                ),
+              )
+            : Icon(iconOf(provider)),
         label: Text(labelOf(provider), style: TextTokens.bodyStrong),
         style: OutlinedButton.styleFrom(
           backgroundColor: ColorTokens.surface,

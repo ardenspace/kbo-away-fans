@@ -23,6 +23,12 @@ class SignInScreen extends ConsumerStatefulWidget {
   /// null 이면 평범한 첫 진입이다.
   final String? notice;
 
+  /// 제공자 로그인은 성공했는데 세션이 서지 않았을 때의 안내.
+  ///
+  /// "로그인하지 못했어요"라고 하지 않는 것은 사용자가 제공자 화면에서 실제로
+  /// 로그인을 마쳤기 때문이다 — 무엇이 남았는지를 말해야 다시 눌러 볼 수 있다.
+  static const String sessionMissingMessage = '로그인 상태를 세우지 못했어요. 다시 시도해 주세요.';
+
   @override
   ConsumerState<SignInScreen> createState() => _SignInScreenState();
 }
@@ -57,22 +63,47 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
     }
     if (!mounted) return;
     if (signedIn) {
-      // 성공했으면 잠금을 풀지 않는다 — 이 화면은 게이트가 곧 걷어내므로
-      // 여기서 더 할 일이 없고, 푸는 순간 게이트가 화면을 바꾸기 전(아직 한
-      // 프레임도 그리지 않은 사이)에 들어온 탭이 두 번째 로그인을 연다.
-      //
-      // 세션 상태는 다시 세운다. 세션 스트림은 오류와 함께 끝나기도 하는데
+      // 세션 상태를 다시 세운다. 세션 스트림은 오류와 함께 끝나기도 하는데
       // (권한을 잃은 스냅샷 스트림이 그렇다) 그러면 provider 가 죽은 구독을
       // 든 채 남아, 다시 로그인해도 게이트가 넘어가지 않는다. 자동 재시도를
       // 끈 결정은 그대로 두고, 다시 세우는 시점만 사람의 행동인 이 자리에
       // 붙인다.
       ref.invalidate(authStateProvider);
-      return;
+
+      // 그리고 다시 세운 상태를 **읽어서** 세션이 실제로 섰는지 본다.
+      // `signIn` 이 성공을 돌려줬다는 것과 세션이 섰다는 것은 같은 사실이
+      // 아니다 (커스텀 토큰 교환이 성공한 뒤 세션 수립이 조용히 실패하는
+      // 자리가 2.3 에 있다). 세션이 서지 않았는데 성공으로 두면 게이트가
+      // 화면을 걷어가지 않고, 잠금을 푸는 자리가 게이트뿐이라 화면이 영구히
+      // 죽는다 — 앱을 다시 켜는 것 말고 나갈 길이 없어진다.
+      if (await _sessionStands()) {
+        // 세션이 섰다. 잠금은 풀지 않는다 — 이 화면은 게이트가 곧 걷어내므로
+        // 여기서 더 할 일이 없고, 푸는 순간 게이트가 화면을 바꾸기 전(아직 한
+        // 프레임도 그리지 않은 사이)에 들어온 탭이 두 번째 로그인을 연다.
+        return;
+      }
+      if (!mounted) return;
+      failure = SignInScreen.sessionMissingMessage;
     }
     setState(() {
       _pending = null;
       _failure = failure;
     });
+  }
+
+  /// 다시 세운 [authStateProvider] 의 첫 값이 로그인한 사용자인가.
+  ///
+  /// 시간을 추측하지 않는다(타임아웃도, 프레임 세기도 아니다) — provider 가
+  /// 내놓는 첫 값을 그대로 기다려 읽는다. 그 값이 null 이거나 상태가 오류면
+  /// 세션이 서지 않은 것이다.
+  Future<bool> _sessionStands() async {
+    try {
+      return await ref.read(authStateProvider.future) != null;
+    } catch (_) {
+      // 세션 상태를 확인하지 못한 것도 "섰다"고 볼 수는 없다. 여기서 나온
+      // 실패는 게이트가 안내와 함께 로그인 화면으로 받는 그 실패와 같다.
+      return false;
+    }
   }
 
   /// 도메인 오류 셋을 사람 말로 — 갈래가 셋인 이유가 그대로 문구가 된다.
@@ -109,6 +140,10 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                     padding: const EdgeInsets.only(bottom: SpaceTokens.md),
                     child: SocialSignInButton(
                       provider: provider,
+                      // 진행 중이면 셋 다 잠기고, 진행 중이라는 사실은 사용자가
+                      // 누른 그 버튼의 스피너가 말한다 — 잠긴 버튼 셋만 남으면
+                      // 로그인이 도는 중인지 화면이 죽은 것인지 알 수 없다.
+                      busy: _pending == provider,
                       onPressed: _pending == null
                           ? () => _signIn(provider)
                           : null,
