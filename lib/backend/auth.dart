@@ -11,6 +11,8 @@ library;
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'errors.dart';
+
 /// 로그인 제공자 셋 — decisions.md 의 소셜 로그인 L 결정.
 ///
 /// 구글·애플은 Firebase Auth 기본 제공자이고, 카카오는 Cloud Functions 가
@@ -85,4 +87,33 @@ final Provider<AuthService> authServiceProvider = Provider<AuthService>(
   (ref) => throw UnimplementedError(
     'AuthService 구현은 step 2.2 에서 붙인다 — 그전에는 override 로 주입한다',
   ),
+);
+
+/// 지금의 로그인 상태 — 루트 게이트가 화면을 가르는 값 하나.
+///
+/// 첫 값은 [AuthService.currentUser] 로 즉시 채우고 그 뒤로는
+/// [AuthService.authStateChanges] 를 따라간다. 스트림이 구독 직후에 현재 값을
+/// 다시 내보내 주는지는 구현마다 다른데, 그 차이를 게이트가 알 필요가 없게
+/// 하려는 것이다 (내보내 주는 구현에서는 같은 값이 한 번 더 흐를 뿐이다).
+///
+/// 스트림 오류는 [guardBackendStream] 이 [BackendError] 로 옮긴다 — 게이트는
+/// 그 실패를 "로그인 화면 + 안내"로 받는다. 세션을 확인하지 못한 실행을
+/// 로그인한 것으로 볼 수는 없고, 아무 말 없이 로그인 화면으로 되돌리면
+/// 사용자에게는 까닭 없이 로그아웃된 것으로 보이기 때문이다.
+///
+/// [authServiceProvider] 가 주입되지 않은 실행(2.2 이전)에서는 이 provider 가
+/// 오류 상태가 된다 — 조용히 "로그아웃한 사람"이 되지 않는다는 1.6 의 판단이
+/// 게이트까지 그대로 이어진다.
+final StreamProvider<AuthUser?> authStateProvider = StreamProvider<AuthUser?>(
+  (ref) async* {
+    final service = ref.watch(authServiceProvider);
+    yield service.currentUser;
+    yield* guardBackendStream(service.authStateChanges());
+  },
+  // 자동 재시도를 끈다. riverpod 의 기본 재시도는 실패한 provider 를 잠시 뒤
+  // 다시 세우는데, 여기서 그러면 게이트가 "로그인 화면 → (몇백 ms) → 홈"으로
+  // 저 혼자 튀고 그 사이 사용자는 자기가 무엇을 봤는지 알 수 없게 된다.
+  // 세션 실패는 사람이 다시 로그인해서 푸는 일이라, 다시 세우는 시점도
+  // 사람의 행동(로그인 버튼)에 맞춘다.
+  retry: (retryCount, error) => null,
 );

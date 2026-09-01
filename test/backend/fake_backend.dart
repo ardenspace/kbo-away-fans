@@ -163,6 +163,10 @@ class FakeAuthService implements AuthService {
     _changes.add(null);
   }
 
+  /// 세션 스트림에 오류를 흘린다 — 게이트가 스트림 실패를 어떻게 받는지
+  /// 재는 자리(2.1). 실 구현에서는 SDK 예외가 이 길로 온다.
+  void emitError(Object error) => _changes.addError(error);
+
   /// 스트림 정리 — 테스트의 tearDown 에서 부른다.
   Future<void> dispose() => _changes.close();
 }

@@ -2,15 +2,32 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kbo_away_fans/app.dart';
+import 'package:kbo_away_fans/backend/auth.dart';
 import 'package:kbo_away_fans/content/content_loader.dart';
 import 'package:kbo_away_fans/content/content_providers.dart';
 import 'package:kbo_away_fans/content/models.dart';
 import 'package:kbo_away_fans/features/splash/splash_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'backend/fake_backend.dart';
+
 void main() {
+  /// 인증 상태 주입 — step 2.1 부터 첫 화면이 로그인 게이트라, 앱을 통째로
+  /// 띄우는 테스트는 로그인 여부를 명시해야 한다 (주입이 없으면 게이트가
+  /// 오류 상태로 로그인 화면 + 안내를 띄운다).
+  FakeAuthService fakeAuth({AuthUser? signedIn}) {
+    final auth = FakeAuthService(signedIn: signedIn);
+    addTearDown(auth.dispose);
+    return auth;
+  }
+
   testWidgets('앱 루트 위젯이 렌더된다', (tester) async {
-    await tester.pumpWidget(const ProviderScope(child: KboAwayFansApp()));
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [authServiceProvider.overrideWithValue(fakeAuth())],
+        child: const KboAwayFansApp(),
+      ),
+    );
 
     expect(find.byType(KboAwayFansApp), findsOneWidget);
     expect(find.byType(MaterialApp), findsOneWidget);
@@ -22,6 +39,7 @@ void main() {
     var teamLoads = 0;
     final container = ProviderContainer(
       overrides: [
+        authServiceProvider.overrideWithValue(fakeAuth()),
         teamsProvider.overrideWith((ref) async {
           teamLoads++;
           return const ContentUnavailable<TeamsDocument>(issue);
@@ -73,6 +91,7 @@ void main() {
         // 콘텐츠 4종을 override — 실 IO 는 위젯 테스트의 fake async 안에서
         // 끝나지 않아 pumpAndSettle 이 멈춘다.
         overrides: [
+          authServiceProvider.overrideWithValue(fakeAuth()),
           teamsProvider.overrideWith(
             (ref) async => const ContentUnavailable<TeamsDocument>(issue),
           ),

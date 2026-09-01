@@ -12,9 +12,9 @@
 
 | name | purpose (one line) | location | use when |
 |---|---|---|---|
-| `AuthService` | 인증 공통 — 세 제공자(구글·애플·카카오) 로그인·로그아웃·세션 상태를 한 타입 뒤로, 사용자 값은 uid·표시 이름뿐 | `lib/backend/auth.dart` | 로그인 게이트, 마이페이지, 계정이 필요한 모든 곳 |
+| `AuthService` | 인증 공통 — 세 제공자(구글·애플·카카오) 로그인·로그아웃·세션 상태를 한 타입 뒤로, 사용자 값은 uid·표시 이름뿐 (+ 화면이 보는 로그인 상태 하나 `authStateProvider`: 첫 값은 `currentUser`, 그 뒤는 세션 스트림, 오류는 도메인 오류) | `lib/backend/auth.dart` | 로그인 게이트, 마이페이지, 계정이 필요한 모든 곳 |
 | `UserDataStore` | 사용자 데이터 접근 — 사용자 문서·도장·좋아요 읽기/쓰기의 단일 경로 + 계약 필드만 싣는 업로드 payload 타입(`NewUserProfile`·`UserProfilePatch`·`StampWrite`·`LikeWrite`)과 칸 id 로스터(`kBoardCellIds`) | `lib/backend/user_data.dart` | 배지·좋아요·프로필을 다루는 모든 곳 |
-| `BackendError` | 오류 봉투 — Firebase 예외를 네트워크/권한/알 수 없음 세 도메인 오류로 바꾸는 유일한 변환 경로(`guardBackend`) | `lib/backend/errors.dart` | 백엔드 호출의 모든 실패 경로 |
+| `BackendError` | 오류 봉투 — Firebase 예외를 네트워크/권한/알 수 없음 세 도메인 오류로 바꾸는 유일한 변환 경로(Future 는 `guardBackend`, 스트림은 `guardBackendStream`) | `lib/backend/errors.dart` | 백엔드 호출의 모든 실패 경로 |
 
 ## 이 폴더 밖에 있는 짝
 
@@ -40,6 +40,8 @@
 
 `authServiceProvider` 와 `userDataStoreProvider` 는 기본 구현 없이 던진다.
 Firebase 연결은 2.2(구글·애플)·2.3(카카오)·2.4(사용자 문서)가 붙이고, 그전까지
-이 provider 를 읽는 코드는 override 로 주입받는다. 테스트용 가짜 구현은
+이 provider 를 읽는 코드는 override 로 주입받는다. 주입이 없는 실행에서
+`authStateProvider` 는 오류 상태가 되고, 루트 게이트(2.1)는 그것을 "로그인 화면
++ 안내"로 받는다 — 조용히 로그아웃한 사람처럼 보이지 않는다. 테스트용 가짜 구현은
 `test/backend/fake_backend.dart` 에 있다 — 그 fake 는 규칙의 `hasOnly` 대역
 노릇도 하므로, 계약 밖 필드를 실은 쓰기는 에뮬레이터 없이도 테스트에서 막힌다.

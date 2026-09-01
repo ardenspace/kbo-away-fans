@@ -3,6 +3,10 @@
 /// 팀 픽스처는 저장소의 `content-pipeline/data/teams.json` 실물을 그대로
 /// 파싱해(계약 드리프트 방지) [teamsProvider] override 로 주입한다.
 /// 저장은 shared_preferences mock 초기값으로 제어한다.
+///
+/// step 2.1 이후로는 로그인 게이트가 앞에 서므로 인증 상태도 함께 주입한다
+/// ([FakeAuthService] 로 로그인한 실행) — 온보딩·홈 분기는 로그인 뒤의
+/// 이야기이고, 그 분기 자체는 이 파일이 재던 그대로다.
 library;
 
 import 'dart:convert';
@@ -12,6 +16,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kbo_away_fans/app.dart';
+import 'package:kbo_away_fans/backend/auth.dart';
 import 'package:kbo_away_fans/content/content_loader.dart';
 import 'package:kbo_away_fans/content/content_providers.dart';
 import 'package:kbo_away_fans/content/models.dart';
@@ -21,6 +26,8 @@ import 'package:kbo_away_fans/features/team_select/selected_team.dart';
 import 'package:kbo_away_fans/features/team_select/team_select_screen.dart';
 import 'package:kbo_away_fans/ui/shared/team_theme_scope.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../../backend/fake_backend.dart';
 
 void main() {
   late TeamsDocument teamsDoc;
@@ -48,8 +55,14 @@ void main() {
     // 고정해 이 테스트를 "현재 시각"과 무관하게 만든다.
     final emptySchedule =
         ScheduleDocument(generatedAt: DateTime.utc(2026), games: const []);
+    // 로그인 게이트를 지나야 온보딩·홈이 나온다 — 로그인한 실행을 주입한다.
+    final auth = FakeAuthService(
+      signedIn: const AuthUser(uid: 'uid-1', displayName: '원정러'),
+    );
+    addTearDown(auth.dispose);
     return ProviderScope(
       overrides: [
+        authServiceProvider.overrideWithValue(auth),
         teamsProvider.overrideWith(
           (ref) async => ContentFresh<TeamsDocument>(teamsDoc),
         ),

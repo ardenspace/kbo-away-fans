@@ -101,3 +101,16 @@ Future<T> guardBackend<T>(Future<T> Function() action) async {
     throw BackendError.from(error);
   }
 }
+
+/// 백엔드 **스트림**을 감싸 실패를 도메인 오류로 바꾼다.
+///
+/// [guardBackend] 와 같은 일을 값이 계속 흐르는 경로에 한다. 세션 상태
+/// (`AuthService.authStateChanges` 류)는 실패도 스트림의 오류 이벤트로 오기
+/// 때문에, Future 용 경로 하나만 있으면 그 자리에서 SDK 예외가 그대로 화면까지
+/// 샌다. 값 이벤트는 손대지 않고 오류만 옮긴다.
+Stream<T> guardBackendStream<T>(Stream<T> source) => source.transform(
+  StreamTransformer<T, T>.fromHandlers(
+    handleError: (error, stackTrace, sink) =>
+        sink.addError(BackendError.from(error), stackTrace),
+  ),
+);

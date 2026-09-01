@@ -128,4 +128,48 @@ void main() {
       );
     });
   });
+
+  group('guardBackendStream — 값이 계속 흐르는 경로 (step 2.1)', () {
+    test('값 이벤트는 손대지 않고 그대로 흘린다', () {
+      expect(guardBackendStream(Stream.fromIterable([1, 2, 3])), emitsInOrder([
+        1,
+        2,
+        3,
+        emitsDone,
+      ]));
+    });
+
+    test('오류 이벤트만 도메인 오류로 바꾼다', () {
+      final source = Stream<int>.multi((controller) {
+        controller.add(1);
+        controller.addError(_authError('network-request-failed'));
+        controller.close();
+      });
+      expect(
+        guardBackendStream(source),
+        emitsInOrder([
+          1,
+          emitsError(
+            isA<BackendNetworkError>().having(
+              (e) => e.code,
+              'code',
+              'network-request-failed',
+            ),
+          ),
+          emitsDone,
+        ]),
+      );
+    });
+
+    test('Firebase 밖의 실패도 도메인 오류로 나온다 (SDK 예외 유출 없음)', () {
+      final source = Stream<int>.error(StateError('세션 스트림이 끊겼다'));
+      expect(
+        guardBackendStream(source),
+        emitsInOrder([
+          emitsError(isA<BackendUnknownError>()),
+          emitsDone,
+        ]),
+      );
+    });
+  });
 }
