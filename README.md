@@ -10,6 +10,7 @@ KBO 원정 팬을 위한 구장 주변 가이드 앱 (Flutter).
 - `content-pipeline/` — 서버 없는 콘텐츠 파이프라인 (크롤링 → 검증 → 정적 JSON 배포).
 - `firestore.rules` / `firestore.indexes.json` — 사용자 데이터의 보안 규칙과 인덱스.
   필드 계약은 `docs/firestore-schema.md`, 규칙 테스트는 `firebase/`.
+- `functions/` — Cloud Functions (카카오 액세스 토큰 → Firebase 커스텀 토큰).
 - `.wellbegun/` — 파이프라인 문서 (spec/plan/decisions).
 
 ## 클론 후 최초 설정
@@ -65,6 +66,23 @@ Homebrew 의 `openjdk@21` 은 keg-only 라 PATH 에 노출되지 않는데, 셸 
 
 계약 문서는 `docs/firestore-schema.md` 다. 필드를 더하거나 지우는 변경은 그 문서와
 `firestore.rules`, `firebase/test/rules.test.mjs` 를 같은 커밋에서 함께 옮긴다.
+
+### Cloud Functions (카카오 로그인)
+
+`functions/` 에 callable 함수 하나(`kakaoCustomToken`)가 있다 — 카카오 액세스 토큰을
+검증해 Firebase 커스텀 토큰을 발급한다. 호출 규약과 오류 코드는
+`lib/backend/REGISTRY.md` 의 "이 폴더 밖에 있는 짝" 절이 든다.
+
+```sh
+npm --prefix functions test    # 단위 테스트 (의존성 설치 없이 그대로 돈다)
+npm ci --prefix functions      # 배포·에뮬레이터에 필요한 SDK 설치
+```
+
+테스트는 가짜 카카오 응답과 가짜 Admin SDK 로 돌기 때문에 카카오에도 Firebase 에도
+나가지 않는다. Firebase SDK 를 설치하면 배선 테스트 2개가 더 켜진다(미설치 시 skip).
+
+배포는 Blaze 플랜과 카카오 앱 설정이 갖춰진 뒤다 — 실제 연동은 `.wellbegun/plan.md`
+의 step 2.3 이 맡는다.
 
 ### 자격 증명 주입 지점 (전부 선택 사항 — 없어도 빌드·테스트 통과)
 

@@ -18,9 +18,18 @@
 
 ## 이 폴더 밖에 있는 짝
 
-- **카카오 커스텀 토큰 함수** (`functions/`, step 1.7) — 카카오 액세스 토큰을
-  검증해 Firebase 커스텀 토큰을 발급한다. 앱 쪽 입구는 위 `AuthService` 의
-  `signIn(AuthProviderId.kakao)` 하나다.
+- **카카오 커스텀 토큰 함수** (`functions/`, step 1.7 에서 만듦) — 카카오 액세스
+  토큰을 검증해 Firebase 커스텀 토큰을 발급한다. 앱 쪽 입구는 위 `AuthService` 의
+  `signIn(AuthProviderId.kakao)` 하나다. 호출 규약은 서울 리전(`asia-northeast3`)의
+  callable `kakaoCustomToken`:
+  - 요청 `{ accessToken: string }` — 카카오 SDK 가 준 액세스 토큰
+  - 응답 `{ customToken: string, uid: string, nickname: string|null }` —
+    `uid` 는 `kakao:{카카오 사용자 id}` 로 결정적이고, `nickname` 은 사용자 문서
+    (`users/{uid}.nickname`)의 씨앗값이라 이미 1~20자로 잘려 있다
+  - 실패 코드 `unauthenticated`(카카오 토큰 무효) · `permission-denied` ·
+    `unavailable`(카카오 미응답) · `invalid-argument` · `internal` —
+    2.3 이 이것을 `BackendError` 세 도메인으로 옮긴다
+  - 배포는 아직이다 (`firebase deploy --only functions` 는 step 2.3 의 몫)
 - **데이터 계약 원본** — `docs/firestore-schema.md` (필드 뜻·경로·칸 id 체계)와
   `firestore.rules` (강제). 이 폴더의 타입은 그 계약을 앱 쪽으로 옮긴 것이므로
   **셋 중 하나를 고치면 셋을 함께 고친다.**
