@@ -140,8 +140,14 @@ class FakeAuthService implements AuthService {
   @override
   AuthUser? get currentUser => _current;
 
+  /// 구독하는 순간 지금 아는 상태를 한 번 흘린다 — [AuthService.authStateChanges]
+  /// 의 계약이다. 이 fake 는 "아직 모름" 구간이 없다(테스트가 상태를 직접
+  /// 정해 주므로 언제나 안다). 그 구간을 재는 대역은 [UnknownSessionAuthService].
   @override
-  Stream<AuthUser?> authStateChanges() => _changes.stream;
+  Stream<AuthUser?> authStateChanges() async* {
+    yield _current;
+    yield* _changes.stream;
+  }
 
   @override
   Future<AuthUser> signIn(AuthProviderId provider) async {
@@ -183,6 +189,53 @@ class FakeAuthService implements AuthService {
   }
 
   /// 스트림 정리 — 테스트의 tearDown 에서 부른다.
+  Future<void> dispose() async {
+    if (!_changes.isClosed) await _changes.close();
+  }
+}
+
+/// 세션을 **아직 모르는** 인증 서비스 — 콜드 스타트의 복원 대기 구간 대역.
+///
+/// 실 Firebase Auth 는 앱이 뜬 직후 잠깐 이 상태다: 네이티브가 영속 세션을
+/// 복원해 첫 인증 이벤트를 보내기 전이라 로그인해 둔 사람인지 아닌지를 모른다.
+/// 그 구간에서 이 서비스는 **아무 값도 흘리지 않는다** — 계약이 그렇고, 그래야
+/// 게이트가 확정되지 않은 로그아웃을 화면에 띄우지 않는다.
+///
+/// [restore] 가 그 구간을 끝낸다 (인수가 null 이면 실제로 로그아웃 상태였다는
+/// 뜻이다).
+class UnknownSessionAuthService implements AuthService {
+  final StreamController<AuthUser?> _changes =
+      StreamController<AuthUser?>.broadcast();
+
+  bool _known = false;
+  AuthUser? _current;
+
+  @override
+  AuthUser? get currentUser => _current;
+
+  @override
+  Stream<AuthUser?> authStateChanges() async* {
+    if (_known) yield _current;
+    yield* _changes.stream;
+  }
+
+  /// 복원이 끝났다 — 이 시점부터 세션 상태를 안다.
+  void restore(AuthUser? user) {
+    _known = true;
+    _current = user;
+    if (!_changes.isClosed) _changes.add(user);
+  }
+
+  @override
+  Future<AuthUser> signIn(AuthProviderId provider) async {
+    final user = AuthUser(uid: '${provider.name}-uid');
+    restore(user);
+    return user;
+  }
+
+  @override
+  Future<void> signOut() async => restore(null);
+
   Future<void> dispose() async {
     if (!_changes.isClosed) await _changes.close();
   }

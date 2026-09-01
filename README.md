@@ -99,6 +99,34 @@ npm ci --prefix functions      # 배포·에뮬레이터에 필요한 SDK 설치
 배포는 Blaze 플랜과 카카오 앱 설정이 갖춰진 뒤다 — 실제 연동은 `.wellbegun/plan.md`
 의 step 2.3 이 맡는다.
 
+### Firebase 콘솔 설정 (사람이 1회)
+
+코드로는 할 수 없고 콘솔·개발자 계정에서 해야 하는 몫이다. 순서가 중요하다 —
+**예산 알림과 상한을 먼저 걸고 Blaze 로 올린다.**
+
+1. **예산 알림·상한**: Google Cloud 콘솔 → 결제 → 예산 및 알림에서 월 **$5** 예산을
+   만들고 임계 **50% · 90% · 100%** 알림을 건다. Blaze 로 올려도 Spark 의 무료
+   할당량은 그대로라 MVP 규모의 정상 사용은 청구액이 0에 수렴하므로, 임계를 넘는 것
+   자체가 폭주·남용 신호다.
+2. **Blaze 전환**: Firebase 콘솔 → 요금제. Cloud Functions 배포(카카오 로그인, step
+   2.3)에 필요하다.
+3. **구글 제공자**: Firebase 콘솔 → Authentication → Sign-in method → Google 사용
+   설정. Android 는 디버그·릴리스 SHA-1 지문을 프로젝트 설정에 등록하고
+   `google-services.json` 을 **다시** 내려받는다(웹 OAuth 클라이언트 `client_type: 3`
+   가 들어 있어야 id 토큰이 나온다). iOS 는 `GoogleService-Info.plist` 의
+   `REVERSED_CLIENT_ID` 를 `ios/Runner/Info.plist` 의 URL 스킴에 넣는다.
+4. **애플 제공자**: Firebase 콘솔 → Authentication → Sign-in method → Apple 사용
+   설정. Xcode 에서 Runner 타깃에 **Sign in with Apple** capability 를 켜고, Apple
+   Developer 의 App ID 에도 같은 기능을 켠다. iOS 는 네이티브 시트로 뜨므로 여기까지면
+   된다 — 안드로이드의 애플 로그인은 웹 흐름이라 Services ID 와 return URL 이 더
+   필요하다.
+
+앱 쪽 구현은 `lib/backend/auth_firebase.dart` 하나이며, 위 설정이 없는 클론에서도
+`flutter analyze`·`flutter test`·안드로이드 빌드는 그대로 통과한다. iOS 빌드만
+예외다 — `ios/Runner.xcodeproj` 가 `GoogleService-Info.plist` 를 번들 리소스로
+참조하고 있어(사이클 1의 분석 연결) 파일이 없으면 Xcode 가 "Build input file cannot
+be found" 로 멈춘다. iOS 를 빌드하려면 3번의 설정 파일을 먼저 놓아야 한다.
+
 ### 자격 증명 주입 지점 (전부 선택 사항 — 없어도 빌드·테스트 통과)
 
 앱은 비밀 값을 하드코딩하지 않고 `--dart-define` 또는 설정 파일로 받는다.
@@ -109,7 +137,13 @@ npm ci --prefix functions      # 배포·에뮬레이터에 필요한 SDK 설치
 | `NAVER_MAP_CLIENT_ID` | `--dart-define=NAVER_MAP_CLIENT_ID=...` | 지도가 자리 표시 폴백으로 렌더 |
 | `OPENWEATHER_API_KEY` | `--dart-define=OPENWEATHER_API_KEY=...` | 날씨 연출 없음 |
 | `CONTENT_BASE_URL` | `--dart-define=CONTENT_BASE_URL=...` | 실호스팅(GitHub Pages) 기본값 사용 |
-| Firebase 설정 파일 | `android/app/google-services.json`, `ios/Runner/GoogleService-Info.plist` | 분석 이벤트가 조용히 no-op |
+| Firebase 설정 파일 | `android/app/google-services.json`, `ios/Runner/GoogleService-Info.plist` | 분석 이벤트가 조용히 no-op + 로그인 불가 (로그인 화면이 안내와 함께 선다) |
+
+Firebase 설정 파일은 저장소에 두지 않는다 — Firebase 콘솔의 프로젝트 설정에서
+각자 내려받아 위 두 경로에 놓는다. 로그인은 분석과 달리 조용히 no-op 하지 않는다:
+계정 없이 쓰는 경로가 없는 앱이라 "로그인 없이 도는 실행"은 곧 설정 실수를 숨기는
+것이므로, 설정이 없으면 로그인 화면에 안내가 함께 뜬다
+(`lib/backend/auth_firebase.dart`).
 
 예시 (전부 주입한 실행):
 

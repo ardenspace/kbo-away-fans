@@ -29,7 +29,7 @@ const ContentIssue _issue = ContentIssue(ContentIssueKind.network, 'fixture');
 void main() {
   /// 인증 상태를 주입한 게이트. [auth] 가 null 이면 주입 자체가 없는 실행이다.
   /// 콘텐츠 4종은 홈이 실 IO 를 타지 않게 함께 override 한다.
-  Widget gate(FakeAuthService? auth) {
+  Widget gate(AuthService? auth) {
     return ProviderScope(
       overrides: [
         if (auth != null) authServiceProvider.overrideWithValue(auth),
@@ -202,6 +202,45 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(auth.signInCalls, [AuthProviderId.google]);
+  });
+
+  testWidgets('세션 복원을 기다리는 동안 로그인 화면이 번쩍이지 않는다', (tester) async {
+    SharedPreferences.setMockInitialValues({kSelectedTeamPrefsKey: 'lg'});
+    final auth = UnknownSessionAuthService();
+    addTearDown(auth.dispose);
+    await tester.pumpWidget(gate(auth));
+
+    // 실 Firebase Auth 가 네이티브의 첫 인증 이벤트를 기다리는 그 구간이다.
+    // 여기서 로그인 화면이 한 프레임이라도 서면, 로그인해 둔 사람의 콜드
+    // 스타트가 "로그인 화면 → 홈"으로 번쩍인다. `pumpAndSettle` 을 쓰지 않는
+    // 것은 로딩 갈래의 스피너가 끝나지 않는 애니메이션이기 때문이다.
+    await tester.pump();
+    expect(find.byType(SignInScreen), findsNothing);
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(find.byType(SignInScreen), findsNothing);
+    expect(find.byType(HomeScreen), findsNothing);
+
+    auth.restore(_signedInUser);
+    await tester.pumpAndSettle();
+
+    expect(find.byType(HomeScreen), findsOneWidget);
+    expect(find.byType(SignInScreen), findsNothing);
+  });
+
+  testWidgets('복원 결과가 로그아웃이면 그때 로그인 화면이 선다', (tester) async {
+    SharedPreferences.setMockInitialValues({kSelectedTeamPrefsKey: 'lg'});
+    final auth = UnknownSessionAuthService();
+    addTearDown(auth.dispose);
+    await tester.pumpWidget(gate(auth));
+    await tester.pump();
+    expect(find.byType(SignInScreen), findsNothing);
+
+    auth.restore(null);
+    await tester.pumpAndSettle();
+
+    // 안내는 없다 — 확인된 로그아웃이지 확인하지 못한 세션이 아니다.
+    expect(find.byType(SignInScreen), findsOneWidget);
+    expect(find.byType(SignInNotice), findsNothing);
   });
 
   testWidgets('인증 서비스 주입이 없으면 로그인 화면 + 안내로 드러난다', (tester) async {

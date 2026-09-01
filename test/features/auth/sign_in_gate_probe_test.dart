@@ -281,8 +281,13 @@ class _SessionDropsAuth implements AuthService {
   @override
   AuthUser? get currentUser => _current;
 
+  /// 구독하는 순간 지금 아는 상태를 흘린다 — `AuthService.authStateChanges` 의
+  /// 계약이다 (이 대역은 복원 대기 구간이 없다).
   @override
-  Stream<AuthUser?> authStateChanges() => _controller.stream;
+  Stream<AuthUser?> authStateChanges() async* {
+    yield _current;
+    yield* _controller.stream;
+  }
 
   /// 세션이 끊기며 스트림도 함께 끝난다.
   void dropSession() {

@@ -387,8 +387,13 @@ class _FlickerAuth implements AuthService {
   @override
   AuthUser? get currentUser => _current;
 
+  /// 구독하는 순간 지금 아는 상태를 흘린다 — `AuthService.authStateChanges` 의
+  /// 계약이다 (이 대역은 복원 대기 구간이 없다).
   @override
-  Stream<AuthUser?> authStateChanges() => _controller.stream;
+  Stream<AuthUser?> authStateChanges() async* {
+    yield _current;
+    yield* _controller.stream;
+  }
 
   /// null 한 번, 곧바로 같은 계정 한 번.
   void flicker() {
@@ -426,7 +431,10 @@ class _HangingAuth implements AuthService {
   AuthUser? get currentUser => null;
 
   @override
-  Stream<AuthUser?> authStateChanges() => _controller.stream;
+  Stream<AuthUser?> authStateChanges() async* {
+    yield null;
+    yield* _controller.stream;
+  }
 
   @override
   Future<AuthUser> signIn(AuthProviderId provider) => _never.future;
@@ -449,7 +457,10 @@ class _SignInWithoutSession implements AuthService {
   AuthUser? get currentUser => null;
 
   @override
-  Stream<AuthUser?> authStateChanges() => _controller.stream;
+  Stream<AuthUser?> authStateChanges() async* {
+    yield null;
+    yield* _controller.stream;
+  }
 
   @override
   Future<AuthUser> signIn(AuthProviderId provider) async =>
