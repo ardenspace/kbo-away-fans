@@ -46,6 +46,8 @@ service cloud.firestore {
 
     // 배지 판의 10칸. 칸 id = `{stadiumId}_{homeTeamId}` — 구장은 9곳이지만
     // 잠실만 두 홈팀으로 갈려 팀 테마 10개와 1:1 이 된다.
+    // 앱 쪽 같은 목록은 lib/backend/user_data.dart 의 kBoardCellIds —
+    // 이 함수·docs/firestore-schema.md·그 상수 셋을 함께 고친다.
     function cellIds() {
       return [
         'jamsil_lg', 'jamsil_doosan', 'gocheok_kiwoom', 'munhak_ssg', 'suwon_kt',

@@ -59,6 +59,10 @@ uid 접근은 어떤 allow 에도 걸리지 않는다.
 
 이 짝 목록 밖의 조합(예: `gocheok_lg`)은 도장에서도 요약에서도 거부된다.
 
+같은 목록이 세 곳에 산다 — 이 문서, `firestore.rules` 의 `cellIds()`,
+`lib/backend/user_data.dart` 의 `kBoardCellIds`. 규칙은 앱 코드를 읽을 수 없고
+앱은 규칙을 읽을 수 없어 피할 수 없는 복제이므로, 하나를 고치면 셋을 함께 고친다.
+
 ## 컬렉션
 
 | entity | 경로 | 문서 id | 소유권 |
