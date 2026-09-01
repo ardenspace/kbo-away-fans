@@ -153,21 +153,34 @@ void main() {
       );
     });
 
-    test('닉네임 길이 1~20자', () {
+    test('닉네임 길이 1~20 (UTF-16 코드 단위)', () {
+      Map<String, Object?> profileWith(String nickname) => NewUserProfile(
+            nickname: nickname,
+            favoriteTeamId: 'lg',
+            profileThemeKey: 'lg',
+          ).toData();
+
+      expect(() => profileWith(''), throwsArgumentError);
+      expect(() => profileWith('가' * 21), throwsArgumentError);
+
+      // 단위 못 박기: 계약을 최종 판정하는 규칙(`firestore.rules` 의
+      // `nickname.size()`)이 UTF-16 코드 단위를 세고, 규칙 언어에는 그 단위를
+      // 바꿀 방법이 없다. 코드 포인트로 세면 아래 값이 20 이라 여기서 통과하지만
+      // 통과시켜 봐야 문서를 만드는 순간 규칙이 거부한다.
+      const tiger = '\u{1F42F}'; // 🐯 — UTF-16 으로 2단위, 코드 포인트로는 1
+      final cp20 = '가' * 18 + tiger * 2;
+      expect(cp20.runes.length, 20, reason: '전제: 코드 포인트로는 20');
+      expect(cp20.length, 22, reason: '전제: UTF-16 으로는 22');
+      expect(() => profileWith(cp20), throwsArgumentError);
+
+      // 경계 안쪽은 그대로 실린다 — 한글 20자(20단위)와 이모지 10개(20단위).
+      for (final nickname in <String>['가' * 20, tiger * 10]) {
+        expect(profileWith(nickname)[UserFields.nickname], nickname);
+      }
+
+      // 수정 경로도 같은 단위로 잰다.
       expect(
-        () => const NewUserProfile(
-          nickname: '',
-          favoriteTeamId: 'lg',
-          profileThemeKey: 'lg',
-        ).toData(),
-        throwsArgumentError,
-      );
-      expect(
-        () => NewUserProfile(
-          nickname: '가' * 21,
-          favoriteTeamId: 'lg',
-          profileThemeKey: 'lg',
-        ).toData(),
+        () => UserProfilePatch(nickname: cp20).toData(),
         throwsArgumentError,
       );
     });

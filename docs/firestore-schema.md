@@ -75,7 +75,7 @@ uid 접근은 어떤 allow 에도 걸리지 않는다.
 
 | 필드 | 타입 | 필수 | 뜻 |
 |---|---|---|---|
-| `nickname` | string (1~20자) | 예 | 표시 이름 |
+| `nickname` | string (UTF-16 코드 단위 1~20) | 예 | 표시 이름 (아래 "닉네임 길이의 단위") |
 | `favoriteTeamId` | `teamId` | 예 | 선택 팀. 이 문서가 원본이고 `shared_preferences` 는 첫 렌더용 캐시일 뿐이다 |
 | `profileThemeKey` | `teamId` | 예 | 프로필 색의 팀 테마 키. 보통 `favoriteTeamId` 와 같지만 따로 둔 이유는 아래 참조 |
 | `joinedAt` | timestamp | 예 | 가입 시각 |
@@ -87,6 +87,25 @@ uid 접근은 어떤 allow 에도 걸리지 않는다.
 싶은 사람이 선택 팀까지 바꾸게 되고, 그 순간 홈의 경기 일정이 통째로 달라진다.
 
 빈 문서는 없다 — 온보딩(팀 선택)을 마친 뒤 다섯 필수 필드를 갖춘 채 한 번에 만들어진다.
+
+#### 닉네임 길이의 단위
+
+`nickname` 의 길이는 **UTF-16 코드 단위**로 잰다. 글자 수도 바이트도 아니다.
+
+단위를 고를 여지가 없어서 그렇다: 이 계약을 최종적으로 판정하는 것은
+`firestore.rules` 의 `d.nickname.size()` 이고, 규칙 언어에는 문자열 길이를 다른
+단위로 세는 방법이 없다. 그래서 값을 만들어 올리는 쪽이 규칙에 맞춘다.
+
+- 한글·영문은 한 글자가 1단위 → 사람이 세는 20자와 같다 (한글 20자는 UTF-8 로
+  60바이트지만 바이트는 세지 않으므로 통과한다).
+- 이모지는 대개 2단위 → 10개가 한도다.
+- 두 셈이 갈리는 자리: `'가'×18 + 이모지 2개` 는 코드 포인트로 20 이지만
+  UTF-16 으로 22 라 **거부된다**.
+
+같은 단위를 네 자리가 함께 쓴다 — 이 문서, `firestore.rules` 의 `validUser`,
+`lib/backend/user_data.dart` 의 `kNicknameMaxLength`, 그리고 카카오 닉네임을
+잘라 보내는 `functions/kakao.js`. 규칙 쪽 경계는
+`firebase/test/rules.test.mjs` 의 닉네임 길이 테스트가 못 박는다.
 
 ### `users/{uid}.board` — 칸별 요약
 

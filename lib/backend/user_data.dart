@@ -61,7 +61,7 @@ final class ExactTimestamp extends BackendTimestamp {
 
 /// `users/{uid}` 문서의 필드 이름.
 abstract final class UserFields {
-  /// 표시 이름 (1~20자).
+  /// 표시 이름 (UTF-16 코드 단위로 1~20 — [kNicknameMaxLength] 참조).
   static const String nickname = 'nickname';
 
   /// 선택 팀 — 이 필드가 원본이고 기기 저장값은 첫 렌더용 캐시다.
@@ -206,7 +206,16 @@ final RegExp _dayPattern = RegExp(r'^\d{4}-\d{2}-\d{2}$');
 final RegExp _gameIdPattern = RegExp(r'^[A-Za-z0-9-]{1,64}$');
 final RegExp _placeIdPattern = RegExp(r'^[a-z][a-z0-9-]{0,63}$');
 
-/// 닉네임 길이의 위·아래 끝 (문서 계약: 1~20자).
+/// 닉네임 길이의 위·아래 끝 — 단위는 **UTF-16 코드 단위**다.
+///
+/// 계약을 최종적으로 판정하는 것은 `firestore.rules` 의 `d.nickname.size()` 이고
+/// 그것이 UTF-16 코드 단위를 센다 (규칙 언어에는 이 단위를 바꿀 방법이 없다).
+/// 그래서 앱도, 카카오 닉네임을 잘라 보내는 `functions/kakao.js` 도 같은 단위로
+/// 잰다 — decisions.md 의 "닉네임 길이의 기준 단위는 UTF-16 코드 단위" 결정.
+/// Dart 의 [String.length] 가 곧 그 단위이므로 [String.runes] 로 세지 않는다.
+///
+/// 한글·영문은 한 글자가 1단위라 사람이 세는 20자와 같고, 이모지는 대개 2단위라
+/// 10개가 한도다.
 const int kNicknameMinLength = 1;
 const int kNicknameMaxLength = 20;
 
@@ -225,12 +234,14 @@ String _checkStadiumId(String value, String field) {
 }
 
 String _checkNickname(String value) {
-  final length = value.runes.length;
+  // `value.length` 는 UTF-16 코드 단위 — 규칙의 `nickname.size()` 와 같은 단위다
+  // ([kNicknameMaxLength] 참조).
+  final length = value.length;
   if (length < kNicknameMinLength || length > kNicknameMaxLength) {
     throw ArgumentError.value(
       value,
       UserFields.nickname,
-      '$kNicknameMinLength~$kNicknameMaxLength자여야 한다',
+      'UTF-16 코드 단위로 $kNicknameMinLength~$kNicknameMaxLength 이어야 한다',
     );
   }
   return value;
@@ -414,7 +425,7 @@ class NewUserProfile {
     required this.profileThemeKey,
   });
 
-  /// 표시 이름 (1~20자).
+  /// 표시 이름 (UTF-16 코드 단위로 1~20 — [kNicknameMaxLength] 참조).
   final String nickname;
 
   /// 선택 팀.

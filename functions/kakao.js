@@ -21,8 +21,19 @@ export const KAKAO_USER_ME_URL = 'https://kapi.kakao.com/v2/user/me';
  */
 export const KAKAO_PROPERTY_KEYS = ['properties.nickname'];
 
-/** 사용자 문서(`users/{uid}.nickname`)의 계약이 1~20자라 씨앗도 그 범위로 맞춘다. */
-export const KAKAO_NICKNAME_MAX_LENGTH = 20;
+/**
+ * 사용자 문서(`users/{uid}.nickname`)의 길이 한도 — **UTF-16 코드 단위**로 20.
+ *
+ * 단위가 글자 수도 바이트도 아닌 것은 이 계약의 최종 판정자가 `firestore.rules` 의
+ * `d.nickname.size()` 이고 그것이 UTF-16 코드 단위를 세기 때문이다 (규칙 언어에는
+ * 이 단위를 다른 것으로 바꿀 방법이 없다). 함수·앱이 다른 단위로 세면 세 겹을
+ * 통과한 값이 문서를 만드는 순간 규칙에서 거부된다 — decisions.md 의
+ * "닉네임 길이의 기준 단위는 UTF-16 코드 단위" 결정.
+ *
+ * 한글·영문은 한 글자가 1단위라 사람이 세는 20자와 같고, 이모지는 대개 2단위라
+ * 10개가 한도다.
+ */
+export const KAKAO_NICKNAME_MAX_UTF16_LENGTH = 20;
 
 /** 카카오가 답하지 않을 때 기다리는 한도. 호출자(callable)의 시간 예산 안에 둔다. */
 const DEFAULT_TIMEOUT_MS = 8000;
@@ -148,15 +159,50 @@ function readId(body) {
 /**
  * 닉네임은 동의 안 했으면 없을 수 있다 — 없으면 null 이고 로그인은 그대로 성립한다.
  *
- * 자를 때 `String.slice` 를 쓰지 않는 것은 그것이 UTF-16 단위로 세기 때문이다 —
- * 이모지처럼 두 단위를 차지하는 문자가 경계에 걸리면 짝이 갈린 반쪽 문자가 남고,
- * 규칙(`firestore.rules` 의 `nickname.size()`)은 코드 포인트로 세므로 셈도 어긋난다.
- * 코드 포인트 단위로 잘라 둘을 맞춘다.
+ * 길이를 재는 단위는 규칙과 같은 UTF-16 코드 단위다
+ * ([KAKAO_NICKNAME_MAX_UTF16_LENGTH] 참조). 자르고 나서도 null 이 될 수 있다 —
+ * 결합용 문자만 남는 닉네임이 그렇고, 그때도 로그인은 그대로 성립한다.
  */
 function readNickname(body) {
   const raw = body?.properties?.nickname;
   if (typeof raw !== 'string') return null;
   const trimmed = raw.trim();
   if (trimmed === '') return null;
-  return [...trimmed].slice(0, KAKAO_NICKNAME_MAX_LENGTH).join('');
+  const truncated = truncateToUtf16Length(trimmed, KAKAO_NICKNAME_MAX_UTF16_LENGTH);
+  return truncated === '' ? null : truncated;
+}
+
+/**
+ * UTF-16 코드 단위로 한도에 맞추되, 깨진 문자를 남기지 않는다.
+ *
+ * `String.prototype.slice` 를 쓰지 않는 것은 그것이 코드 단위 한가운데를 자를 수
+ * 있기 때문이다 — 이모지처럼 두 단위를 차지하는 문자가 경계에 걸리면 짝 잃은
+ * 서러게이트 반쪽이 남는다. 코드 포인트를 하나씩 얹으면서 길이를 재고, 한도를
+ * 넘기는 코드 포인트는 통째로 버린다 (그래서 결과는 19단위가 될 수 있다).
+ *
+ * 끝에 남은 ZWJ(U+200D)를 떼는 것은 그것이 결합용 문자라서다: 가족 이모지처럼
+ * ZWJ 로 이어 붙인 사슬이 경계에 걸리면 이어 줄 뒷짝 없이 ZWJ 만 매달리고,
+ * `trim()` 은 이 문자를 공백으로 보지 않아 떼지 않는다.
+ *
+ * @param {string} value
+ * @param {number} maxUtf16Length
+ * @returns {string}
+ */
+function truncateToUtf16Length(value, maxUtf16Length) {
+  let kept = value;
+
+  if (kept.length > maxUtf16Length) {
+    kept = '';
+    for (const codePoint of value) {
+      if (kept.length + codePoint.length > maxUtf16Length) break;
+      kept += codePoint;
+    }
+  }
+
+  while (kept.endsWith('\u200d')) {
+    kept = kept.slice(0, -1);
+  }
+
+  // 자른 자리에 드러난 뒤쪽 공백까지 털어 낸다 (앞쪽은 호출자가 이미 털었다).
+  return kept.trimEnd();
 }

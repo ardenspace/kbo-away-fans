@@ -174,6 +174,38 @@ describe('필드 화이트리스트 — 계약 밖 필드는 서버에 닿지 �
     );
   });
 
+  // 닉네임 길이는 세 겹(규칙·`functions/kakao.js`·`lib/backend/user_data.dart`)이
+  // 같은 단위로 세야 하는 값이고, 그 단위를 정하는 것은 여기다: 규칙 언어의
+  // `string.size()` 는 UTF-16 코드 단위를 세며 다른 단위로 바꿀 방법이 없다.
+  // 아래 케이스가 그 사실을 에뮬레이터로 못 박는다 — 함수·앱이 코드 포인트나
+  // 바이트로 세기 시작하면 그쪽 테스트가 이 표와 어긋나면서 드러난다.
+  // (decisions.md 의 "닉네임 길이의 기준 단위는 UTF-16 코드 단위" 결정)
+  it('닉네임 길이는 UTF-16 코드 단위로 1~20 이다 (한글·이모지 경계)', async () => {
+    const db = asUser(env, OWNER_UID);
+    const ref = doc(db, paths.user(OWNER_UID));
+    const 호랑이 = '\u{1F42F}'; // 🐯 — UTF-16 으로 2단위, 코드 포인트로는 1
+
+    // 한글은 한 글자가 1단위 — 20자까지 통과하고 21자는 거부된다.
+    await assertSucceeds(setDoc(ref, userDoc({ nickname: '가'.repeat(20) })));
+    await assertFails(setDoc(ref, userDoc({ nickname: '가'.repeat(21) })));
+
+    // 바이트가 아니다: 한글 20자는 UTF-8 로 60바이트인데 그대로 통과했다.
+    assert.equal(Buffer.byteLength('가'.repeat(20), 'utf8'), 60);
+
+    // 코드 포인트도 아니다: 이모지는 2단위씩 세어 10개가 한도다.
+    await assertSucceeds(setDoc(ref, userDoc({ nickname: 호랑이.repeat(10) })));
+    await assertFails(setDoc(ref, userDoc({ nickname: 호랑이.repeat(11) })));
+
+    // 두 단위가 갈리는 자리 — 코드 포인트로는 20 이지만 UTF-16 으로는 22 다.
+    const 코드포인트20 = '가'.repeat(18) + 호랑이.repeat(2);
+    assert.equal([...코드포인트20].length, 20, '전제: 코드 포인트로는 20');
+    assert.equal(코드포인트20.length, 22, '전제: UTF-16 으로는 22');
+    await assertFails(setDoc(ref, userDoc({ nickname: 코드포인트20 })));
+
+    // 같은 자리에서 UTF-16 20단위로 맞춘 값은 통과한다 (함수가 잘라 보내는 모양).
+    await assertSucceeds(setDoc(ref, userDoc({ nickname: '가'.repeat(18) + 호랑이 })));
+  });
+
   it('필수 필드가 빠지거나 로스터 밖 값이면 거부된다', async () => {
     const db = asUser(env, OWNER_UID);
     const ref = doc(db, paths.user(OWNER_UID));

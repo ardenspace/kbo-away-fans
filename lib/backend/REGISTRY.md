@@ -25,7 +25,9 @@
   - 요청 `{ accessToken: string }` — 카카오 SDK 가 준 액세스 토큰
   - 응답 `{ customToken: string, uid: string, nickname: string|null }` —
     `uid` 는 `kakao:{카카오 사용자 id}` 로 결정적이고, `nickname` 은 사용자 문서
-    (`users/{uid}.nickname`)의 씨앗값이라 이미 1~20자로 잘려 있다
+    (`users/{uid}.nickname`)의 씨앗값이라 그 길이 계약에 맞춰 이미 잘려 있다:
+    **UTF-16 코드 단위로 1~20** (`firestore.rules` 의 `nickname.size()` 가 세는
+    단위 — 한글 20자, 이모지 10개까지). 결합용 문자만 남는 값은 `null` 로 온다
   - 실패 코드 `unauthenticated`(카카오 토큰 무효) · `permission-denied` ·
     `unavailable`(카카오 미응답) · `invalid-argument` · `internal` —
     2.3 이 이것을 `BackendError` 세 도메인으로 옮긴다

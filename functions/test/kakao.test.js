@@ -75,30 +75,62 @@ test('닉네임 동의가 없으면 닉네임은 null 이고 id 는 그대로 �
   assert.deepEqual(profile, { id: '42', nickname: null });
 });
 
-test('닉네임은 앞뒤 공백을 털고 20자로 자른다 (users 문서 계약)', async () => {
-  const fetchImpl = fakeFetch(
-    jsonResponse(200, { id: 7, properties: { nickname: `  ${'가'.repeat(30)}  ` } }),
-  );
+/** 닉네임 하나를 태워 보내고 잘린 결과를 받는다. */
+async function nicknameOf(nickname) {
+  const fetchImpl = fakeFetch(jsonResponse(200, { id: 7, properties: { nickname } }));
+  const profile = await fetchKakaoProfile('valid-access-token', { fetch: fetchImpl });
+  return profile.nickname;
+}
 
-  const profile = await fetchKakaoProfile('valid-access-token', {
-    fetch: fetchImpl,
-  });
-
-  assert.equal(profile.nickname, '가'.repeat(20));
+test('닉네임은 앞뒤 공백을 털고 한도에 맞춰 자른다 (users 문서 계약)', async () => {
+  assert.equal(await nicknameOf(`  ${'가'.repeat(30)}  `), '가'.repeat(20));
+  assert.equal(await nicknameOf('  원정팬  '), '원정팬');
 });
 
-test('닉네임을 자를 때 이모지의 짝을 가르지 않는다 (코드 포인트 단위)', async () => {
-  // UTF-16 단위로 자르면 21번째 이모지의 절반이 남아 깨진 문자가 된다.
-  const fetchImpl = fakeFetch(
-    jsonResponse(200, { id: 7, properties: { nickname: '⚾️'.repeat(3) + '🐯'.repeat(30) } }),
-  );
+// 여기서 재는 단위가 이 단계의 정합 지점이다: `firestore.rules` 의
+// `d.nickname.size()` 는 UTF-16 코드 단위를 세고 규칙 언어는 그 단위를 바꿀 수
+// 없다. 그래서 함수도 UTF-16 코드 단위로 세야 하고, 그 사실을 아래 두 테스트가
+// 못 박는다 (규칙 쪽 짝은 `firebase/test/rules.test.mjs` 의 닉네임 길이 절).
+test('닉네임 길이는 규칙과 같은 UTF-16 코드 단위로 잰다', async () => {
+  // 코드 포인트로 세면 통과하지만 UTF-16 으로는 22단위인 값 — 옛 구현이 그대로
+  // 통과시켜 규칙에서 PERMISSION_DENIED 로 거부되던 모양이다.
+  const 코드포인트20 = '가'.repeat(18) + '🐯'.repeat(2);
+  assert.equal([...코드포인트20].length, 20, '전제: 코드 포인트로는 20');
+  assert.equal(코드포인트20.length, 22, '전제: UTF-16 으로는 22');
 
-  const profile = await fetchKakaoProfile('valid-access-token', {
-    fetch: fetchImpl,
-  });
+  const 잘린값 = await nicknameOf(코드포인트20);
+  assert.ok(잘린값.length <= 20, `UTF-16 ${잘린값.length}단위가 남았습니다`);
+  assert.equal(잘린값, '가'.repeat(18) + '🐯');
 
-  assert.equal([...profile.nickname].length, 20);
-  assert.doesNotMatch(profile.nickname, /[\uD800-\uDFFF]/u, '짝 잃은 서러게이트가 남았습니다');
+  // 한글 20자는 20단위라 그대로 남고, 이모지는 2단위라 10개가 한도다.
+  assert.equal(await nicknameOf('가'.repeat(20)), '가'.repeat(20));
+  assert.equal((await nicknameOf('🐯'.repeat(30))).length, 20);
+  assert.equal([...(await nicknameOf('🐯'.repeat(30)))].length, 10);
+});
+
+test('자른 끝에 깨진 문자를 남기지 않는다 (서러게이트 짝·매달린 ZWJ)', async () => {
+  // 홀수 자리에서 이모지가 경계에 걸리는 모양 — 코드 단위로 그냥 자르면 반쪽이 남는다.
+  const 경계에_걸린_이모지 = '가'.repeat(19) + '🐯'.repeat(3);
+  const 잘린값 = await nicknameOf(경계에_걸린_이모지);
+  assert.equal(잘린값, '가'.repeat(19), '한도를 넘기는 코드 포인트는 통째로 버린다');
+  assert.doesNotMatch(잘린값, /[\uD800-\uDFFF]/u, '짝 잃은 서러게이트가 남았습니다');
+
+  // ZWJ 로 이어 붙인 가족 이모지(11단위)가 둘이면 22단위 — 경계가 사슬 한가운데다.
+  const 가족 = '👨‍👩‍👧‍👦';
+  assert.equal(가족.length, 11, '전제: 가족 이모지는 11단위');
+  const 잘린가족 = await nicknameOf(가족.repeat(2));
+  assert.ok(잘린가족.length <= 20);
+  assert.doesNotMatch(잘린가족, /\u200d$/u, '이어 줄 짝 없는 ZWJ 가 끝에 매달렸습니다');
+  assert.doesNotMatch(잘린가족, /[\uD800-\uDFFF]/u, '짝 잃은 서러게이트가 남았습니다');
+  assert.ok(잘린가족.startsWith(가족), '앞쪽 가족 이모지는 온전히 남는다');
+
+  // 자른 자리가 공백이면 그 공백도 털어 낸다.
+  assert.equal(await nicknameOf('가'.repeat(19) + '  나'), '가'.repeat(19));
+});
+
+test('결합용 문자만 남는 닉네임은 null 이 된다 (로그인은 그대로 성립)', async () => {
+  assert.equal(await nicknameOf('\u200d\u200d'), null);
+  assert.equal(await nicknameOf('   '), null);
 });
 
 test('401 이면 unauthenticated 오류를 던진다', async () => {
