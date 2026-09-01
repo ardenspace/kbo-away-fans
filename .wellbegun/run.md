@@ -14,7 +14,11 @@ cycle: 2
 모든 fresh 검증자·phase 통합 검증·전체 리뷰 = high-tier, basic 검증 = 지휘자가 직접 실행.
 
 ## Phase 1 — 델타 기반 + 강제 장치
-- [ ] 1.1 schedule 계약 schemaVersion 2 + 앱 파서 확장 (fresh)
+- [x] 1.1 verified (fresh, high-tier) — 커밋 4bf9d63; 경계 테스트 6개 전부 기대대로(validate exit 0 / 버전1 픽스처 exit 1 / 종료-점수누락 픽스처 exit 1 / 파이프라인 37통과 / content_loader 19통과 / analyze 무지적), 전체 회귀 174통과·1스킵.
+      round 1 ACCEPT + 계약 밖 위험 4건. 그중 "오늘 원정 경기가 finished 로 바뀌면 홈이 자정 전에 다음 경기 D-1 로 넘어감"(next_away_game.dart 의 문서화된 불변식 위반)을 지휘자가 [M] 으로 등급하고 기존 불변식 유지로 결정 → decisions.md 기록 후 수정 커밋 d152758 (크롤러 no-change 게이트에 schemaVersion 포함, 크롤 픽스처 statusInfo 실응답 반영 포함).
+      round 2 새 검증자 ACCEPT — 제품 결정 2건이 코드에 반영됨을 확인, 계약 위반 없음.
+      probes: round 1 은 23개 작성·2개 커밋(models_test.dart 로 흡수, schedule.canceled-with-score.json), round 2 는 12개 작성·4개 커밋(9556b25, finished_game_fanout_test.dart).
+      1.2 로 넘기는 사실 3건: (a) `homeScore: 5.0` 은 validate 가 통과시키지만 앱 파서가 문서 전체를 거부 — 현재 크롤 경로로는 도달 불가, (b) 점수 없는 RESULT 경기 한 건이 크롤 전체를 exit 1 로 세움 — 창을 과거로 넓히면 노출이 커짐, (c) 종료 판정이 `statusCode === 'RESULT'` 단일 문자열에 걸려 있고 값이 바뀌면 조용히 전부 scheduled 가 됨.
 - [ ] 1.2 크롤 창 과거 확장 + 경기 결과 산출 (fresh)
 - [ ] 1.3 디자인 토큰 확장 네 그룹 (fresh)
 - [ ] 1.4 타이포 조합 스타일 기존 38곳 일괄 교체 (basic)
