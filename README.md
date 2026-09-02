@@ -94,7 +94,10 @@ npm ci --prefix functions      # 배포·에뮬레이터에 필요한 SDK 설치
 ```
 
 테스트는 가짜 카카오 응답과 가짜 Admin SDK 로 돌기 때문에 카카오에도 Firebase 에도
-나가지 않는다. Firebase SDK 를 설치하면 배선 테스트 2개가 더 켜진다(미설치 시 skip).
+나가지 않는다. Firebase SDK 를 설치하면 배선 테스트 4개가 더 켜진다(미설치 시 skip) —
+`test/index.test.js` 의 배선 2개와 `test/app-check-enforcement.test.js` 의 App Check
+강제 2개. 뒤쪽은 함수를 express 핸들러로 세워 HTTP 로 부르므로 카카오 호출도
+`globalThis.fetch` 대역이 받는다(네트워크로 나가지 않는다).
 
 이 함수는 **App Check 을 강제한다**(`enforceAppCheck: true`). 로그인 **전에** 불리는
 함수라 호출자 인증을 요구할 수 없고(요구할 자격 증명이 바로 이 함수가 발급하려는

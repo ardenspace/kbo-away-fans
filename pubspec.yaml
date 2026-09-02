@@ -36,6 +36,12 @@ dev_dependencies:
   # depend_on_referenced_packages 가 조용하다).
   firebase_auth_platform_interface: ^9.0.7
   firebase_core_platform_interface: ^8.1.1
+  # 같은 까닭으로 App Check 도 — `test/backend/app_check_activation_test.dart` 가
+  # 플랫폼 인터페이스를 갈아 끼워 `BackendAppCheck` **그 자체**를 돌린다
+  # (배선이 통째로 사라져도 나머지 시험은 전부 초록불이라, 그 사실을 잡는 자리가
+  # 없으면 App Check 은 "적혀 있다"까지만 검증된다). `firebase_app_check` 이 이미
+  # 끌어오는 패키지라 새로 받아 오는 것은 없다.
+  firebase_app_check_platform_interface: ^0.4.2+1
 
 # 런처 아이콘 생성 — 소스 한 장에서 iOS·Android 전 사이즈를 만든다.
 # 아이콘을 갈아끼울 때는 assets/icon/ 의 원본을 바꾸고
