@@ -225,6 +225,12 @@ class FirebaseAuthService implements AuthService {
   /// 로그인 화면이 안 뜨므로 나갈 길도 없다. 캐시를 근거로 삼으면 순서가 어느
   /// 쪽이든 답이 같다.
   void _bindSessionStream() {
+    // 이 한 줄이 확정하는 것은 **동기 조회**다: 이 줄이 없어도 대역이든 실 SDK 든
+    // 구독의 첫 되풀이가 같은 값을 곧 흘려 주므로 스트림 쪽 단언은 그대로 통과
+    // 하지만, 그 되풀이가 도착하기 전의 [currentUser] 는 세션이 복원돼 있는데도
+    // null 을 답하게 된다. 그 창을 재는 자리가
+    // `test/backend/firebase_auth_restored_session_sync_probe_test.dart` 와
+    // 그 짝(`..._signed_out_sync_probe_test.dart`)이다.
     _publish(_toAuthUser(_auth.currentUser));
     _auth.authStateChanges().listen(
       (user) {
