@@ -21,7 +21,24 @@ import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 
-/// App Check 배선 — `main` 이 1회 호출한다.
+/// 활성화를 기다리는 시간의 상한.
+///
+/// [BackendAppCheck.ensureInitialized] 의 try/catch 는 **오류**를 삼키지만
+/// **지연**은 삼키지 못한다 — 플랫폼 채널이 답하지 않는 실행에서 그 await 는
+/// 끝나지 않는다. 그 자리를 기다리는 쪽이 둘인데 둘 다 사람이 보는 화면을
+/// 붙잡고 있다: `main` 은 `runApp` 앞이고(스플래시가 안 걷힌다), 카카오 로그인은
+/// 교환 직전이다(버튼 셋이 잠긴 채 스피너만 돈다). 그래서 기다림에만 상한을
+/// 둔다 — 상한을 넘으면 **켜지지 않은 실행과 똑같이** 다룬다.
+///
+/// 5초인 것은 이 값이 "얼마면 켜지는가"가 아니라 "얼마부터 사람이 앱이 죽었다고
+/// 읽는가"의 값이기 때문이다. `activate` 는 증명 토큰을 받아 오는 호출이 아니라
+/// 제공자를 등록하는 호출이라 정상 실행에서는 한참 못 미치고, 넘어간 실행은
+/// 이미 정상이 아니다.
+const Duration kAppCheckActivationTimeout = Duration(seconds: 5);
+
+/// App Check 배선 — `main` 이 1회 호출하고, 카카오 로그인 경로가 교환 직전에 한
+/// 번 더 부른다([ensureInitialized] 의 "실패한 시도는 기억하지 않는다" 참조).
+/// 어느 쪽이든 기다림에는 [kAppCheckActivationTimeout] 의 상한이 걸린다.
 class BackendAppCheck {
   BackendAppCheck._();
 
@@ -52,15 +69,24 @@ class BackendAppCheck {
   ///
   /// 인증보다 **먼저** 불러야 한다. App Check 토큰은 활성화된 뒤에 나가는
   /// 호출에만 붙으므로, 커스텀 토큰 함수를 부르기 전에 켜져 있어야 한다.
+  ///
+  /// **끝나지 않는 활성화도 이 함수는 끝난다.** 기다림은
+  /// [kAppCheckActivationTimeout] 에서 잘리고, 잘린 뒤에도 던지지 않는다 — 이
+  /// 겹의 규칙은 "켜지지 않아도 앱은 선다"이고, 아직 켜지지 않은 실행을 켜지지
+  /// 못한 실행과 다르게 다룰 까닭이 없다. 잘려도 시도 자체는 남아 돌고 있으므로
+  /// (자리를 비우는 것은 [_forgetFailedAttempt] 가 그 시도가 실제로 끝난 뒤에
+  /// 한다) 곧 켜지면 다음 호출은 곧바로 돌아온다.
   static Future<void> ensureInitialized() {
     if (_activated) return Future<void>.value();
     final pending = _pending;
-    if (pending != null) return pending;
     // 겹친 호출은 같은 시도를 함께 기다리고, 그 시도가 켜지 못한 채 끝나면
     // 자리를 비운다 — 다음 호출이 처음부터 다시 시도한다.
-    final started = _activate()..whenComplete(_forgetFailedAttempt);
-    _pending = started;
-    return started;
+    final started =
+        pending ?? (_pending = _activate()..whenComplete(_forgetFailedAttempt));
+    // 상한은 **기다리는 쪽**에만 건다. 시도를 취소하지 않는 것은 취소할 길이
+    // 없기 때문이기도 하고(플랫폼 채널), 그 시도가 늦게라도 켜지면 그 실행의
+    // 다음 호출이 그 결과를 그대로 쓰는 편이 낫기 때문이기도 하다.
+    return started.timeout(kAppCheckActivationTimeout, onTimeout: () {});
   }
 
   static void _forgetFailedAttempt() {

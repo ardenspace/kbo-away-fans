@@ -212,6 +212,13 @@ class FirebaseAuthService implements AuthService {
     // `enforceAppCheck: true`). `main` 이 이미 한 번 켰지만 그 시도가 던졌을
     // 수도 있고, 그 실행에서 다시 켤 자리는 여기뿐이다 — 켜져 있으면 이 줄은
     // 아무 일도 하지 않는다(`app_check.dart` 의 "실패한 시도는 기억하지 않는다").
+    //
+    // **이 줄은 로그인을 붙잡지 않는다.** 기다림에는
+    // `kAppCheckActivationTimeout` 의 상한이 있고, 넘으면 켜지지 않은 채
+    // 교환으로 넘어간다 — 그 호출은 함수가 `unauthenticated` 로 거절하고
+    // 화면은 이미 그 갈래를 안내로 옮긴다. 여기서 무한정 기다리면 로그인
+    // 화면은 버튼 셋이 잠긴 채 스피너만 돌아, 앱을 다시 켜는 것 말고 나갈
+    // 길이 없어진다(`kakao_app_check_stall_probe_test.dart` 가 잰다).
     await BackendAppCheck.ensureInitialized();
     final exchanged = await _kakao.exchange(accessToken);
     final credential = await _auth.signInWithCustomToken(exchanged.customToken);
