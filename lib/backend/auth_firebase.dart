@@ -64,10 +64,10 @@ class FirebaseAuthService implements AuthService {
   /// 같은 이유다: 설정이 없거나 초기화가 실패하면 예외를 삼키고 연결되지 않은
   /// 채 남아 앱이 계속 뜬다.
   ///
-  /// 여기서 미리 서 두는 것은 세션 스트림 때문이다. Firebase Auth 는 네이티브가
-  /// 영속 세션을 복원해 첫 이벤트를 보내 줄 때까지 로그인 여부를 모르는데,
-  /// 그 구독을 앱이 시작할 때 걸어 두면 모르는 구간이 스플래시 뒤로 숨는다.
-  /// 게이트가 처음 상태를 읽는 시점에는 대개 이미 알고 있다.
+  /// 여기서 미리 서 두는 것은 세션 상태 때문이다. `Firebase.initializeApp()` 이
+  /// 끝나야 영속 세션이 복원된 결과를 읽을 수 있고([_bindSessionStream] 의
+  /// 까닭 참조), 그 확정을 앱이 시작할 때 해 두면 게이트가 처음 상태를 읽는
+  /// 시점에는 이미 답이 나와 있다.
   static Future<void> ensureInitialized() async {
     try {
       await Firebase.initializeApp();
@@ -93,11 +93,11 @@ class FirebaseAuthService implements AuthService {
   final StreamController<AuthUser?> _sessions =
       StreamController<AuthUser?>.broadcast();
 
-  /// 세션 상태를 한 번이라도 확인했는가. false 인 동안은 "로그아웃"이 아니라
-  /// **아직 모름**이고, 그 구간에서는 아무 값도 내보내지 않는다.
-  bool _known = false;
-
   /// 마지막으로 확인된 세션.
+  ///
+  /// 이 구현에는 "아직 모름" 구간이 없다 — 생성자의 [_bindSessionStream] 이
+  /// 초기 상태를 곧바로 확정하기 때문이다(그 까닭은 그 메서드의 문서에 있다).
+  /// 그래서 이 값의 null 은 언제나 **확정된 로그아웃**이다.
   AuthUser? _last;
 
   /// `GoogleSignIn.initialize()` 는 한 번만 불러야 한다 — 그 한 번을 기억한다.
@@ -108,10 +108,9 @@ class FirebaseAuthService implements AuthService {
 
   @override
   Stream<AuthUser?> authStateChanges() async* {
-    // 이미 아는 상태가 있으면 구독하는 순간 그것부터 흘린다 (계약).
-    // 모르는 동안에는 아무것도 흘리지 않고 기다린다 — 그 침묵이 게이트에서
-    // "아직 갈래를 못 정했다"(스피너)로 읽힌다.
-    if (_known) yield _last;
+    // 구독하는 순간 지금 아는 상태부터 흘린다 (계약). 계약이 말하는 "아직
+    // 모르면 침묵한다"는 구간은 이 구현에 없다 — 생성자가 이미 확정했다.
+    yield _last;
     yield* _sessions.stream;
   }
 
@@ -197,25 +196,44 @@ class FirebaseAuthService implements AuthService {
     }
   }
 
-  /// SDK 세션 스트림을 구독해 이 구현의 스트림으로 옮긴다.
+  /// 초기 세션 상태를 확정하고, 그 뒤의 변화를 SDK 스트림에서 옮긴다.
   ///
-  /// 그대로 흘리지 않는 까닭은 첫 값 하나 때문이다. `firebase_auth` 의
-  /// `authStateChanges()` 는 구독 즉시 **Dart 쪽 캐시**를 한 번 흘리고 그다음부터
-  /// 네이티브 리스너 이벤트를 흘리는데, 그 캐시는 네이티브가 첫 이벤트를 보내기
-  /// 전까지 null 이다 (플러그인이 그 이벤트로만 캐시를 채운다). 그래서 로그인해
-  /// 둔 사람도 첫 값이 null 이고, 그 null 을 확정된 로그아웃으로 읽으면 콜드
-  /// 스타트에서 로그인 화면이 한 번 번쩍인 뒤 홈으로 바뀐다.
+  /// **초기 상태를 스트림의 첫 값이 아니라 [FirebaseAuth.currentUser] 에서
+  /// 읽는다.** 이 자리는 [ensureInitialized] 가 `Firebase.initializeApp()` 을
+  /// 이미 await 한 뒤이고, 그 호출이 돌려준 플러그인 상수의 `APP_CURRENT_USER`
+  /// 가 delegate 를 만들 때 캐시에 그대로 심긴다
+  /// (`firebase_auth_platform_interface-9.0.7` 의
+  /// `platform_interface_firebase_auth.dart` `instanceFor` →
+  /// `setInitialValues(currentUser: ...)`). 그 상수를 채우는 네이티브 코드는
+  /// 영속 세션이 이미 복원된 뒤의 `Auth.auth(app:).currentUser`(iOS) /
+  /// `FirebaseAuth.getInstance(app).currentUser`(안드로이드)를 읽는다
+  /// (`firebase_auth-6.6.1` 의 `FLTFirebaseAuthPlugin.swift`
+  /// `pluginConstants(for:)`, `FlutterFirebaseAuthPlugin.kt`
+  /// `getPluginConstantsForFirebaseApp`). 그래서 초기화가 끝난 뒤의 이 캐시는
+  /// "아직 모름"이 아니라 **확정된 상태**다 — 로그인해 둔 사람이면 사용자가,
+  /// 로그아웃한 사람이면 null 이 들어 있다.
   ///
-  /// 그 첫 null 만 버리고, 네이티브가 말한 것부터 듣는다. 첫 값이 null 이
-  /// 아니면 그것은 이미 네이티브에서 온 값이므로 그대로 쓴다.
+  /// 스트림의 첫 값으로 가르지 않는 까닭은 그 판별에 근거가 없기 때문이다.
+  /// 첫 값이 null 일 때 그것이 아직 안 채워진 캐시인지 확정된 로그아웃인지를
+  /// 스트림만 보고는 알 수 없고, "첫 null 은 버린다"가 성립하려면 **네이티브의
+  /// 첫 이벤트가 우리 구독보다 늦게 온다**는 순서 가정이 필요하다. 그 가정은
+  /// 이 파일 밖에서 누가 `FirebaseAuth` 를 먼저 건드리는 것만으로 뒤집힌다
+  /// (`FirebaseAuth.instance.currentUser` 를 한 번 읽기만 해도 delegate 가
+  /// 생기고 네이티브 리스너 등록이 시작된다). 뒤집히면 네이티브의 첫 이벤트가
+  /// 구독 전에 지나가 사라지고, 로그아웃한 사람에게는 그 뒤로 아무 이벤트도
+  /// 오지 않아 콜드 스타트가 로그인 화면이 아니라 **영원한 스피너**가 된다 —
+  /// 로그인 화면이 안 뜨므로 나갈 길도 없다. 캐시를 근거로 삼으면 순서가 어느
+  /// 쪽이든 답이 같다.
   void _bindSessionStream() {
-    var first = true;
+    _publish(_toAuthUser(_auth.currentUser));
     _auth.authStateChanges().listen(
       (user) {
-        final synthetic = first && user == null;
-        first = false;
-        if (synthetic) return;
-        _publish(_toAuthUser(user));
+        // 구독 직후 SDK 가 한 번 흘리는 첫 값은 방금 읽은 그 캐시의 되풀이다.
+        // 같은 값이면 흘리지 않는다 (세션이 바뀌지 않았는데 게이트를 흔들지
+        // 않으려는 것이고, 되풀이가 아닌 진짜 변화는 언제나 값이 다르다).
+        final next = _toAuthUser(user);
+        if (next == _last) return;
+        _publish(next);
       },
       onError: (Object error, StackTrace stackTrace) {
         if (!_sessions.isClosed) {
@@ -226,7 +244,6 @@ class FirebaseAuthService implements AuthService {
   }
 
   void _publish(AuthUser? user) {
-    _known = true;
     _last = user;
     if (!_sessions.isClosed) _sessions.add(user);
   }

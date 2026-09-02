@@ -13,8 +13,11 @@
 - **SDK import 는 이 폴더 안에만.** `firebase_*`·`cloud_firestore`·카카오 SDK 를
   `lib/features/`·`lib/ui/` 에서 import 하지 않는다 (`lib/analytics/` 는 사이클 1의
   분석 래퍼라 예외). 화면은 이 계층의 타입만 소비한다.
-- **SDK 예외를 밖으로 내보내지 않는다.** 백엔드 호출은 `guardBackend` 를 거쳐
-  `BackendError` 세 도메인(네트워크·권한·알 수 없음)으로만 실패한다.
+- **SDK 예외를 밖으로 내보내지 않는다.** 백엔드 호출은 `BackendError` 세
+  도메인(네트워크·권한·알 수 없음)으로만 실패한다. 거치는 자리는 갈래마다 다르다:
+  Future 는 `guardBackend`, 스트림은 `guardBackendStream` 이고, SDK 스트림을 이
+  계층의 스트림으로 옮기는 자리(`auth_firebase.dart` 의 세션 스트림)는 구독의
+  `onError` 에서 `BackendError.from` 으로 옮긴다. 셋 다 `errors.dart` 에 있다.
 - **서버로 나가는 값은 write 타입의 `toData()` 결과뿐이다.** 규칙이 필드
   화이트리스트(`hasOnly`)라서 계약 밖 필드가 한 번이라도 낀 문서는 이후 쓰기가
   통째로 거부된다. 자유로운 map 을 만들어 올리지 말 것.

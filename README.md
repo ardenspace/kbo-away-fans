@@ -113,8 +113,10 @@ npm ci --prefix functions      # 배포·에뮬레이터에 필요한 SDK 설치
 3. **구글 제공자**: Firebase 콘솔 → Authentication → Sign-in method → Google 사용
    설정. Android 는 디버그·릴리스 SHA-1 지문을 프로젝트 설정에 등록하고
    `google-services.json` 을 **다시** 내려받는다(웹 OAuth 클라이언트 `client_type: 3`
-   가 들어 있어야 id 토큰이 나온다). iOS 는 `GoogleService-Info.plist` 의
-   `REVERSED_CLIENT_ID` 를 `ios/Runner/Info.plist` 의 URL 스킴에 넣는다.
+   가 들어 있어야 id 토큰이 나온다). iOS 는 `GoogleService-Info.plist` 를 **다시**
+   내려받기만 하면 된다 — 그 파일의 `REVERSED_CLIENT_ID` 를 빌드 단계가 산출물의
+   `Info.plist` 에 URL 스킴으로 넣는다(아래 문단). 저장소의
+   `ios/Runner/Info.plist` 에 손으로 적지 않는다.
 4. **애플 제공자**: Firebase 콘솔 → Authentication → Sign-in method → Apple 사용
    설정. Xcode 에서 Runner 타깃에 **Sign in with Apple** capability 를 켜고, Apple
    Developer 의 App ID 에도 같은 기능을 켠다. iOS 는 네이티브 시트로 뜨므로 여기까지면
@@ -126,11 +128,19 @@ npm ci --prefix functions      # 배포·에뮬레이터에 필요한 SDK 설치
 설정 파일을 양쪽 빌드가 **있으면 쓰고 없으면 넘어가는** 방식으로 집어 들기 때문이다:
 안드로이드는 `android/app/build.gradle.kts` 가 `google-services.json` 이 있을 때만
 `com.google.gms.google-services` 플러그인을 적용하고, iOS 는 Runner 타깃의
-"Copy GoogleService-Info.plist (if present)" 빌드 단계가 파일이 있을 때만
-앱 번들로 복사한다(Copy Bundle Resources 에 넣어 두면 파일이 없는 클론에서
-Xcode 가 "Build input file cannot be found" 로 멈춘다). 설정 파일을 놓았다가
+"Firebase config: copy plist + inject Google URL scheme (if present)" 빌드 단계가
+파일이 있을 때만 앱 번들로 복사한다(Copy Bundle Resources 에 넣어 두면 파일이 없는
+클론에서 Xcode 가 "Build input file cannot be found" 로 멈춘다). 설정 파일을 놓았다가
 치운 경우에도 같은 단계가 번들에 남은 옛 사본을 지우므로, 빌드에 설정이 실렸는지는
 설정 파일의 유무 하나로 정해진다.
+
+같은 단계가 iOS 구글 로그인의 URL 스킴도 맡는다. `GIDSignIn` 은 리버스 클라이언트
+ID 가 URL 스킴으로 등록돼 있지 않으면 예외를 던지는데, 그 값은 프로젝트 좌표라
+저장소에 두지 않기로 했으므로(`.wellbegun/decisions.md`) 저장소의
+`ios/Runner/Info.plist` 대신 **빌드 산출물의** `Info.plist` 에만 넣는다. 단계는
+`GoogleService-Info.plist` 에서 `REVERSED_CLIENT_ID` 를 읽어 `CFBundleURLTypes` 를
+주입하고, 설정 파일이 없거나 아직 구글 제공자를 켜지 않아 그 키가 없으면 조용히
+넘어간다. 그래서 사람이 손으로 넣을 것도, 커밋할지 말지 고를 것도 없다.
 
 ### 자격 증명 주입 지점 (전부 선택 사항 — 없어도 빌드·테스트 통과)
 

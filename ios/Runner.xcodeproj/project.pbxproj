@@ -158,7 +158,7 @@
 				97C146EA1CF9000F007C117D /* Sources */,
 				97C146EB1CF9000F007C117D /* Frameworks */,
 				97C146EC1CF9000F007C117D /* Resources */,
-				FC9B740B303DC4B700C426E5 /* Copy GoogleService-Info.plist (if present) */,
+				FC9B740B303DC4B700C426E5 /* Firebase config: copy plist + inject Google URL scheme (if present) */,
 				9705A1C41CF9048500538489 /* Embed Frameworks */,
 				3B06AD1E1E4923F5004D2608 /* Thin Binary */,
 			);
@@ -238,20 +238,21 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
-		FC9B740B303DC4B700C426E5 /* Copy GoogleService-Info.plist (if present) */ = {
+		FC9B740B303DC4B700C426E5 /* Firebase config: copy plist + inject Google URL scheme (if present) */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
 			buildActionMask = 2147483647;
 			files = (
 			);
 			inputPaths = (
+				"${TARGET_BUILD_DIR}/${INFOPLIST_PATH}",
 			);
-			name = "Copy GoogleService-Info.plist (if present)";
+			name = "Firebase config: copy plist + inject Google URL scheme (if present)";
 			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "# GoogleService-Info.plist 는 저장소에 두지 않는다(.gitignore).\n# Copy Bundle Resources 에 넣어 두면 설정 파일이 없는 클론에서 Xcode 가\n# \"Build input file cannot be found\" 로 멈추므로, 있으면 복사하고 없으면 넘어간다.\nSRC=\"${SRCROOT}/Runner/GoogleService-Info.plist\"\nDST=\"${BUILT_PRODUCTS_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/GoogleService-Info.plist\"\nif [ -f \"$SRC\" ]; then\n  /bin/mkdir -p \"${BUILT_PRODUCTS_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}\"\n  /bin/cp -f \"$SRC\" \"$DST\"\nelse\n  /bin/rm -f \"$DST\"\n  echo \"warning: ios/Runner/GoogleService-Info.plist 가 없어 Firebase 설정 없이 빌드한다\"\nfi\n";
+			shellScript = "# 이 단계는 두 가지를 한다 — 둘 다 \"설정 파일이 있으면 하고, 없으면 조용히 넘어간다\".\nSRC=\"${SRCROOT}/Runner/GoogleService-Info.plist\"\n\n# 1) GoogleService-Info.plist 를 앱 번들에 복사한다.\n# Copy Bundle Resources 에 넣어 두면 설정 파일이 없는 클론에서 Xcode 가\n# \"Build input file cannot be found\" 로 멈추므로, 있으면 복사하고 없으면 넘어간다.\nDST=\"${BUILT_PRODUCTS_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/GoogleService-Info.plist\"\nif [ -f \"$SRC\" ]; then\n  /bin/mkdir -p \"${BUILT_PRODUCTS_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}\"\n  /bin/cp -f \"$SRC\" \"$DST\"\nelse\n  /bin/rm -f \"$DST\"\n  echo \"warning: ios/Runner/GoogleService-Info.plist 가 없어 Firebase 설정 없이 빌드한다\"\nfi\n\n# 2) 구글 로그인 URL 스킴(리버스 클라이언트 ID)을 산출물의 Info.plist 에 넣는다.\n# GIDSignIn 은 이 스킴이 등록돼 있지 않으면 예외를 던지므로 iOS 구글 로그인에\n# 반드시 필요하다. 그런데 그 값은 프로젝트 좌표라서 저장소에 두지 않기로 했다\n# (.wellbegun/decisions.md 가 \"프로젝트 좌표를 저장소에 박아 두기\"를 rejected).\n# 그래서 저장소의 ios/Runner/Info.plist 는 좌표 없이 그대로 두고, 위 1) 과 같은\n# 성질로 빌드 산출물에만 주입한다 — 설정 파일이 없거나 아직 구글 제공자를 켜지\n# 않아 REVERSED_CLIENT_ID 가 없으면 아무것도 하지 않는다.\nPLISTBUDDY=/usr/libexec/PlistBuddy\nINFO=\"${TARGET_BUILD_DIR}/${INFOPLIST_PATH}\"\n\nREVERSED=\"\"\nif [ -f \"$SRC\" ]; then\n  REVERSED=$(\"$PLISTBUDDY\" -c \"Print :REVERSED_CLIENT_ID\" \"$SRC\" 2>/dev/null)\nfi\n\nif [ -z \"$REVERSED\" ]; then\n  echo \"note: REVERSED_CLIENT_ID 가 없어 구글 로그인 URL 스킴을 넣지 않는다\"\n  exit 0\nfi\n\nif [ ! -f \"$INFO\" ]; then\n  echo \"warning: 산출물의 Info.plist 를 찾지 못해 구글 로그인 URL 스킴을 넣지 않는다\"\n  exit 0\nfi\n\n# 증분 빌드에서 같은 스킴이 거듭 쌓이지 않게 한 번만 넣는다.\nif \"$PLISTBUDDY\" -c \"Print :CFBundleURLTypes\" \"$INFO\" 2>/dev/null | /usr/bin/grep -q \"$REVERSED\"; then\n  exit 0\nfi\n\n\"$PLISTBUDDY\" -c \"Add :CFBundleURLTypes array\" \"$INFO\" 2>/dev/null\n\"$PLISTBUDDY\" \\\n  -c \"Add :CFBundleURLTypes:0 dict\" \\\n  -c \"Add :CFBundleURLTypes:0:CFBundleTypeRole string Editor\" \\\n  -c \"Add :CFBundleURLTypes:0:CFBundleURLName string google-sign-in\" \\\n  -c \"Add :CFBundleURLTypes:0:CFBundleURLSchemes array\" \\\n  -c \"Add :CFBundleURLTypes:0:CFBundleURLSchemes:0 string $REVERSED\" \\\n  \"$INFO\"\n";
 		};
 		3B06AD1E1E4923F5004D2608 /* Thin Binary */ = {
 			isa = PBXShellScriptBuildPhase;

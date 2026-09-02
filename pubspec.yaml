@@ -26,6 +26,13 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^6.0.0
   flutter_launcher_icons: ^0.14.4
+  # 인증 탐침(test/backend/firebase_auth_*_probe_test.dart)이 `FirebaseAuthService`
+  # **그 자체**를 돌리려고 플랫폼 인터페이스를 갈아 끼운다. 앱 코드는 이 둘을
+  # 쓰지 않으므로 dev 쪽에만 둔다 (firebase_auth·firebase_core 가 이미 끌어오는
+  # 것이라 새로 받아 오는 패키지는 없고, 여기 적어야 analyze 의
+  # depend_on_referenced_packages 가 조용하다).
+  firebase_auth_platform_interface: ^9.0.7
+  firebase_core_platform_interface: ^8.1.1
 
 # 런처 아이콘 생성 — 소스 한 장에서 iOS·Android 전 사이즈를 만든다.
 # 아이콘을 갈아끼울 때는 assets/icon/ 의 원본을 바꾸고
