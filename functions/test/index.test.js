@@ -1,6 +1,7 @@
 // 배선 테스트 — callable 이 실제로 export 되고 오류가 규약대로 나가는지.
 //
-// 이 파일만 Firebase SDK 를 필요로 한다. 설치 없이 돌리는 경우(`npm --prefix functions
+// 이 파일과 `app-check-enforcement.test.js` 가 Firebase SDK 를 필요로 한다
+// (그쪽은 강제를 HTTP 로 재고, 여기서는 배선과 오류 규약을 잰다). 설치 없이 돌리는 경우(`npm --prefix functions
 // test` 만 실행)에는 통째로 건너뛴다 — 판단이 있는 두 모듈은 의존성 없이 검증되므로
 // 이 파일이 없어도 acceptance 는 그대로 서고, 여기서 재는 것은 "배선이 붙어 있다"뿐이다.
 // 네트워크로 나가는 경로(카카오 호출·Admin SDK 서명)는 여기서 부르지 않는다.

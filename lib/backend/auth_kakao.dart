@@ -110,9 +110,22 @@ class KakaoCustomToken {
 
 /// 카카오 로그인의 두 걸음 — 테스트가 갈아 끼우는 경계.
 ///
-/// 실패는 이 계약 뒤에서 이미 [BackendError] 로 옮겨져 나온다. SDK·callable
-/// 예외를 밖으로 흘리지 않는 것은 `lib/backend/CLAUDE.md` 의 규칙이고, 그
-/// 변환이 구현 안쪽에 있어야 대역이 실패를 **도메인 어휘로** 흉내 낼 수 있다.
+/// **두 걸음의 실패는 서로 다른 모양으로 나온다.**
+///
+///  - [obtainAccessToken] — 카카오 SDK 예외를 이 안에서 [BackendError] 로
+///    옮긴다. 옮기는 자리가 여기인 것은 카카오의 어휘(취소의 세 모양,
+///    `ClientErrorCause`·`AuthErrorCause`)를 `errors.dart` 의 공통 표가 모르기
+///    때문이다 — 카카오를 아는 유일한 자리가 이 파일이다.
+///  - [exchange] — callable 실패([FirebaseFunctionsException])를 **그대로**
+///    던진다. 그 예외는 이미 `FirebaseException` 이라 `errors.dart` 의 공통
+///    코드 표가 그대로 읽고, 계층을 나가는 자리(`auth_firebase.dart` 의
+///    `signIn` 을 감싼 `guardBackend`)가 도메인 오류로 옮긴다. 여기서 한 번 더
+///    옮기면 같은 표가 두 벌이 되어 갈라진다.
+///
+/// 그래서 이 계약이 약속하는 것은 "구현이 모든 실패를 도메인 오류로 옮긴다"가
+/// 아니라, **계층 밖으로는 [BackendError] 만 나간다**는 `lib/backend/CLAUDE.md`
+/// 의 규칙이다(그 규칙이 지목하는 변환 자리가 `guardBackend` 다). 대역도 같은
+/// 모양으로 흉내 낸다 — `test/backend/fake_backend.dart` 참조.
 abstract class KakaoAuthGateway {
   const KakaoAuthGateway();
 

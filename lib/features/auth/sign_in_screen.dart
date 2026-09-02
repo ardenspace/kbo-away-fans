@@ -11,7 +11,8 @@ import '../../ui/shared/social_sign_in_button.dart';
 /// 계정 없이 쓰는 경로가 없다는 결정([XL] 소셜 로그인 필수)이 화면 하나로
 /// 드러나는 자리라, 여기에는 "나중에 하기" 같은 우회로를 두지 않는다.
 /// 세 제공자 버튼은 [SocialSignInButton] 한 모양이고, 이 화면은 탭을
-/// [AuthService.signIn] 까지만 잇는다 (실제 제공자 연결은 2.2·2.3).
+/// [AuthService.signIn] 까지만 잇는다 — 셋 다 실제 제공자에 붙어 있고(구글·애플
+/// 2.2, 카카오 2.3), 어느 제공자인지는 이 화면 밖에서 갈린다.
 ///
 /// 실패는 전부 [BackendError.from] 한 경로로 문구가 된다 — SDK 예외든,
 /// 구현이 아직 주입되지 않아 provider 가 던지는 [UnimplementedError] 든

@@ -4,7 +4,9 @@
 // `custom-token.js` 의 결과와 오류를 callable 규약으로 옮긴다. 판단은 전부
 // 그 아래 두 모듈에 있고, 그래서 SDK 없이도 경로 전체가 테스트로 검증된다.
 //
-// 배포와 앱 연동은 step 2.3 의 몫이다 (`firebase deploy --only functions`).
+// 앱 연동은 step 2.3 에서 끝났다(카카오 로그인 → 이 함수 → Firebase 세션).
+// 남은 것은 배포뿐이고 그것은 사람 몫이다 — `firebase deploy --only functions`,
+// 순서와 확인 방법은 `.wellbegun/run.md` 의 2.3 사람 몫 체크리스트.
 
 import { setGlobalOptions } from 'firebase-functions/v2';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';

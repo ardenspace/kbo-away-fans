@@ -249,9 +249,16 @@ class UnknownSessionAuthService implements AuthService {
 /// 옮기고, 실패를 도메인 오류로 옮기고, 닉네임을 세션에 심는 자리 — 가
 /// `FirebaseAuthService` **그 자체**에서 검증된다.
 ///
-/// 실패는 실 구현과 같은 어휘로 흉내 낸다: 계약이 [BackendError] 만 내보내기로
-/// 되어 있으므로, [loginFailure]·[exchangeFailure] 에도 도메인 오류를 넣는다
-/// (SDK 예외를 흉내 내면 대역이 실 구현보다 넓은 계약을 시험하게 된다).
+/// 실패는 실 구현과 **같은 어휘로** 흉내 낸다 — 그 어휘가 두 걸음에서 다르다
+/// ([KakaoAuthGateway] 의 문서 참조):
+///
+///  - [loginFailure] 에는 도메인 오류를 넣는다. 실 구현이 카카오 SDK 예외를
+///    게이트웨이 안에서 옮기기 때문이다(카카오의 어휘를 공통 표가 모른다).
+///  - [exchangeFailure] 에는 날것의 `FirebaseException` 을 넣는다. 실 구현의
+///    `exchange` 가 callable 실패를 그대로 던지고, 그것을 도메인으로 옮기는
+///    자리는 계층 경계의 `guardBackend` 이기 때문이다 — 도메인 오류만 넣으면
+///    그 공통 표(`unavailable`→네트워크, `unauthenticated`→권한)를 지나는
+///    경로가 시험에서 통째로 빠진다.
 class FakeKakaoAuthGateway extends KakaoAuthGateway {
   FakeKakaoAuthGateway({
     this.accessToken = 'kakao-access-token',

@@ -115,8 +115,10 @@ void main() {
     });
   });
 
-  test('호출 좌표는 함수 쪽과 같은 값이어야 한다', () {
-    // functions/index.js 의 setGlobalOptions region 과 export 이름.
+  test('호출 좌표가 손대지 않은 값 그대로다', () {
+    // 이 케이스는 **리터럴 못**이다: 두 파일을 대조하지 않고, 상수가 조용히
+    // 바뀌지 않았다는 것만 말한다. `functions/index.js` 와의 실제 대조는
+    // `backend_wiring_sync_test.dart` 가 한다 — 값을 옮길 때는 그 파일이 잡는다.
     expect(kKakaoFunctionRegion, 'asia-northeast3');
     expect(kKakaoCustomTokenCallable, 'kakaoCustomToken');
   });
