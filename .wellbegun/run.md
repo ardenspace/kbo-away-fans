@@ -91,7 +91,29 @@ cycle: 2
       그 밖에 넘어온 사실: 안드로이드의 애플 로그인은 웹 흐름이라 Services ID·return URL 설정이 없으면 실패 — 로그인 화면은 세 버튼을 두 플랫폼에 똑같이 그림, 안드로이드에서도 애플을 살릴지는 제품 결정으로 미정. `firestore.indexes.json` 은 여전히 배포·검증 전(이 단계가 Firestore 를 안 건드림). 의존성 3개 증가(firebase_auth 6.6.1, google_sign_in 7.2.0 + 플랫폼 패키지).
       사용자 결정 2건: 진행 방식은 "코드 먼저, 콘솔은 체크리스트로", 예산 상한은 월 $5 · 알림 50%·90%·100% (decisions.md 기록).
       이 단계의 acceptance 는 명령으로 재는 몫(설정 파일 없는 클론에서 기준선 유지, import 경계)과 사람이 눈으로 보는 몫(Blaze 전환·콘솔 예산·실기기 구글/애플 로그인·콜드 스타트 번쩍임·`signIn` 성공 직후 `currentUser`)으로 갈린다. 앞의 것만 지금 검증하고, 뒤의 것은 사용자가 콘솔·실기기 작업을 마친 뒤에 표시한다.
-- [ ] 2.3 카카오 로그인 (fresh)
+
+  **2.2 사람 몫 체크리스트 — 이것이 끝나야 2.3 으로 간다** (사용자 선택: "멈추고 콘솔 먼저").
+  까닭: 지금까지 인증 경로가 한 번도 실물로 확인된 적이 없어, 코드를 더 쌓을수록 전제가 틀렸을 때 되돌릴 범위가 넓어진다.
+  순서가 중요하다 — 예산을 먼저 걸고 Blaze 로 올린다.
+
+  | # | 할 일 | 끝난 것을 아는 방법 |
+  |---|---|---|
+  | 1 | GCP 콘솔 → 결제 → 예산 및 알림: 월 **$5**, 임계 50%·90%·100% | 예산 목록에 보이고 알림 수신자가 본인 |
+  | 2 | Firebase 콘솔 → Blaze 로 업그레이드 | 프로젝트 배지가 Blaze |
+  | 3 | Authentication → Sign-in method → Google 사용 설정 | 목록에 "사용 설정됨" |
+  | 4 | 디버그·릴리스 **SHA-1** 등록 후 `google-services.json` 재다운로드 → `android/app/` | json 안에 `"client_type": 3` 인 `oauth_client` 항목이 있음 |
+  | 5 | `GoogleService-Info.plist` 재다운로드 → `ios/Runner/` | plist 에 `CLIENT_ID`·`REVERSED_CLIENT_ID` 키가 있음 |
+  | 6 | Apple 제공자 사용 설정 + Xcode 에 Sign in with Apple capability + Apple Developer 의 App ID 활성화 | `ios/Runner/Runner.entitlements` 가 생김 |
+  | 7 | 실기기 구글 로그인 | Authentication → Users 에 계정이 생김 |
+  | 8 | 실기기 애플 로그인(iOS, 네이티브 시트) | 같은 목록에 apple.com 제공자 계정이 생김 |
+  | 9 | 로그인해 둔 채 앱 완전 종료 후 재실행 | 스플래시 다음 홈이 바로 뜨고 로그인 화면이 한 프레임도 안 보임 |
+  | 10 | 로그아웃 후 재로그인 | 스피너가 돌다 홈이 뜸("로그인 상태를 세우지 못했어요"가 뜨면 실패) |
+  | 11 | 로그아웃 후 구글 로그인 | 계정 선택 화면이 다시 뜸 (자동으로 같은 계정에 들어가면 `signOut` 의 구글 세션 정리가 안 된 것) |
+
+  5번은 이번 단계가 만든 빌드 단계가 `REVERSED_CLIENT_ID` 를 읽어 산출물 `Info.plist` 에 URL 스킴을 주입하므로, 파일만 놓으면 되고 `ios/Runner/Info.plist` 를 손으로 고칠 필요가 없다.
+  9·10 번이 계약 2항의 이월 두 항목이다. 9번이 실패하면 첫 값 정책을 다시 봐야 하고, 10번이 실패하면 로그인 화면의 잠금 해제 경로를 다시 봐야 한다.
+
+- [ ] 2.3 카카오 로그인 (fresh) — acceptance 에 App Check 인계가 들어가 있음(2.2 [L] 결정)
 - [ ] 2.4 사용자 문서와 선택 팀의 원본 이전 (fresh)
 - [ ] 2.5 온보딩 위치 권한 요청 (basic)
 - [ ] phase 2 integration
