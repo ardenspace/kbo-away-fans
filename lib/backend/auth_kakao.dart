@@ -248,10 +248,11 @@ class KakaoSdkAuthGateway extends KakaoAuthGateway {
 /// 카카오톡 로그인과 계정 로그인 중 **어느 것을 어떤 순서로 부르는가**.
 ///
 /// 함수 밖으로 꺼내 둔 것은 `kakaoCustomTokenFromCallable` 과 같은 까닭이다 —
-/// 이 규칙은 SDK 없이 재는 조각인데, 실 게이트웨이 안에 있으면 `_ensureSdkReady`
-/// 가 앱 키 없음으로 먼저 던져서 어떤 시험도 여기에 닿지 못한다. 세 호출을
-/// 인수로 받으므로 시험은 SDK 를 세우지 않고 순서만 잰다
-/// (`test/backend/kakao_error_mapping_test.dart`).
+/// 이 규칙은 SDK 없이 재는 조각이고, 세 호출을 인수로 받으므로 시험은 SDK 를
+/// 세우지 않고 **순서만** 잰다 (`test/backend/kakao_error_mapping_test.dart`).
+/// 게이트웨이 안에 두었다면 [KakaoSdkAuthGateway.withSeams] 로 닿기는 하지만,
+/// 그 길로는 로그인 호출 하나를 통째로 갈아 끼우게 되어 순서를 재려면 SDK 의
+/// 어휘를 함께 세워야 한다.
 ///
 /// 규칙은 둘이다 ([S] 2026-09-03 결정):
 ///
