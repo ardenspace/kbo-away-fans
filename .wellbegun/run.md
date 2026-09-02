@@ -103,14 +103,16 @@ cycle: 2
   | 3 | Authentication → Sign-in method → Google 사용 설정 | 목록에 "사용 설정됨" |
   | 4 | 디버그·릴리스 **SHA-1** 등록 후 `google-services.json` 재다운로드 → `android/app/` | json 안에 `"client_type": 3` 인 `oauth_client` 항목이 있음 |
   | 5 | `GoogleService-Info.plist` 재다운로드 → `ios/Runner/` | plist 에 `CLIENT_ID`·`REVERSED_CLIENT_ID` 키가 있음 |
-  | 6 | Apple 제공자 사용 설정 + Xcode 에 Sign in with Apple capability + Apple Developer 의 App ID 활성화 | `ios/Runner/Runner.entitlements` 가 생김 |
+  | 6 | ~~Apple 제공자 사용 설정 + Xcode capability + App ID 활성화~~ **미룸** | 유료 Apple Developer Program(연 $99)이 있어야 Sign in with Apple capability 를 켤 수 있어 사용자가 뒤로 미뤘다. 8번과 짝이다 |
   | 7 | 실기기 구글 로그인 | Authentication → Users 에 계정이 생김 |
-  | 8 | 실기기 애플 로그인(iOS, 네이티브 시트) | 같은 목록에 apple.com 제공자 계정이 생김 |
+  | 8 | ~~실기기 애플 로그인(iOS)~~ **미룸** | 6번과 함께 미뤘다. 2.1 이월 확인 항목(9·10번)은 구글 경로만으로 전부 덮이므로 다음 단계로 넘어가는 데 지장이 없다 |
   | 9 | 로그인해 둔 채 앱 완전 종료 후 재실행 | 스플래시 다음 홈이 바로 뜨고 로그인 화면이 한 프레임도 안 보임 |
   | 10 | 로그아웃 후 재로그인 | 스피너가 돌다 홈이 뜸("로그인 상태를 세우지 못했어요"가 뜨면 실패) |
   | 11 | 로그아웃 후 구글 로그인 | 계정 선택 화면이 다시 뜸 (자동으로 같은 계정에 들어가면 `signOut` 의 구글 세션 정리가 안 된 것) |
 
   5번은 이번 단계가 만든 빌드 단계가 `REVERSED_CLIENT_ID` 를 읽어 산출물 `Info.plist` 에 URL 스킴을 주입하므로, 파일만 놓으면 되고 `ios/Runner/Info.plist` 를 손으로 고칠 필요가 없다.
+  **진행 상황 (2026-09-02):** 1~5번 완료. 1번은 예산 금액을 처음에 ₩5(달러가 아니라 원)로 넣었다가 ₩7,000 근처로 고쳤고, Blaze 전환 화면의 두 번째 예산은 중복이라 건너뛰었으며, Pub/Sub 차단 장치는 만들지 않기로 결정했다(decisions.md). 4번의 디버그 SHA-1 은 `28:0E:33:A6:CA:51:78:23:7A:09:FD:A1:18:75:0F:7F:C7:2C:1B:C2` 이고 릴리스 키는 아직 없다(`android/app/build.gradle.kts:37-40` 이 릴리스도 디버그 키로 서명하는 기본 상태). 지휘자가 설정 파일 두 개를 직접 확인: json 에 `client_type: 3` 있음, plist 에 `CLIENT_ID`·`REVERSED_CLIENT_ID` 있음. 6·8번은 미뤘고 7·9·10·11번이 남았다.
+
   9·10 번이 계약 2항의 이월 두 항목이다. 9번이 실패하면 첫 값 정책을 다시 봐야 하고, 10번이 실패하면 로그인 화면의 잠금 해제 경로를 다시 봐야 한다.
 
 - [ ] 2.3 카카오 로그인 (fresh) — acceptance 에 App Check 인계가 들어가 있음(2.2 [L] 결정)
