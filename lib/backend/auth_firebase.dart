@@ -19,6 +19,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
+import 'app_check.dart';
 import 'auth.dart';
 import 'auth_kakao.dart';
 import 'errors.dart';
@@ -191,6 +192,11 @@ class FirebaseAuthService implements AuthService {
   /// 갈래다.
   Future<User?> _signInWithKakao() async {
     final accessToken = await _kakao.obtainAccessToken();
+    // 교환은 **App Check 토큰을 요구하는 유일한 호출**이다(함수 쪽이
+    // `enforceAppCheck: true`). `main` 이 이미 한 번 켰지만 그 시도가 던졌을
+    // 수도 있고, 그 실행에서 다시 켤 자리는 여기뿐이다 — 켜져 있으면 이 줄은
+    // 아무 일도 하지 않는다(`app_check.dart` 의 "실패한 시도는 기억하지 않는다").
+    await BackendAppCheck.ensureInitialized();
     final exchanged = await _kakao.exchange(accessToken);
     final credential = await _auth.signInWithCustomToken(exchanged.customToken);
     final user = credential.user ?? _auth.currentUser;

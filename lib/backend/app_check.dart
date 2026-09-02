@@ -27,6 +27,10 @@ class BackendAppCheck {
 
   static bool _activated = false;
 
+  /// 진행 중인 활성화 — 같은 시도가 겹쳐 두 번 나가지 않게 한다.
+  /// **성공한 시도만 기억한다**([ensureInitialized] 의 까닭 참조).
+  static Future<void>? _pending;
+
   /// 이 실행에서 App Check 이 실제로 켜졌는가 (진단·테스트용).
   static bool get isActivated => _activated;
 
@@ -38,10 +42,33 @@ class BackendAppCheck {
   /// 실패해서 **같은 사실이 이미 한 번 말해지기** 때문이다. 두 번 말하면 앱이
   /// 뜨지도 않는다.
   ///
+  /// **실패한 시도는 기억하지 않는다** (`_ensureGoogleReady`·`_ensureSdkReady`
+  /// 와 같은 규칙). 삼킴이 안전한 것은 설정 파일이 **없는** 갈래뿐이다 —
+  /// 설정은 있는데 `activate` 가 일시적으로 던진 갈래에서는 인증이 멀쩡히 서서
+  /// 로그인이 되고, 그 실행의 커스텀 토큰 함수 호출만 토큰 없이 나가 전부 401
+  /// 로 거절된다. 기억해 버리면 그 실행에서 빠져나갈 길이 앱을 다시 켜는 것뿐
+  /// 이므로, 다음 호출이 다시 시도할 수 있게 남겨 둔다. 그 "다음 호출"의 자리는
+  /// 카카오 로그인 경로다(`auth_firebase.dart` 의 `_signInWithKakao`).
+  ///
   /// 인증보다 **먼저** 불러야 한다. App Check 토큰은 활성화된 뒤에 나가는
   /// 호출에만 붙으므로, 커스텀 토큰 함수를 부르기 전에 켜져 있어야 한다.
-  static Future<void> ensureInitialized() async {
-    if (_activated) return;
+  static Future<void> ensureInitialized() {
+    if (_activated) return Future<void>.value();
+    final pending = _pending;
+    if (pending != null) return pending;
+    // 겹친 호출은 같은 시도를 함께 기다리고, 그 시도가 켜지 못한 채 끝나면
+    // 자리를 비운다 — 다음 호출이 처음부터 다시 시도한다.
+    final started = _activate()..whenComplete(_forgetFailedAttempt);
+    _pending = started;
+    return started;
+  }
+
+  static void _forgetFailedAttempt() {
+    if (!_activated) _pending = null;
+  }
+
+  /// 실제 활성화 — 던지지 않는다 (실패를 삼키는 자리가 여기다).
+  static Future<void> _activate() async {
     try {
       // 인증 쪽과 같은 이유로 여기서도 초기화를 보장한다 — 호출 순서가 어떻든
       // 이 줄 뒤에는 앱이 서 있다 (`initializeApp` 은 두 번 불러도 같다).
