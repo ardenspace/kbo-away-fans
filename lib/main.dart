@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'analytics/analytics.dart';
 import 'app.dart';
+import 'backend/app_check.dart';
 import 'backend/auth_firebase.dart';
 import 'ui/shared/stadium_map_view.dart';
 
@@ -14,6 +15,9 @@ Future<void> main() async {
   // Firebase Analytics — 설정 파일이 없거나 초기화가 실패하면
   // 조용히 no-op 모드로 남는다 (이벤트는 버려지고 앱은 정상 동작).
   await FirebaseAnalyticsClient.instance.ensureInitialized();
+  // App Check — 백엔드가 이 앱의 빌드가 건 호출만 받게 한다. 인증보다 **먼저**
+  // 켜야 커스텀 토큰 함수 호출에 토큰이 실린다 (`backend/app_check.dart`).
+  await BackendAppCheck.ensureInitialized();
   // Firebase Auth — 여기서 미리 세워 두면 세션 복원(네이티브의 첫 인증 이벤트)
   // 을 기다리는 구간이 스플래시 뒤로 숨어, 로그인해 둔 사람의 콜드 스타트에서
   // 로그인 화면이 번쩍이지 않는다. 설정 파일이 없으면 연결하지 않고 넘어가고,

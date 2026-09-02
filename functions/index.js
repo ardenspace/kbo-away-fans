@@ -32,8 +32,19 @@ setGlobalOptions({ region: 'asia-northeast3', maxInstances: 10 });
  * 로그인 **전에** 불리는 함수라 호출자 인증을 요구하지 않는다 — 요구할 수 있는
  * 자격 증명이 바로 이 함수가 발급하려는 그것이다. 대신 이 함수가 하는 일은
  * "카카오가 인정한 사람에게만 토큰을 준다" 하나로 좁혀져 있다.
+ *
+ * 그 자리를 App Check 이 메운다(`enforceAppCheck: true`). 인증을 요구할 수 없다는
+ * 것은 URL 만 알면 누구나 부를 수 있다는 뜻이고, 부르는 것 자체가 카카오 API 왕복과
+ * 함수 실행 시간이라 남의 반복 호출이 그대로 요금이 된다. 유효한 App Check 토큰이
+ * 없는 호출은 이 함수 몸이 돌기 전에 `unauthenticated` 로 거절되므로, 카카오로도
+ * 나가지 않는다. 클라이언트 배선은 `lib/backend/app_check.dart` 이고, 둘 중 하나만
+ * 서면 아무것도 막지 못한다 — 그래서 같은 단계에서 함께 선다.
+ *
+ * **강제는 배포 순서에 매인다.** 이 플래그를 켠 채로 배포하면, 콘솔에 증명 제공자가
+ * 등록되지 않았거나 개발 기기의 디버그 토큰이 없는 빌드는 그 즉시 카카오 로그인이
+ * 막힌다 (`.wellbegun/run.md` 의 2.3 사람 몫 체크리스트가 순서를 든다).
  */
-export const kakaoCustomToken = onCall(async (request) => {
+export const kakaoCustomToken = onCall({ enforceAppCheck: true }, async (request) => {
   const accessToken = request.data?.accessToken;
 
   try {
