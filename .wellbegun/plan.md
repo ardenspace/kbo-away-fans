@@ -153,7 +153,7 @@ cycle: 2
 
 ### Step 2.2: 구글·애플 로그인 실연결 + Firebase 프로젝트 설정
 1. **Goal:** Firebase 프로젝트를 Blaze 로 전환하되 예산 알림과 상한을 먼저 걸고, 구글·애플 제공자를 켜서 실제 로그인이 되게 한다.
-2. **Acceptance criteria:** 설정 파일이 없는 클론에서도 빌드·analyze·테스트가 통과한다(사이클 1의 no-op 패턴 유지). 설정이 있는 기기에서 구글 로그인으로 계정이 만들어진다. iOS 에서 애플 로그인이 동작한다. Firebase 콘솔에 예산 알림과 상한이 걸려 있다. **로그인해 둔 계정의 실기기 콜드 스타트에서 로그인 화면이 번쩍이지 않는다** (2.1 이월: `authStateProvider` 의 첫 값이 `AuthService.currentUser` 인데 Firebase Auth 는 영속 세션 복원 전까지 이 값이 null 이라 확정된 로그아웃으로 판정될 수 있다 — 번쩍이면 첫 값 정책을 여기서 고친다). **`signIn` 이 성공을 돌려준 직후 `currentUser` 가 실제로 채워지는지 확인한다** (2.1 이월: 로그인 화면의 잠금을 푸는 자리가 게이트뿐이라, 성공했는데 세션이 안 서면 앱 재시작 말고 나갈 길이 없다).
+2. **Acceptance criteria:** 설정 파일이 없는 클론에서도 빌드·analyze·테스트가 통과한다(사이클 1의 no-op 패턴 유지). 설정이 있는 기기에서 구글 로그인으로 계정이 만들어진다. iOS 에서 애플 로그인이 동작한다. Firebase 콘솔에 예산 알림이 걸려 있다(월 $5 에 해당하는 원화, 임계 50%·90%·100%). **상한이 아니라 알림이다** — Google Cloud 의 예산은 지출을 막지 않으므로 차단 장치를 만들지 않기로 한 결정이 decisions.md 에 있다. **로그인해 둔 계정의 실기기 콜드 스타트에서 로그인 화면이 번쩍이지 않는다** (2.1 이월: `authStateProvider` 의 첫 값이 `AuthService.currentUser` 인데 Firebase Auth 는 영속 세션 복원 전까지 이 값이 null 이라 확정된 로그아웃으로 판정될 수 있다 — 번쩍이면 첫 값 정책을 여기서 고친다). **`signIn` 이 성공을 돌려준 직후 `currentUser` 가 실제로 채워지는지 확인한다** (2.1 이월: 로그인 화면의 잠금을 푸는 자리가 게이트뿐이라, 성공했는데 세션이 안 서면 앱 재시작 말고 나갈 길이 없다).
 3. **Boundary tests:**
    - `flutter test` → exit 0 (설정 파일 없는 상태에서)
    - `grep -rnE "package:(firebase_|cloud_firestore)" lib --include='*.dart' | grep -vE '^lib/(backend|analytics)/'` → 매치 없음
