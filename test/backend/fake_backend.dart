@@ -13,6 +13,7 @@ library;
 import 'dart:async';
 
 import 'package:kbo_away_fans/backend/auth.dart';
+import 'package:kbo_away_fans/backend/auth_kakao.dart';
 import 'package:kbo_away_fans/backend/user_data.dart';
 
 /// 서버 시각 대역 — [ServerTimestamp] 가 이 값으로 확정된다고 본다.
@@ -238,5 +239,60 @@ class UnknownSessionAuthService implements AuthService {
 
   Future<void> dispose() async {
     if (!_changes.isClosed) await _changes.close();
+  }
+}
+
+/// 카카오의 두 걸음 대역 — SDK 로그인과 커스텀 토큰 교환.
+///
+/// 실 구현([KakaoSdkAuthGateway])만이 플랫폼 채널과 네트워크를 타는 부분이라,
+/// 이 대역을 끼우면 카카오 경로의 나머지 — 교환 결과를 Firebase 세션으로
+/// 옮기고, 실패를 도메인 오류로 옮기고, 닉네임을 세션에 심는 자리 — 가
+/// `FirebaseAuthService` **그 자체**에서 검증된다.
+///
+/// 실패는 실 구현과 같은 어휘로 흉내 낸다: 계약이 [BackendError] 만 내보내기로
+/// 되어 있으므로, [loginFailure]·[exchangeFailure] 에도 도메인 오류를 넣는다
+/// (SDK 예외를 흉내 내면 대역이 실 구현보다 넓은 계약을 시험하게 된다).
+class FakeKakaoAuthGateway extends KakaoAuthGateway {
+  FakeKakaoAuthGateway({
+    this.accessToken = 'kakao-access-token',
+    this.customToken = const KakaoCustomToken(
+      customToken: 'custom-token',
+      uid: 'kakao:1234567890',
+      nickname: '원정러',
+    ),
+  });
+
+  /// [obtainAccessToken] 이 돌려줄 액세스 토큰.
+  String accessToken;
+
+  /// [exchange] 가 돌려줄 교환 결과.
+  KakaoCustomToken customToken;
+
+  /// null 이 아니면 [obtainAccessToken] 이 이것을 던진다.
+  Object? loginFailure;
+
+  /// null 이 아니면 [exchange] 가 이것을 던진다.
+  Object? exchangeFailure;
+
+  /// 카카오 SDK 로그인 호출 횟수.
+  int loginCalls = 0;
+
+  /// 교환에 실제로 실려 간 액세스 토큰들 — 순서대로.
+  final List<String> exchangedTokens = [];
+
+  @override
+  Future<String> obtainAccessToken() async {
+    loginCalls++;
+    final error = loginFailure;
+    if (error != null) throw error;
+    return accessToken;
+  }
+
+  @override
+  Future<KakaoCustomToken> exchange(String accessToken) async {
+    exchangedTokens.add(accessToken);
+    final error = exchangeFailure;
+    if (error != null) throw error;
+    return customToken;
   }
 }

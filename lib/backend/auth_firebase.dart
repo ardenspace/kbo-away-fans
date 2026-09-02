@@ -1,4 +1,4 @@
-/// 인증 계층의 실제 구현 — Firebase Auth 위의 구글·애플 로그인.
+/// 인증 계층의 실제 구현 — Firebase Auth 위의 세 제공자 로그인.
 ///
 /// `auth.dart` 가 계약(타입)이고 이 파일이 그 계약의 몸이다. 둘을 나눈 것은
 /// 계약을 읽는 사람이 SDK 사정을 함께 읽지 않아도 되게 하려는 것이고,
@@ -6,9 +6,11 @@
 /// 바꿀 때 볼 자리도 하나이기 때문이다 (경계는 `lib/backend/` 전체이므로
 /// 훅 기준으로는 어느 쪽에 두어도 같지만, 읽는 사람 기준으로는 다르다).
 ///
-/// 세 제공자 중 둘만 여기 있다. 카카오는 커스텀 토큰 교환이 먼저라 step 2.3
-/// 이 같은 자리에 붙인다 — 그전까지 카카오 로그인은
-/// [kSignInProviderNotWiredCode] 로 실패한다(조용히 성공한 척하지 않는다).
+/// 세 제공자가 여기서 만난다. 구글·애플은 Firebase Auth 의 기본 제공자라 이
+/// 파일이 처음부터 끝까지 맡고, 카카오는 앞의 두 걸음(SDK 로그인 → 커스텀
+/// 토큰 교환)이 `auth_kakao.dart` 의 [KakaoAuthGateway] 뒤에 있다. 마지막
+/// 걸음부터는 셋이 같은 길을 지난다 — 세션이 실제로 섰는지 판정하는 규칙을
+/// 제공자마다 따로 두지 않는다.
 library;
 
 import 'dart:async';
@@ -18,6 +20,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
 import 'auth.dart';
+import 'auth_kakao.dart';
 import 'errors.dart';
 
 /// Firebase 설정 파일이 없어 인증이 연결되지 않았다.
@@ -39,9 +42,6 @@ const String kFirebaseUnconfiguredCode = 'firebase-unconfigured';
 /// 없어진다([M] 2026-09-02 세션 수립 판정 결정).
 const String kSessionNotEstablishedCode = 'session-not-established';
 
-/// 아직 이 구현에 붙지 않은 제공자로 로그인을 시도했다 (지금은 카카오 — 2.3).
-const String kSignInProviderNotWiredCode = 'provider-not-wired';
-
 /// 사용자가 제공자 화면을 스스로 닫았을 때의 코드 (구글·애플 공통으로 옮긴다).
 const String kSignInCanceledCode = 'canceled';
 
@@ -54,7 +54,7 @@ const String kSignInWebCanceledCode = 'web-context-canceled';
 /// 실행에서만 선다. 없는 실행에서는 [ensureInitialized] 가 조용히 넘어가고
 /// [instance] 가 [kFirebaseUnconfiguredCode] 로 던진다.
 class FirebaseAuthService implements AuthService {
-  FirebaseAuthService._(this._auth) {
+  FirebaseAuthService._(this._auth, this._kakao) {
     _bindSessionStream();
   }
 
@@ -68,10 +68,20 @@ class FirebaseAuthService implements AuthService {
   /// 끝나야 영속 세션이 복원된 결과를 읽을 수 있고([_bindSessionStream] 의
   /// 까닭 참조), 그 확정을 앱이 시작할 때 해 두면 게이트가 처음 상태를 읽는
   /// 시점에는 이미 답이 나와 있다.
-  static Future<void> ensureInitialized() async {
+  ///
+  /// [kakaoGateway] 는 카카오의 두 걸음(SDK 로그인 → 커스텀 토큰 교환)을 갈아
+  /// 끼우는 자리다. 기본값은 실제 구현이고, 넘기는 곳은 테스트뿐이다 — 그 둘만
+  /// 단위 테스트에서 돌 수 없어서(플랫폼 채널·네트워크) 주입점을 이 한 자리에
+  /// 두었다. 앱의 `main` 은 인수 없이 부른다.
+  static Future<void> ensureInitialized({
+    KakaoAuthGateway? kakaoGateway,
+  }) async {
     try {
       await Firebase.initializeApp();
-      _instance ??= FirebaseAuthService._(FirebaseAuth.instance);
+      _instance ??= FirebaseAuthService._(
+        FirebaseAuth.instance,
+        kakaoGateway ?? KakaoSdkAuthGateway(),
+      );
     } catch (_) {
       // 설정 없는 클론·초기화 실패 — 연결하지 않고 넘어간다.
     }
@@ -87,6 +97,9 @@ class FirebaseAuthService implements AuthService {
   }
 
   final FirebaseAuth _auth;
+
+  /// 카카오의 두 걸음 — 이 계층 밖에서는 보이지 않는다.
+  final KakaoAuthGateway _kakao;
 
   /// 이 구현이 내보내는 세션 스트림 — SDK 스트림을 그대로 흘리지 않는다
   /// ([_bindSessionStream] 의 까닭 참조).
@@ -117,17 +130,18 @@ class FirebaseAuthService implements AuthService {
   @override
   Future<AuthUser> signIn(AuthProviderId provider) => guardBackend(() async {
     try {
-      final credential = switch (provider) {
-        AuthProviderId.google => await _signInWithGoogle(),
-        AuthProviderId.apple => await _auth.signInWithProvider(
-          AppleAuthProvider(),
-        ),
-        AuthProviderId.kakao => throw const BackendUnknownError(
-          code: kSignInProviderNotWiredCode,
-        ),
+      // 세 갈래가 각자 제공자 흐름을 끝내고 **세션의 사용자**로 만난다.
+      // 자격 증명 객체가 아니라 사용자로 모으는 것은 카카오 때문이다: 닉네임을
+      // 세션에 심는 걸음이 SDK 캐시의 사용자 객체를 갈아 끼우므로, 자격 증명이
+      // 들고 있던 사본은 그 시점에 이미 옛 값이 된다([_signInWithKakao] 참조).
+      final signedIn = switch (provider) {
+        AuthProviderId.google => (await _signInWithGoogle()).user,
+        AuthProviderId.apple =>
+          (await _auth.signInWithProvider(AppleAuthProvider())).user,
+        AuthProviderId.kakao => await _signInWithKakao(),
       };
       // 제공자 흐름이 끝났다는 것과 세션이 섰다는 것을 여기서 맞춰 본다.
-      final user = _toAuthUser(credential.user ?? _auth.currentUser);
+      final user = _toAuthUser(signedIn ?? _auth.currentUser);
       if (user == null) {
         throw const BackendUnknownError(code: kSessionNotEstablishedCode);
       }
@@ -156,6 +170,44 @@ class FirebaseAuthService implements AuthService {
     } catch (_) {}
     _publish(null);
   });
+
+  /// 카카오 SDK 로그인 → 커스텀 토큰 교환 → Firebase 세션.
+  ///
+  /// 앞의 두 걸음은 [KakaoAuthGateway] 뒤에 있고(`auth_kakao.dart`), 여기서
+  /// 하는 일은 그 결과를 Firebase 세션으로 옮기는 것과 **닉네임을 심는 것**
+  /// 둘이다.
+  ///
+  /// 닉네임을 심는 까닭: 커스텀 토큰으로 만들어진 계정은 표시 이름이 비어 있고,
+  /// 카카오가 준 닉네임은 함수 응답에만 실려 온다(사용자 문서의 씨앗값이라
+  /// 클레임에 싣지 않기로 했다 — `functions/custom-token.js` 참조). 그 값을
+  /// 여기서 Firebase 프로필에 한 번 심어 두면 표시 이름의 출처가 세 제공자
+  /// 모두 Firebase 하나로 남는다. 대신 반환 값에만 실어 나르면 다음 세션부터
+  /// (또는 네이티브가 세션을 다시 말하는 순간) 같은 사람의 표시 이름이 조용히
+  /// null 로 바뀐다.
+  ///
+  /// 심기가 실패해도 삼킨다 — 세션은 이미 섰고, 여기서 던지면 **로그인에
+  /// 성공한 사람에게 실패 안내가** 뜬다. 심지 못했을 때의 결과는 닉네임에
+  /// 동의하지 않은 사람과 같은 모양(표시 이름 없음)이라 뒷단계가 이미 다루는
+  /// 갈래다.
+  Future<User?> _signInWithKakao() async {
+    final accessToken = await _kakao.obtainAccessToken();
+    final exchanged = await _kakao.exchange(accessToken);
+    final credential = await _auth.signInWithCustomToken(exchanged.customToken);
+    final user = credential.user ?? _auth.currentUser;
+    final nickname = exchanged.nickname;
+    if (user == null || nickname == null || (user.displayName ?? '').isNotEmpty) {
+      return user;
+    }
+    try {
+      await user.updateDisplayName(nickname);
+    } catch (_) {
+      return user;
+    }
+    // `updateProfile` 은 플러그인의 캐시 사용자를 새 객체로 갈아 끼운다
+    // (`firebase_auth-6.6.1` 의 `MethodChannelUser.updateProfile`). 그래서
+    // 방금 심은 이름을 들고 있는 쪽은 `credential.user` 가 아니라 캐시다.
+    return _auth.currentUser ?? user;
+  }
 
   /// 구글 계정 선택 → id 토큰 → Firebase 자격 증명.
   Future<UserCredential> _signInWithGoogle() async {

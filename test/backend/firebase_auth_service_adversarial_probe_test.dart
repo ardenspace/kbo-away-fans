@@ -28,6 +28,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kbo_away_fans/backend/auth.dart';
 import 'package:kbo_away_fans/backend/auth_firebase.dart';
+import 'package:kbo_away_fans/backend/auth_kakao.dart';
 import 'package:kbo_away_fans/backend/errors.dart';
 
 // ---------------------------------------------------------------- 대역
@@ -239,7 +240,12 @@ void main() {
     );
   });
 
-  test('탐침 6: 카카오는 조용히 성공하지 않고 provider-not-wired 로 실패한다', () async {
+  // 이 파일은 카카오 게이트웨이를 주입하지 않는다 — 그래서 여기서 카카오는
+  // 앱 키가 없는 클론의 모양 그대로다. 2.3 이 카카오를 붙이면서 이 탐침이
+  // 재는 것도 `provider-not-wired` 에서 `kakao-key-missing` 으로 옮겨 갔지만,
+  // 재는 성질은 그대로다: **설정이 없는 실행은 조용히 성공하지 않는다.**
+  // 게이트웨이를 끼운 성공·실패 경로는 `kakao_sign_in_test.dart` 에 있다.
+  test('탐침 6: 카카오는 조용히 성공하지 않고 설정 결함으로 드러나게 실패한다', () async {
     Object? thrown;
     try {
       await FirebaseAuthService.instance.signIn(AuthProviderId.kakao);
@@ -247,7 +253,7 @@ void main() {
       thrown = error;
     }
     expect(thrown, isA<BackendUnknownError>());
-    expect((thrown! as BackendError).code, kSignInProviderNotWiredCode);
+    expect((thrown! as BackendError).code, kKakaoKeyMissingCode);
   });
 
   test('탐침 7: 애플 취소(FirebaseAuthException canceled)는 권한 갈래로 옮겨진다', () async {
