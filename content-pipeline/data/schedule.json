@@ -1,67 +1,7 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-09-02T13:41:20.877Z",
+  "generatedAt": "2026-09-02T17:29:25.471Z",
   "games": [
-    {
-      "id": "20260819HTHH02026",
-      "date": "2026-08-19",
-      "startTime": "19:00",
-      "homeTeamId": "hanwha",
-      "awayTeamId": "kia",
-      "stadiumId": "daejeon",
-      "status": "finished",
-      "homeScore": 3,
-      "awayScore": 6,
-      "result": "away_win"
-    },
-    {
-      "id": "20260819KTLG02026",
-      "date": "2026-08-19",
-      "startTime": "19:00",
-      "homeTeamId": "lg",
-      "awayTeamId": "kt",
-      "stadiumId": "jamsil",
-      "status": "finished",
-      "homeScore": 1,
-      "awayScore": 0,
-      "result": "home_win"
-    },
-    {
-      "id": "20260819OBNC02026",
-      "date": "2026-08-19",
-      "startTime": "19:00",
-      "homeTeamId": "nc",
-      "awayTeamId": "doosan",
-      "stadiumId": "changwon",
-      "status": "finished",
-      "homeScore": 2,
-      "awayScore": 8,
-      "result": "away_win"
-    },
-    {
-      "id": "20260819SKSS02026",
-      "date": "2026-08-19",
-      "startTime": "19:00",
-      "homeTeamId": "samsung",
-      "awayTeamId": "ssg",
-      "stadiumId": "daegu",
-      "status": "finished",
-      "homeScore": 18,
-      "awayScore": 4,
-      "result": "home_win"
-    },
-    {
-      "id": "20260819WOLT02026",
-      "date": "2026-08-19",
-      "startTime": "19:00",
-      "homeTeamId": "lotte",
-      "awayTeamId": "kiwoom",
-      "stadiumId": "sajik",
-      "status": "finished",
-      "homeScore": 5,
-      "awayScore": 4,
-      "result": "home_win"
-    },
     {
       "id": "20260820HTHH02026",
       "date": "2026-08-20",
@@ -693,7 +633,10 @@
       "homeTeamId": "kt",
       "awayTeamId": "hanwha",
       "stadiumId": "suwon",
-      "status": "scheduled"
+      "status": "finished",
+      "homeScore": 9,
+      "awayScore": 6,
+      "result": "home_win"
     },
     {
       "id": "20260902HTNC02026",
@@ -738,7 +681,10 @@
       "homeTeamId": "kiwoom",
       "awayTeamId": "ssg",
       "stadiumId": "gocheok",
-      "status": "scheduled"
+      "status": "finished",
+      "homeScore": 6,
+      "awayScore": 9,
+      "result": "away_win"
     },
     {
       "id": "20260903HHKT02026",
