@@ -138,28 +138,71 @@ abstract class KakaoAuthGateway {
 
 /// 실제 구현 — 카카오 SDK + `cloud_functions`.
 ///
-/// `package:kakao_flutter_sdk_user` import 가 저장소에서 이 파일에만 있다
+/// `package:kakao_flutter_sdk_user` import 가 `lib/` 안에서는 이 파일에만 있다
 /// (`scripts/hooks/check-firebase-import-boundary.sh` 가 `lib/backend/` 밖을
 /// 막고, 폴더 안에서 한 파일로 모으는 것은 읽는 사람을 위한 몫이다 —
 /// `auth_firebase.dart` 가 `firebase_auth`·`google_sign_in` 을 모아 둔 것과
-/// 같은 이유).
+/// 같은 이유). 테스트는 카카오 예외를 **만들어야** 하므로 같은 패키지를
+/// import 한다 — 계약이 막는 것은 `lib/backend/` 밖의 `lib/` 다.
+///
+/// **SDK 와 닿는 자리가 셋이고, 셋 다 [KakaoSdkAuthGateway.withSeams] 로 갈아
+/// 끼울 수 있다**: 앱 키, `KakaoSdk.init`, 로그인 호출. 이 주입점이 없으면
+/// [obtainAccessToken] 안쪽은 어떤 시험도 닿지 못한다 — 저장소의 앱 키가 비어
+/// 있는 동안은 `_ensureSdkReady` 가 먼저 던지고, 키를 채우면 그다음 줄이
+/// 플랫폼 채널을 타기 때문이다. 그래서 "설정이 없는 실행은 조용히 성공하지
+/// 않는다"도, SDK 초기화 실패가 카카오 어휘를 지키는지도, 시험이 **스스로
+/// 만든 조건** 위에서 재어진다(우연히 비어 있는 상수 위가 아니라).
 class KakaoSdkAuthGateway extends KakaoAuthGateway {
-  KakaoSdkAuthGateway();
+  /// 앱이 쓰는 생성자 — 저장소의 앱 키와 실제 SDK 호출을 꽂는다.
+  KakaoSdkAuthGateway()
+    : this.withSeams(
+        appKey: kKakaoNativeAppKey,
+        sdkInit: _initKakaoSdk,
+        sdkLogin: _loginWithKakaoSdk,
+      );
+
+  /// SDK 접점 셋을 갈아 끼우는 생성자 — 테스트 전용이다.
+  @visibleForTesting
+  KakaoSdkAuthGateway.withSeams({
+    required String appKey,
+    required Future<void> Function(String nativeAppKey) sdkInit,
+    required Future<String> Function() sdkLogin,
+  }) : _nativeAppKey = appKey,
+       _initSdk = sdkInit,
+       _login = sdkLogin;
+
+  final String _nativeAppKey;
+  final Future<void> Function(String nativeAppKey) _initSdk;
+  final Future<String> Function() _login;
 
   /// `KakaoSdk.init()` 은 한 번만 부르면 된다 — 그 한 번을 기억한다.
   /// 실패한 시도는 기억하지 않는다(`_ensureGoogleReady` 와 같은 이유: 기억하면
   /// 첫 실패가 앱을 켜 있는 동안 카카오 로그인을 영구히 막는다).
   Future<void>? _sdkReady;
 
+  static Future<void> _initKakaoSdk(String nativeAppKey) =>
+      KakaoSdk.init(nativeAppKey: nativeAppKey);
+
+  /// 카카오톡이 깔려 있으면 앱으로, 아니면 카카오계정 웹으로.
+  ///
+  /// 어느 로그인을 어떤 순서로 부를지의 규칙은 [kakaoLoginWithTalkFallback] 에
+  /// 있다 — 여기는 그 규칙에 **실제 SDK 호출 세 개를 꽂는 배선**뿐이다.
+  static Future<String> _loginWithKakaoSdk() async =>
+      (await kakaoLoginWithTalkFallback<OAuthToken>(
+        isTalkInstalled: isKakaoTalkInstalled,
+        withTalk: UserApi.instance.loginWithKakaoTalk,
+        withAccount: UserApi.instance.loginWithKakaoAccount,
+      )).accessToken;
+
   Future<void> _ensureSdkReady() async {
-    if (kKakaoNativeAppKey.isEmpty) {
+    if (_nativeAppKey.isEmpty) {
       // SDK 를 건드리기 **전에** 막는다 — `KakaoSdk.init` 은 플랫폼 정보를
       // 읽으러 채널을 타므로, 키가 없다는 사실이 채널 오류로 뭉개진다.
       throw const BackendUnknownError(code: kKakaoKeyMissingCode);
     }
     final pending = _sdkReady;
     if (pending != null) return pending;
-    final started = KakaoSdk.init(nativeAppKey: kKakaoNativeAppKey);
+    final started = _initSdk(_nativeAppKey);
     _sdkReady = started;
     try {
       await started;
@@ -171,29 +214,24 @@ class KakaoSdkAuthGateway extends KakaoAuthGateway {
 
   @override
   Future<String> obtainAccessToken() async {
-    await _ensureSdkReady();
     try {
-      final token = await _login();
-      if (token.accessToken.isEmpty) {
+      // 초기화도 이 try 안이다. 밖에 두면 `KakaoSdk.init` 이 던지는
+      // `KakaoException`·`PlatformException` 이 옮겨지지 않은 채 `guardBackend`
+      // 로 가서 `unknown` 이 되고, 이 파일이 약속하는 `kakao-client-*`·
+      // `kakao-platform-*` 진단 코드가 함수 로그와 버그 리포트에서 사라진다.
+      // 앱 키 없음 갈래는 이미 `BackendError` 라 이 catch 들을 그냥 지나간다.
+      await _ensureSdkReady();
+      final accessToken = await _login();
+      if (accessToken.isEmpty) {
         throw const BackendUnknownError(code: kKakaoAccessTokenMissingCode);
       }
-      return token.accessToken;
+      return accessToken;
     } on KakaoException catch (error, stackTrace) {
       Error.throwWithStackTrace(backendErrorFromKakao(error), stackTrace);
     } on PlatformException catch (error, stackTrace) {
       Error.throwWithStackTrace(backendErrorFromPlatform(error), stackTrace);
     }
   }
-
-  /// 카카오톡이 깔려 있으면 앱으로, 아니면 카카오계정 웹으로.
-  ///
-  /// 어느 로그인을 어떤 순서로 부를지의 규칙은 [kakaoLoginWithTalkFallback] 에
-  /// 있다 — 이 메서드는 그 규칙에 **실제 SDK 호출 세 개를 꽂는 배선**뿐이다.
-  Future<OAuthToken> _login() => kakaoLoginWithTalkFallback<OAuthToken>(
-    isTalkInstalled: isKakaoTalkInstalled,
-    withTalk: UserApi.instance.loginWithKakaoTalk,
-    withAccount: UserApi.instance.loginWithKakaoAccount,
-  );
 
   @override
   Future<KakaoCustomToken> exchange(String accessToken) async {

@@ -160,7 +160,15 @@ void main() {
     FirebasePlatform.instance = _FakeCore();
     platform = _FakeAuthPlatform();
     FirebaseAuthPlatform.instance = platform;
-    await FirebaseAuthService.ensureInitialized();
+    // 카카오는 **실 게이트웨이**를 끼우되 앱 키가 없는 실행으로 세운다
+    // (탐침 6 의 조건 — 그 케이스의 주석 참조).
+    await FirebaseAuthService.ensureInitialized(
+      kakaoGateway: KakaoSdkAuthGateway.withSeams(
+        appKey: '',
+        sdkInit: (_) async => fail('앱 키가 없으면 SDK 를 건드리기 전에 막아야 한다'),
+        sdkLogin: () async => fail('앱 키가 없으면 로그인까지 가지 않는다'),
+      ),
+    );
   });
 
   ProviderContainer container() {
@@ -240,11 +248,20 @@ void main() {
     );
   });
 
-  // 이 파일은 카카오 게이트웨이를 주입하지 않는다 — 그래서 여기서 카카오는
-  // 앱 키가 없는 클론의 모양 그대로다. 2.3 이 카카오를 붙이면서 이 탐침이
-  // 재는 것도 `provider-not-wired` 에서 `kakao-key-missing` 으로 옮겨 갔지만,
-  // 재는 성질은 그대로다: **설정이 없는 실행은 조용히 성공하지 않는다.**
-  // 게이트웨이를 끼운 성공·실패 경로는 `kakao_sign_in_test.dart` 에 있다.
+  // 재는 성질은 **설정이 없는 실행은 조용히 성공하지 않는다**이다. 2.3 이
+  // 카카오를 붙이면서 그 실패의 이름만 `provider-not-wired` 에서
+  // `kakao-key-missing` 으로 옮겨 갔다.
+  //
+  // 그 조건은 **이 파일이 만든다** — setUpAll 이 실 `KakaoSdkAuthGateway` 를
+  // 앱 키 없는 실행으로 세워 끼운다. 앞 라운드까지는 게이트웨이를 아예 끼우지
+  // 않고 저장소의 상수가 우연히 비어 있다는 사실에 얹혀 있었는데, 사람이
+  // 카카오 콘솔에서 키를 받아 채우는 순간 이 탐침은 실 `KakaoSdk.init` 을
+  // 유닛 테스트 안에서 부르며 깨졌다(경고 한 줄 없이). 재는 성질은 키를 채운
+  // 뒤에도 참이어야 하므로, 조건도 시험이 세운다.
+  //
+  // 가짜가 아니라 실 게이트웨이를 끼우는 것은 이 파일이 대역이 아니라 **앱이
+  // 실제로 쓰는 구현**을 재는 탐침이기 때문이다. 게이트웨이를 가짜로 끼운
+  // 성공·실패 경로는 `kakao_sign_in_test.dart` 에 있다.
   test('탐침 6: 카카오는 조용히 성공하지 않고 설정 결함으로 드러나게 실패한다', () async {
     Object? thrown;
     try {
