@@ -74,9 +74,25 @@ class FirebaseAuthService implements AuthService {
   /// 끼우는 자리다. 기본값은 실제 구현이고, 넘기는 곳은 테스트뿐이다 — 그 둘만
   /// 단위 테스트에서 돌 수 없어서(플랫폼 채널·네트워크) 주입점을 이 한 자리에
   /// 두었다. 앱의 `main` 은 인수 없이 부른다.
+  ///
+  /// **이미 선 인스턴스에 다른 게이트웨이를 끼우려 하면 [StateError] 로 드러나게
+  /// 실패한다.** 조용히 버리면 그렇게 부른 테스트는 새 게이트웨이를 끼웠다고
+  /// 믿으면서 옛 것을 재게 되고, 그 착각은 초록불 뒤에 숨는다 — 인스턴스가
+  /// 파일당 하나라는 규약을 사람의 기억이 아니라 여기서 지킨다. 인수 없는
+  /// 호출과 같은 게이트웨이를 다시 넘기는 호출은 그대로 넘어간다(멱등).
   static Future<void> ensureInitialized({
     KakaoAuthGateway? kakaoGateway,
   }) async {
+    final standing = _instance;
+    if (standing != null) {
+      if (kakaoGateway != null && !identical(standing._kakao, kakaoGateway)) {
+        throw StateError(
+          '이미 선 FirebaseAuthService 에 다른 카카오 게이트웨이를 끼울 수 없다 — '
+          '주입은 인스턴스가 서기 전 한 번뿐이다(테스트 파일당 하나).',
+        );
+      }
+      return;
+    }
     try {
       await Firebase.initializeApp();
       _instance ??= FirebaseAuthService._(
