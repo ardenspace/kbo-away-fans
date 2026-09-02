@@ -166,29 +166,21 @@ class KakaoSdkAuthGateway extends KakaoAuthGateway {
       }
       return token.accessToken;
     } on KakaoException catch (error, stackTrace) {
-      Error.throwWithStackTrace(_fromKakao(error), stackTrace);
+      Error.throwWithStackTrace(backendErrorFromKakao(error), stackTrace);
     } on PlatformException catch (error, stackTrace) {
-      Error.throwWithStackTrace(_fromPlatform(error), stackTrace);
+      Error.throwWithStackTrace(backendErrorFromPlatform(error), stackTrace);
     }
   }
 
   /// 카카오톡이 깔려 있으면 앱으로, 아니면 카카오계정 웹으로.
   ///
-  /// 카카오톡 로그인이 **취소가 아닌** 이유로 실패하면 계정 로그인으로 한 번
-  /// 갈아탄다 (카카오톡이 깔려 있어도 로그인돼 있지 않거나 앱이 응답하지 못하는
-  /// 경우가 있다). 취소일 때 갈아타지 않는 것은, 화면을 스스로 닫은 사람에게
-  /// 다른 로그인 창을 곧바로 다시 띄우는 셈이 되기 때문이다.
-  Future<OAuthToken> _login() async {
-    if (await isKakaoTalkInstalled()) {
-      try {
-        return await UserApi.instance.loginWithKakaoTalk();
-      } catch (error) {
-        if (_isCanceled(error)) rethrow;
-        return UserApi.instance.loginWithKakaoAccount();
-      }
-    }
-    return UserApi.instance.loginWithKakaoAccount();
-  }
+  /// 어느 로그인을 어떤 순서로 부를지의 규칙은 [kakaoLoginWithTalkFallback] 에
+  /// 있다 — 이 메서드는 그 규칙에 **실제 SDK 호출 세 개를 꽂는 배선**뿐이다.
+  Future<OAuthToken> _login() => kakaoLoginWithTalkFallback<OAuthToken>(
+    isTalkInstalled: isKakaoTalkInstalled,
+    withTalk: UserApi.instance.loginWithKakaoTalk,
+    withAccount: UserApi.instance.loginWithKakaoAccount,
+  );
 
   @override
   Future<KakaoCustomToken> exchange(String accessToken) async {
@@ -200,6 +192,42 @@ class KakaoSdkAuthGateway extends KakaoAuthGateway {
     });
     return kakaoCustomTokenFromCallable(result.data);
   }
+}
+
+/// 카카오톡 로그인과 계정 로그인 중 **어느 것을 어떤 순서로 부르는가**.
+///
+/// 함수 밖으로 꺼내 둔 것은 `kakaoCustomTokenFromCallable` 과 같은 까닭이다 —
+/// 이 규칙은 SDK 없이 재는 조각인데, 실 게이트웨이 안에 있으면 `_ensureSdkReady`
+/// 가 앱 키 없음으로 먼저 던져서 어떤 시험도 여기에 닿지 못한다. 세 호출을
+/// 인수로 받으므로 시험은 SDK 를 세우지 않고 순서만 잰다
+/// (`test/backend/kakao_error_mapping_test.dart`).
+///
+/// 규칙은 둘이다 ([S] 2026-09-03 결정):
+///
+///  1. 카카오톡이 깔려 있으면 앱으로 로그인한다. 그 로그인이 **취소가 아닌**
+///     이유로 실패하면 계정 로그인으로 한 번 갈아탄다 — 카카오톡이 깔려 있어도
+///     로그인돼 있지 않거나 앱이 응답하지 못하는 기기가 흔하고, 갈아타지 않으면
+///     그 사람에게 카카오 로그인은 아예 없는 것이 된다.
+///  2. 취소면 갈아타지 않는다. 화면을 스스로 닫은 사람에게 다른 로그인 창을
+///     곧바로 다시 띄우면 앱이 사용자의 선택을 무시하는 모양이 된다.
+///
+/// 토큰 타입을 열어 둔 것은 이 규칙이 **어떤 값이 돌아오는지와 무관**하기
+/// 때문이다 (실제로는 언제나 `OAuthToken` 이다).
+@visibleForTesting
+Future<T> kakaoLoginWithTalkFallback<T>({
+  required Future<bool> Function() isTalkInstalled,
+  required Future<T> Function() withTalk,
+  required Future<T> Function() withAccount,
+}) async {
+  if (await isTalkInstalled()) {
+    try {
+      return await withTalk();
+    } catch (error) {
+      if (kakaoSignInWasCanceled(error)) rethrow;
+      return withAccount();
+    }
+  }
+  return withAccount();
 }
 
 /// callable 응답 → [KakaoCustomToken].
@@ -230,10 +258,17 @@ KakaoCustomToken kakaoCustomTokenFromCallable(Object? data) {
   );
 }
 
-/// 사용자가 스스로 닫았는가 — 카카오는 이 사실을 두 모양으로 말한다.
-bool _isCanceled(Object error) =>
-    (error is KakaoClientException && error.reason == ClientErrorCause.cancelled) ||
-    (error is KakaoAuthException && error.error == AuthErrorCause.accessDenied) ||
+/// 사용자가 스스로 닫았는가 — 카카오는 이 사실을 **세 모양**으로 말한다.
+///
+/// 셋을 한 함수에 모은 것은 판별이 갈래마다 흩어지면 한 모양만 놓쳐도 그 사람의
+/// 취소가 "알 수 없는 실패"로 안내되기 때문이고, 꺼내 둔 것은 이 판별이 SDK 를
+/// 타지 않는 조각이기 때문이다 ([kakaoLoginWithTalkFallback] 의 까닭과 같다).
+@visibleForTesting
+bool kakaoSignInWasCanceled(Object error) =>
+    (error is KakaoClientException &&
+        error.reason == ClientErrorCause.cancelled) ||
+    (error is KakaoAuthException &&
+        error.error == AuthErrorCause.accessDenied) ||
     (error is PlatformException && error.code == 'CANCELED');
 
 /// 카카오 SDK 예외 → 도메인 오류.
@@ -242,8 +277,9 @@ bool _isCanceled(Object error) =>
 /// 로그인을 끝내지 않았다"를 사용자의 말로 옮긴다 (`_fromGoogleSignIn` 참조).
 /// 나머지는 `kakao-` 접두를 붙여 알 수 없음으로 보낸다 — 화면이 갈래를 더
 /// 나눌 수 없고, 진단에 필요한 것은 도메인이 아니라 이 코드다.
-BackendError _fromKakao(KakaoException error) {
-  if (_isCanceled(error)) {
+@visibleForTesting
+BackendError backendErrorFromKakao(KakaoException error) {
+  if (kakaoSignInWasCanceled(error)) {
     return BackendPermissionError(code: kSignInCanceledCode, cause: error);
   }
   if (error is KakaoClientException) {
@@ -262,6 +298,8 @@ BackendError _fromKakao(KakaoException error) {
 }
 
 /// 플랫폼 채널 예외 → 도메인 오류 (카카오톡 앱을 띄우는 자리가 이 길로 온다).
-BackendError _fromPlatform(PlatformException error) => _isCanceled(error)
+@visibleForTesting
+BackendError backendErrorFromPlatform(PlatformException error) =>
+    kakaoSignInWasCanceled(error)
     ? BackendPermissionError(code: kSignInCanceledCode, cause: error)
     : BackendUnknownError(code: 'kakao-platform-${error.code}', cause: error);
