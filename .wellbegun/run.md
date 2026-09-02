@@ -117,7 +117,34 @@ cycle: 2
 
   9·10 번이 계약 2항의 이월 두 항목이다. 9번이 실패하면 첫 값 정책을 다시 봐야 하고, 10번이 실패하면 로그인 화면의 잠금 해제 경로를 다시 봐야 한다.
 
-- [ ] 2.3 카카오 로그인 (fresh) — acceptance 에 App Check 인계가 들어가 있음(2.2 [L] 결정)
+- [>] 2.3 카카오 로그인 — implementing, high-tier (opus) / 검증 tier fresh; acceptance 에 App Check 인계가 들어가 있음(2.2 [L] 결정). 구현자 범위는 코드 몫까지이고 콘솔·실배포는 사람 몫 체크리스트로 받는다(사용자의 선 결정: "코드 먼저, 콘솔은 체크리스트로").
+
+  **2.3 사람 몫 체크리스트 — 코드 몫은 끝났고 여기부터가 사람이다.**
+  까닭: 카카오 앱 등록·App Check 증명 제공자·함수 배포는 저장소 밖에서만 할 수 있고,
+  셋의 **순서가 서로 매여 있다**. 특히 9번(배포)을 5·6번보다 먼저 하면 그 순간부터
+  카카오 로그인이 전부 막힌다 — 함수가 `enforceAppCheck: true` 로 배포되기 때문이다.
+
+  | # | 할 일 | 끝난 것을 아는 방법 |
+  |---|---|---|
+  | 1 | 카카오 개발자 콘솔(developers.kakao.com) → 내 애플리케이션 추가 | 앱 상세에 **네이티브 앱 키**가 보인다 |
+  | 2 | 그 키를 세 자리에 **같은 값으로** 적는다: `lib/backend/auth_kakao.dart` 의 `kKakaoNativeAppKey`, `android/app/src/main/AndroidManifest.xml` 의 `android:scheme="kakao{키}"`, `ios/Runner/Info.plist` 의 `CFBundleURLTypes` → `kakao{키}` | `flutter test test/backend/kakao_app_key_sync_test.dart` 가 통과한다 (세 자리가 어긋나면 여기서 잡힌다) |
+  | 3 | 콘솔 → 플랫폼: Android 패키지명 `com.ardenspace.kbo_away_fans` + **키 해시**, iOS 번들 ID 등록 | 플랫폼 목록에 둘이 보인다. 이 등록이 앱 키의 실제 방어선이다 (키 자체는 저장소에 두는 값 — decisions.md [S]) |
+  | 4 | 콘솔 → 카카오 로그인 **활성화**, 동의 항목은 **닉네임 하나만** | 카카오 로그인 상태가 ON, 동의 항목에 프로필 정보(닉네임)만 선택됨. 이메일·전화번호를 켜지 말 것 (비즈니스 채널을 요구하고 앱이 그 값으로 하는 일이 없다) |
+  | 5 | Firebase 콘솔 → App Check → 앱 두 개(Android·iOS) 등록 | App Check 앱 목록에 둘이 보인다. **증명 제공자는 지금 등록할 수 없다** — Play Integrity 는 Play Console 등록을, DeviceCheck·App Attest 는 유료 Apple Developer Program 을 요구한다(아래 "인계 사실" 참조). 디버그 토큰만으로 6번을 진행한다 |
+  | 6 | **디버그 토큰 등록** — 개발에 쓰는 기기·시뮬레이터·에뮬레이터마다 각각 한 번씩: 앱을 디버그로 실행 → 콘솔 로그에서 `Firebase App Check Debug Token: <UUID>` 를 찾아 복사 → Firebase 콘솔 → App Check → 해당 앱의 ⋮ → **디버그 토큰 관리** → 추가 | 콘솔의 디버그 토큰 목록에 기기 수만큼 있다. **토큰은 앱을 지웠다 깔면 바뀐다** — 다시 안 되면 여기부터 의심한다 |
+  | 7 | 배포 대상 프로젝트 확인 (`firebase use`) | `firebase use` 가 이 앱의 프로젝트 id 를 답한다 |
+  | 8 | `npm ci --prefix functions` | `functions/node_modules/` 가 생기고 `npm --prefix functions test` 가 그대로 통과 |
+  | 9 | `firebase deploy --only functions` | 콘솔 → Functions 에 `kakaoCustomToken` 이 `asia-northeast3` 리전으로 보인다. **5·6번 뒤에 할 것** |
+  | 10 | 실기기(또는 시뮬레이터)에서 **카카오로 로그인** | Firebase 콘솔 → Authentication → Users 에 `kakao:` 로 시작하는 uid 의 계정이 생긴다 |
+  | 11 | 앱을 완전히 종료했다 다시 켜고 **같은 카카오 계정으로 또 로그인** | Users 목록의 계정 수가 **늘지 않는다** (uid 가 결정적이라 같은 계정에 붙는다) |
+  | 12 | 함수 로그 확인 (`firebase functions:log --only kakaoCustomToken`) | `kakao_custom_token_issued` 가 보이고, 실패했다면 `kakao_custom_token_failed` 의 `code` 로 어디서 끊겼는지 읽힌다 |
+  | 13 | **App Check 이 실제로 막는지** 확인: 6번에서 등록한 디버그 토큰을 콘솔에서 잠시 지우고 카카오 로그인을 시도 | 로그인 화면에 "로그인이 완료되지 않았어요"가 뜨고 **앱이 죽지 않는다**. 함수 로그에는 호출 자체가 남지 않는다(함수 몸이 돌기 전에 거절된다). 확인했으면 토큰을 다시 등록한다 |
+  | 14 | 카카오톡이 **깔린** 기기와 **안 깔린** 기기에서 각각 10번 | 깔린 쪽은 카카오톡 앱이 떴다가 돌아오고, 안 깔린 쪽은 카카오계정 웹 화면이 뜬다. 어느 쪽이든 앱으로 **돌아와야** 한다 — 안 돌아오면 2번(스킴)이나 3번(플랫폼 등록)을 다시 본다 |
+
+  1~4 는 서로 순서가 없지만 **2번은 1번 뒤**, **9번은 5·6번 뒤**, **10~14 는 9번 뒤**다.
+  13번을 건너뛰지 말 것 — 클라이언트 배선과 함수 강제 중 하나만 서도 테스트는 전부 초록불이고,
+  둘이 실제로 맞물렸는지는 이 한 번의 확인으로만 드러난다.
+
 - [ ] 2.4 사용자 문서와 선택 팀의 원본 이전 (fresh)
 - [ ] 2.5 온보딩 위치 권한 요청 (basic)
 - [ ] phase 2 integration
@@ -152,4 +179,5 @@ cycle: 2
 - **안드로이드 구글 로그인 실행 확인** (2.2 체크리스트 7번의 안드로이드 쪽). 디버그 SHA-1 을 등록하고 `google-services.json` 을 갈아 끼웠으나 에뮬레이터·기기에서 한 번도 실행되지 않았다. 안드로이드 기기가 붙는 시점에 한 번 본다.
 - **로그아웃 후 재로그인 확인** (2.2 체크리스트 10·11번) — 3.4 가 로그아웃 진입점을 만들면 그 단계에서 잰다. 이월이지 미룸이 아니다.
 - **`firestore.indexes.json` 실배포 검증** — 사이클 2 에서 아직 한 번도 배포되지 않았다. 특히 `users.board` fieldOverride 의 하위 키 상속은 실배포로만 확인된다. 4.3 이 배지 판을 읽기 시작할 때가 늦어도 마지막 자리다.
+- **App Check 증명 제공자를 아직 하나도 등록할 수 없다** (2.3 체크리스트 5번). 막고 있는 것: 안드로이드 Play Integrity 는 Google Play Console 에 앱이 등록돼 있어야 하고, iOS DeviceCheck·App Attest 는 유료 Apple Developer Program 을 요구한다(애플 로그인을 막는 그 벽과 같은 벽). 그래서 지금 App Check 이 실제로 서는 것은 **디버그 빌드의 디버그 토큰뿐**이고, `kakaoCustomToken` 은 강제가 켜진 채 배포되므로 **릴리스 빌드에서는 카카오 로그인이 서지 않는다**. 코드 쪽은 이미 빌드 모드로 제공자를 가르고 있어(`lib/backend/app_check.dart`) 콘솔 등록만 하면 되고, 새 빌드도 필요 없다. **스토어 출시 준비를 시작하는 시점에 애플 로그인과 함께 다시 꺼낸다.**
 - **릴리스 iOS 빌드 (`flutter build ios --no-codesign`)가 이 기계에서 진행 없이 멈춤** — 저장소와 무관한 환경 문제(Xcode 26.6 + SPM)로 대조 확인했고 마지막 성공 산출물이 2026-08-25 자. 출시 빌드를 낼 때 걸릴 자리다.

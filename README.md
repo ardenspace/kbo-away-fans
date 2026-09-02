@@ -96,8 +96,43 @@ npm ci --prefix functions      # 배포·에뮬레이터에 필요한 SDK 설치
 테스트는 가짜 카카오 응답과 가짜 Admin SDK 로 돌기 때문에 카카오에도 Firebase 에도
 나가지 않는다. Firebase SDK 를 설치하면 배선 테스트 2개가 더 켜진다(미설치 시 skip).
 
-배포는 Blaze 플랜과 카카오 앱 설정이 갖춰진 뒤다 — 실제 연동은 `.wellbegun/plan.md`
-의 step 2.3 이 맡는다.
+이 함수는 **App Check 을 강제한다**(`enforceAppCheck: true`). 로그인 **전에** 불리는
+함수라 호출자 인증을 요구할 수 없고(요구할 자격 증명이 바로 이 함수가 발급하려는
+것이다), 부르는 것 자체가 카카오 API 왕복과 함수 실행 시간이라 남의 반복 호출이 그대로
+요금이 된다. 유효한 App Check 토큰이 없는 호출은 함수 몸이 돌기 전에 `unauthenticated`
+로 거절된다. 클라이언트 배선은 `lib/backend/app_check.dart` 이고, 둘 중 하나만 서면
+아무것도 막지 못한다.
+
+**그래서 배포에는 순서가 있다.** 콘솔에 증명 제공자를 등록하고 개발 기기의 디버그
+토큰을 넣기 **전에** 이 함수를 배포하면, 그 순간부터 카카오 로그인이 전부 막힌다.
+순서와 확인 방법은 `.wellbegun/run.md` 의 step 2.3 "사람 몫" 체크리스트에 있다.
+
+### 카카오 로그인 (사람이 1회)
+
+1. **카카오 개발자 콘솔**(https://developers.kakao.com) → 내 애플리케이션 추가.
+   앱 이름·회사명을 넣고 만들면 앱 키 넷이 나온다.
+2. **네이티브 앱 키**를 세 자리에 **같은 값으로** 적는다:
+   - `lib/backend/auth_kakao.dart` 의 `kKakaoNativeAppKey`
+   - `android/app/src/main/AndroidManifest.xml` 의 `android:scheme="kakao{키}"`
+   - `ios/Runner/Info.plist` 의 `CFBundleURLTypes` → `kakao{키}`
+   세 자리가 어긋나면 로그인이 끝나고도 앱으로 **돌아오지** 못한다. 대조는
+   `flutter test test/backend/kakao_app_key_sync_test.dart` 가 한다.
+3. **플랫폼 등록**: 콘솔 → 플랫폼에서 Android 패키지명
+   (`com.ardenspace.kbo_away_fans`)과 **키 해시**, iOS 번들 ID 를 등록한다. 이 등록이
+   이 키의 실제 방어선이다 — 등록된 바이너리에서만 그 키를 쓸 수 있다.
+4. **카카오 로그인 활성화 + 동의 항목**: 콘솔 → 카카오 로그인 활성화, 동의 항목은
+   **닉네임 하나뿐**이다(이메일·전화번호는 비즈니스 채널을 요구하고 앱이 그 값으로
+   하는 일이 없다 — `functions/kakao.js` 의 `KAKAO_PROPERTY_KEYS`).
+5. Redirect URI 는 따로 등록하지 않는다 — 네이티브 SDK 는 `kakao{키}://oauth` 커스텀
+   스킴으로 돌아오고, 그 스킴은 위 2번의 두 네이티브 파일에 있다.
+
+**네이티브 앱 키는 저장소에 그대로 둔다.** 감출 값이 아니기 때문이다: 카카오의 네 앱
+키 중 감추라고 경고되는 것은 Admin 키와 client secret 이고, 네이티브 앱 키는 앱에
+내장되는 것을 전제로 설계된 플랫폼 키라 APK·IPA 를 뜯으면 그대로 나온다. 감출지
+말지를 "카카오 키인가"가 아니라 **"이 값이 바이너리에 실려 나가는가"**로 가른
+판단이다(`.wellbegun/decisions.md`). **Admin 키·REST API 키·client secret 은 저장소에
+들어오면 안 된다** — 지금 `functions/` 는 사용자의 액세스 토큰만 검증하므로 셋 다
+필요 없다.
 
 ### Firebase 콘솔 설정 (사람이 1회)
 
@@ -153,6 +188,7 @@ ID 가 URL 스킴으로 등록돼 있지 않으면 예외를 던지는데, 그 �
 | `OPENWEATHER_API_KEY` | `--dart-define=OPENWEATHER_API_KEY=...` | 날씨 연출 없음 |
 | `CONTENT_BASE_URL` | `--dart-define=CONTENT_BASE_URL=...` | 실호스팅(GitHub Pages) 기본값 사용 |
 | Firebase 설정 파일 | `android/app/google-services.json`, `ios/Runner/GoogleService-Info.plist` | 분석 이벤트가 조용히 no-op + 로그인 불가 (로그인 화면이 안내와 함께 선다) |
+| 카카오 네이티브 앱 키 | **주입이 아니라 저장소의 값** — 위 "카카오 로그인" 절의 세 자리 | 카카오 로그인이 `kakao-key-missing` 으로 드러나게 실패 (다른 두 제공자는 그대로) |
 
 Firebase 설정 파일은 저장소에 두지 않는다 — Firebase 콘솔의 프로젝트 설정에서
 각자 내려받아 위 두 경로에 놓는다. 로그인은 분석과 달리 조용히 no-op 하지 않는다:
