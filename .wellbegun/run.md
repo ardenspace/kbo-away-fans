@@ -70,7 +70,7 @@ cycle: 2
       round 3 은 fresh 검증자 대신 지휘자가 직접 변이 주입으로 재확인: (1) 실행 시점 인증 재확인 제거 → 탐침 3b 실패, (2) 세션 수립 확인을 무조건 성공으로 → 탐침 4b 실패, (3) `busy` 스피너 무력화 → 탐침 4a 와 버튼 테스트 실패. 셋 다 의도한 탐침에 정확히 잡히고 트리 원복까지 확인. 수정 다섯 가지가 전부 round 2 검증자가 진단하고 해법 방향까지 제시한 자리라 새 문맥의 이득이 비용을 넘지 않는다고 판단했고, phase 2 integration 이 다시 본다.
       probes: round 1 은 5개 작성(test/features/auth/sign_in_gate_probe_test.dart), round 2 는 8개 작성(test/features/auth/gate_adversarial_probe_test.dart) — 둘 다 커밋되어 회귀에 합류, 겹치는 케이스 없음. 버튼 busy 테스트 2개는 test/ui/shared/social_sign_in_button_test.dart 에 추가.
       이후 단계로 넘기는 사실 4건: (a) `KboAwayFansApp` 의 `ThemeData` 가 `colorScheme` 을 안 줘서 `ContentFallback` 의 로딩 스피너가 머티리얼 기본 primary(보라)로 그려짐 — 새 버튼 스피너는 `ColorTokens.textSecondary` 라 두 스피너 색이 지금 다름. 색 리터럴이 아니라 테마 기본값이라 하드코딩 훅에 안 걸리고, 사이클 1부터 있던 상태이며 팔레트를 `ColorScheme` 까지 잇는 일은 별도 단계 몫, (b) `ref.read(authStateProvider.future)` 는 게이트가 그 provider 를 계속 watch 한다는 전제 위에 섬 — 로그인 화면이 게이트 밖에서 단독으로 뜨는 구조가 생기면 그 await 가 걸릴 수 있음, (c) 로그인 화면 잠금을 푸는 자리는 여전히 게이트와 세션 수립 판정 둘뿐 — 2.2 acceptance 에 인계된 `currentUser` 확인이 이 전제를 실 SDK 로 재는 자리, (d) 선택 팀이 기기 저장이라 계정을 바꿔도 앞 사용자의 팀으로 홈에 들어감 — 2.4 가 원본을 사용자 문서로 옮기며 푸는 몫이고 지금은 "로그인 뒤 분기는 사이클 1 그대로" 계약과 어긋나지 않음.
-- [>] 2.2 구글·애플 로그인 실연결 + Firebase 프로젝트 설정 — 코드 몫 커밋 d31d127 + a01da42 완료, fresh 검증 대기 (사람 몫 콘솔·실기기 11항목은 사용자가 마친 뒤 표시)
+- [x] 2.2 verified (fresh, high-tier) — 커밋 d31d127 + a01da42 + e7d0ea1 + c1b2782; 코드 몫은 round 1 ACCEPT, 사람 몫은 실행 가능한 항목이 2026-09-02 에 전부 통과. 애플 몫(6·8번)은 유료 멤버십 전까지 미룸으로 닫음([M] 2026-09-03, 아래 '미룬 항목'), 10·11번은 3.4 이월. 2026-09-03 지휘자 재확인 기준선: flutter 347통과·1스킵 / analyze 무지적 / 훅 4종 exit 0 / functions 41 / 파이프라인 61 / 규칙 54 / validate exit 0 — 9/02 종료 시점과 동일, 표류 없음.
       **App Check 멈춤은 해소됨.** 사용자가 선택지 2("2.3 에서 카카오와 함께")를 택함 → decisions.md 에 [L] 로 기록하고 우편함을 비움. 어제의 실수를 되풀이하지 않도록 인계를 말로만 적지 않고 plan.md Step 2.3 acceptance 에 실제로 넣음(클라이언트 wiring·콘솔 증명 제공자·함수 강제·디버그 토큰 절차가 그 단계 범위).
       **재개 후 [M] 처리(a01da42):** `project.pbxproj` 에서 `GoogleService-Info.plist` 를 Copy Bundle Resources 에서 빼고 "있으면 복사, 없으면 번들의 옛 사본을 지우고 경고만" 하는 빌드 단계로 교체(입력·출력 경로 없이 `alwaysOutOfDate` — 입력으로 선언하면 없는 파일이 다시 빌드 입력이 되어 원래 문제로 돌아간다). 파일 참조와 그룹 소속은 남겨 Xcode 탐색기에 놓을 자리가 보이게 함. 안드로이드는 `build.gradle.kts:11` 이 이미 `if (file("google-services.json").exists())` 가드라 같은 문제가 없었음. README 의 "iOS 빌드만 예외"를 오늘의 사실로 교체.
       구현자가 **실제 빌드로 양방향 검증**: 설정 없는 상태에서 고치기 전 `Build input file cannot be found` 로 실패 → 고친 뒤 통과(번들에 plist 없음), 설정 되돌린 뒤 통과하며 `Runner.app/GoogleService-Info.plist` 가 실제로 들어가고 `plutil -p` 로 BUNDLE_ID 확인, APK 의 `resources.arsc` 에서 `google_app_id`·`gcm_defaultSenderId` 확인. 사용자 설정 파일 2개는 원본 크기·타임스탬프 그대로 제자리 복귀 확인.
@@ -144,3 +144,12 @@ cycle: 2
 
 ## 전체 리뷰
 - [ ] whole-run fresh-eyes review
+
+## 미룬 항목 — 실행이 끝나도 남는다
+이 사이클 안에서는 풀 수 없어 밖으로 미룬 것들이다. 사이클을 닫을 때 wellnext 가 이 절을 읽는다.
+
+- **애플 로그인 실연결** (2.2 체크리스트 6·8번, [M] 2026-09-03). 막고 있는 것: 유료 Apple Developer Program(연 $99). 남은 일은 Apple Developer 의 App ID 에서 Sign in with Apple 켜기, Firebase Authentication 의 Apple 제공자 사용 설정, Xcode 의 `DEVELOPMENT_TEAM` 지정, 실기기 애플 로그인 확인. 이미 되어 있는 것: `ios/Runner/Runner.entitlements` 의 `com.apple.developer.applesignin` 과 세 빌드 구성의 `CODE_SIGN_ENTITLEMENTS`, 그리고 `signInWithProvider(AppleAuthProvider())` 코드 경로. **스토어 출시 준비를 시작하는 시점에 반드시 다시 꺼낸다** — 애플은 제3자 소셜 로그인을 제공하는 앱에 이것을 요구하므로 심사 통과의 전제다.
+- **안드로이드 구글 로그인 실행 확인** (2.2 체크리스트 7번의 안드로이드 쪽). 디버그 SHA-1 을 등록하고 `google-services.json` 을 갈아 끼웠으나 에뮬레이터·기기에서 한 번도 실행되지 않았다. 안드로이드 기기가 붙는 시점에 한 번 본다.
+- **로그아웃 후 재로그인 확인** (2.2 체크리스트 10·11번) — 3.4 가 로그아웃 진입점을 만들면 그 단계에서 잰다. 이월이지 미룸이 아니다.
+- **`firestore.indexes.json` 실배포 검증** — 사이클 2 에서 아직 한 번도 배포되지 않았다. 특히 `users.board` fieldOverride 의 하위 키 상속은 실배포로만 확인된다. 4.3 이 배지 판을 읽기 시작할 때가 늦어도 마지막 자리다.
+- **릴리스 iOS 빌드 (`flutter build ios --no-codesign`)가 이 기계에서 진행 없이 멈춤** — 저장소와 무관한 환경 문제(Xcode 26.6 + SPM)로 대조 확인했고 마지막 성공 산출물이 2026-08-25 자. 출시 빌드를 낼 때 걸릴 자리다.
