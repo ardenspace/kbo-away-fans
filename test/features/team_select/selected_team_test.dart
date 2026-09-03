@@ -205,6 +205,36 @@ void main() {
     expect(document[UserFields.joinedAt], DateTime.utc(2026, 3, 1));
   });
 
+  test('첫 문서가 생기기 전에 두 번 고르면 마지막 선택이 서버에 남는다', () async {
+    // 앞 선택의 서버 쓰기가 아직 끝나기 전에 한 번 더 고른 경우다 — 통신이
+    // 느린 자리에서 실제로 일어나는 모양이고(`select` 가 서버를 기다리지 않고
+    // 화면을 먼저 넘기는 까닭이 그것이다), 두 선택 모두 "문서 없음"으로
+    // 판정되어 createProfile 로 간다. 두 번째 호출이 조용히 아무것도 하지
+    // 않으면 서버에는 첫 팀이 남고, 뒤이어 오는 스냅샷이 화면을 옛 팀으로
+    // 되돌린다 — 오류는 어디에도 뜨지 않는다.
+    SharedPreferences.setMockInitialValues({});
+    store.holdProfiles = true;
+    final container = makeContainer();
+    expect(await settledTeamId(container), isNull);
+
+    final notifier = container.read(selectedTeamIdProvider.notifier);
+    final first = notifier.select('lg');
+    final second = notifier.select('kia');
+    await first;
+    await second;
+
+    final document = store.documents[uid]!;
+    expect(document[UserFields.favoriteTeamId], 'kia');
+    expect(document[UserFields.profileThemeKey], 'kia');
+    // 문서는 여전히 한 번만 만들어졌다 — 가입 시각이 두 번 서지 않는다.
+    expect(store.profileCreates, 1);
+
+    // 스냅샷이 와도 화면이 옛 팀으로 되돌아가지 않는다.
+    store.releaseProfiles();
+    expect(await settledTeamId(container), 'kia');
+    expect(await cachedTeamId(), 'kia');
+  });
+
   test('로그인하지 않은 실행의 선택은 권한 오류로 드러난다', () async {
     SharedPreferences.setMockInitialValues({});
     auth = FakeAuthService();

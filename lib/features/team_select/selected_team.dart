@@ -141,7 +141,7 @@ class SelectedTeamNotifier extends Notifier<AsyncValue<String?>> {
         : await store.readProfile(user.uid);
 
     if (profile == null) {
-      await store.createProfile(
+      final created = await store.createProfile(
         user.uid,
         NewUserProfile(
           nickname: seedNickname(uid: user.uid, displayName: user.displayName),
@@ -152,12 +152,16 @@ class SelectedTeamNotifier extends Notifier<AsyncValue<String?>> {
           profileThemeKey: teamId,
         ),
       );
-    } else {
-      await store.patchProfile(
-        user.uid,
-        UserProfilePatch(favoriteTeamId: teamId, profileThemeKey: teamId),
-      );
+      // 만들지 못했다는 것은 그 사이에 문서가 생겼다는 뜻이다 — 첫 문서가
+      // 서기 전에 팀을 두 번 고르면 두 선택 모두 여기로 온다. 여기서 멈추면
+      // 마지막 선택이 서버에 닿지 못한 채 사라지고, 뒤이어 오는 스냅샷이
+      // 화면을 옛 팀으로 되돌린다.
+      if (created) return;
     }
+    await store.patchProfile(
+      user.uid,
+      UserProfilePatch(favoriteTeamId: teamId, profileThemeKey: teamId),
+    );
   }
 
   /// 캐시를 서버 값에 맞춘다 (같은 값이면 쓰지 않는다).

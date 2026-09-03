@@ -87,14 +87,16 @@ class FakeUserDataStore implements UserDataStore {
   }
 
   @override
-  Future<void> createProfile(String uid, NewUserProfile profile) async {
+  Future<bool> createProfile(String uid, NewUserProfile profile) async {
     // 실 구현은 트랜잭션 안에서 같은 판정을 한다 — 이미 있는 문서는 **덮지
-    // 않는다**(재로그인이 가입 시각과 배지 판을 지우지 못하게 하는 자리).
+    // 않고**(재로그인이 가입 시각과 배지 판을 지우지 못하게 하는 자리) 만들지
+    // 않았다는 사실을 false 로 돌려준다.
     final data = _accept(profile.toData(), UserFields.all);
-    if (documents.containsKey(uid)) return;
+    if (documents.containsKey(uid)) return false;
     profileCreates++;
     documents[uid] = data;
     _emitProfile(uid);
+    return true;
   }
 
   @override

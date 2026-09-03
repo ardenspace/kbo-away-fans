@@ -59,7 +59,7 @@ void main() {
 
   group('첫 문서 만들기', () {
     test('문서가 없으면 만들고, 그것을 다시 읽을 수 있다', () async {
-      await store.createProfile(
+      final created = await store.createProfile(
         uid,
         const NewUserProfile(
           nickname: '원정러',
@@ -68,6 +68,7 @@ void main() {
         ),
       );
 
+      expect(created, isTrue);
       // readProfile 이 언제나 null 을 돌려주는 변이가 여기서 빨간불이 된다.
       final profile = await store.readProfile(uid);
       expect(profile, isNotNull);
@@ -82,7 +83,7 @@ void main() {
     test('이미 있는 문서는 덮지 않는다 — 가입 시각과 배지 판이 남는다', () async {
       await seedDocument('lg');
 
-      await store.createProfile(
+      final created = await store.createProfile(
         uid,
         const NewUserProfile(
           nickname: '나중닉',
@@ -92,7 +93,9 @@ void main() {
       );
 
       // 트랜잭션의 존재 판정을 지우거나 무조건 set 으로 바꾸는 두 변이가
-      // 여기서 빨간불이 된다.
+      // 여기서 빨간불이 된다. false 는 "만들지 않았다"는 뜻이고, 그 사실을
+      // 받은 호출자가 수정 경로로 이어 간다.
+      expect(created, isFalse);
       final profile = (await store.readProfile(uid))!;
       expect(profile.favoriteTeamId, 'lg');
       expect(profile.nickname, '먼저있던닉');

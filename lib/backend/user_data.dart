@@ -776,7 +776,14 @@ abstract class UserDataStore {
   Stream<UserProfile?> watchProfile(String uid);
 
   /// 첫 문서를 만든다 (2.4 — 재로그인이 덮지 않는다).
-  Future<void> createProfile(String uid, NewUserProfile profile);
+  ///
+  /// **실제로 만들었으면 true, 이미 있어서 아무것도 하지 않았으면 false.**
+  /// 값을 돌려주는 것은 호출자가 "덮지 않았다"와 "썼다"를 구분하지 못하면
+  /// 마지막 선택이 조용히 사라지기 때문이다: 첫 문서가 생기기 전에 팀을 두 번
+  /// 고르면 두 호출 모두 "문서 없음"으로 판정되어 여기로 오는데, 두 번째가
+  /// 아무 말 없이 끝나면 서버에는 첫 팀이 남고 뒤이어 오는 스냅샷이 화면을
+  /// 옛 팀으로 되돌린다. false 를 받은 쪽은 수정 경로로 이어 간다.
+  Future<bool> createProfile(String uid, NewUserProfile profile);
 
   /// 문서의 일부를 고친다.
   Future<void> patchProfile(String uid, UserProfilePatch patch);

@@ -82,7 +82,10 @@ class FirestoreUserDataStore implements UserDataStore {
         _userDoc(uid).snapshots().map((snapshot) => _profileOf(uid, snapshot)),
       );
 
-  /// 첫 문서를 만든다 — **이미 있으면 아무것도 하지 않는다.**
+  /// 첫 문서를 만든다 — **이미 있으면 아무것도 하지 않고 false 를 돌려준다.**
+  ///
+  /// 돌려주는 값은 계약이 정한 그대로다(`user_data.dart`): 아무것도 하지
+  /// 않았다는 사실을 호출자가 알아야 마지막 선택이 조용히 사라지지 않는다.
   ///
   /// 트랜잭션으로 "있는지 보고 없으면 쓴다"를 한 걸음으로 묶는 것은, 재로그인이
   /// 가입 시각과 배지 판을 지우는 일이 이 한 줄에 걸려 있기 때문이다. `set` 은
@@ -94,14 +97,15 @@ class FirestoreUserDataStore implements UserDataStore {
   /// 받아들인다 — 도장·좋아요처럼 구장에서 오프라인으로 쓰는 경로에는 이
   /// 방식을 쓰지 않는다.
   @override
-  Future<void> createProfile(String uid, NewUserProfile profile) {
+  Future<bool> createProfile(String uid, NewUserProfile profile) {
     final data = encodeBackendValues(profile.toData());
     return guardBackend(
-      () => _db.runTransaction((transaction) async {
+      () => _db.runTransaction<bool>((transaction) async {
         final reference = _userDoc(uid);
         final snapshot = await transaction.get(reference);
-        if (snapshot.exists) return;
+        if (snapshot.exists) return false;
         transaction.set(reference, data);
+        return true;
       }),
     );
   }
