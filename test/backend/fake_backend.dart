@@ -79,8 +79,14 @@ class FakeUserDataStore implements UserDataStore {
   /// 스냅샷 스트림에 오류를 흘린다 — **서버를 읽지 못한 실행**의 대역.
   ///
   /// 실 Firestore 에서 이 길로 오는 것은 규칙 거부·통신 실패이고, 계층 경계의
-  /// `guardBackendStream` 이 도메인 오류로 옮긴 뒤다. 스트림은 열린 채라 뒤이어
-  /// 값이 더 올 수 있다.
+  /// `guardBackendStream` 이 도메인 오류로 옮긴 뒤다.
+  ///
+  /// **이 대역은 오류 뒤에도 스트림을 열어 둔다** — 실 Firestore 의 스냅샷
+  /// 스트림은 오류와 함께 닫히므로 두 전제가 다르다. `awaitServerConfirmation`
+  /// 은 그 둘 중 어느 쪽도 전제하지 않는 것을 계약으로 삼는다(오류를 답으로
+  /// 보고 그 뒤로는 아무것도 붙잡지 않는다) — 그래서 이 대역이 값을 더
+  /// 흘리든 흘리지 않든 상한 없는 구간이 생기지 않는다
+  /// (decisions.md 2026-09-04 [M]).
   void emitProfileError(Object error) {
     for (final controller in _profileStreams.values) {
       if (!controller.isClosed) controller.addError(error);

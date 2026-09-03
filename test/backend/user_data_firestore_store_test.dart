@@ -289,5 +289,57 @@ void _snapshotSourceTests() {
 
       expect(errors, hasLength(1));
     });
+
+    test('오류를 받은 뒤에 온 값은 붙잡지 않고 그대로 흘린다', () async {
+      // 오류도 답이므로 상한은 거기서 끝난다. 오류를 받고도 "아직 답이 없다"로
+      // 남으면, 그 뒤에 온 답 아닌 값이 상한의 여러 배가 지나도 나오지 않는
+      // 구간이 생긴다 — 상한 없는 기다림이고, 그것이 이 장치가 막으려던 바로
+      // 그 상태다.
+      final source = StreamController<String>();
+      addTearDown(source.close);
+      final seen = <String>[];
+      final subscription = awaitServerConfirmation(
+        source.stream,
+        isConfirmed: (value) => value != '모름',
+        grace: const Duration(milliseconds: 20),
+      ).listen(seen.add, onError: (Object _) {});
+      addTearDown(subscription.cancel);
+
+      source.add('모름');
+      source.addError(StateError('끊겼다'));
+      await pumpEventQueue();
+
+      source.add('모름');
+      await Future<void>.delayed(const Duration(milliseconds: 60));
+
+      expect(
+        seen,
+        ['모름'],
+        reason: '오류 뒤로는 상한을 다시 세우지 않아 값이 영영 나오지 않는다',
+      );
+    });
+
+    test('오류 뒤에 스트림이 닫혀도 붙잡아 둔 값은 답이 되지 않는다', () async {
+      // 실 Firestore 의 스냅샷 스트림은 오류와 함께 닫힌다. 그때 붙잡아 둔
+      // 값(= 아직 확인받지 못한 "문서 없음")을 마저 내보내면, 확인받을 길이
+      // 사라진 값이 답으로 승격되어 위 계층의 "서버를 읽지 못했다" 갈래를
+      // "서버가 없다고 답했다"로 바꿔 놓는다.
+      final source = StreamController<String>();
+      final seen = <String>[];
+      final errors = <Object>[];
+      final subscription = awaitServerConfirmation(
+        source.stream,
+        isConfirmed: (value) => value != '모름',
+      ).listen(seen.add, onError: errors.add);
+      addTearDown(subscription.cancel);
+
+      source.add('모름');
+      source.addError(StateError('끊겼다'));
+      await source.close();
+      await pumpEventQueue();
+
+      expect(errors, hasLength(1));
+      expect(seen, isEmpty, reason: '확인받지 못한 값이 오류 뒤에 답으로 나왔다');
+    });
   });
 }
