@@ -161,15 +161,20 @@ class SelectedTeamNotifier extends Notifier<AsyncValue<String?>> {
   /// 팀을 고른다 — 화면은 그 자리에서 바뀌고, 원본(사용자 문서)이 뒤이어
   /// 갱신된다.
   ///
-  /// 상태와 캐시를 먼저 옮기는 것은 오프라인 때문이다: Firestore 쓰기의 Future
-  /// 는 서버에 닿아야 끝나므로, 그것을 기다렸다가 화면을 바꾸면 통신이 나쁜
-  /// 자리에서 선택이 먹히지 않는 것처럼 보인다. 쓰기 실패는 던져서 부르는
-  /// 쪽이 안내하게 한다.
+  /// 상태를 먼저 옮기는 것은 오프라인 때문이다: Firestore 쓰기의 Future 는
+  /// 서버에 닿아야 끝나므로, 그것을 기다렸다가 화면을 바꾸면 통신이 나쁜
+  /// 자리에서 선택이 먹히지 않는 것처럼 보인다. 서버 쓰기의 실패는 던져서
+  /// 부르는 쪽이 안내하게 한다.
+  ///
+  /// **원본을 먼저 쓰고 사본을 뒤에 맞춘다.** 캐시를 앞에 두면 기기 저장이
+  /// 던지는 실행에서 사용자 문서가 아예 만들어지지 않고, 그 예외는 화면 쪽
+  /// `BackendError` 처리에도 걸리지 않아 안내 없이 샌다. 순서가 이 계층이
+  /// 스스로 적어 둔 "서버가 원본, 기기 저장은 캐시"와 같아야 한다.
   Future<void> select(String teamId) async {
     assert(kTeamIds.contains(teamId), '알 수 없는 teamId: $teamId');
     state = AsyncData(teamId);
-    await _writeCache(teamId);
     await _writeProfile(teamId);
+    await _writeCache(teamId);
   }
 
   /// 선택을 사용자 문서에 남긴다 — 문서가 없으면 만들고, 있으면 고친다.
@@ -225,12 +230,23 @@ class SelectedTeamNotifier extends Notifier<AsyncValue<String?>> {
   ///
   /// 계정을 모르는 구간에서는 적지 않는다 — 소유자 없는 캐시는 다음 실행에서
   /// 누구의 것도 아니게 되어 어차피 읽히지 않는다.
+  ///
+  /// **실패를 밖으로 내보내지 않는다.** 이 값은 다음 콜드 스타트의 첫 프레임을
+  /// 그리는 데만 쓰이므로, 적지 못한 결과는 그 한 프레임이 늦게 칠해지는
+  /// 것뿐이다 — 원본은 이미 서버에 있다. 반면 이 실패를 던지면 이미 서버에
+  /// 남은 선택이 실패한 것처럼 보이고, 화면 쪽 `BackendError` 처리에도 걸리지
+  /// 않아 안내 없이 샌다. 실패한 자리에서는 [_mirrored] 를 옮기지 않으므로
+  /// 다음 갱신이 다시 시도한다.
   Future<void> _writeCache(String teamId) async {
     final user = ref.read(authStateProvider).value;
     if (user == null) return;
     final entry = (uid: user.uid, teamId: teamId);
     if (_mirrored == entry) return;
-    _mirrored = entry;
-    await ref.read(selectedTeamStoreProvider).write(user.uid, teamId);
+    try {
+      await ref.read(selectedTeamStoreProvider).write(user.uid, teamId);
+      _mirrored = entry;
+    } on Object {
+      // 위 문단 참조 — 사본을 적지 못한 것이 선택을 무르게 하지 않는다.
+    }
   }
 }

@@ -45,11 +45,12 @@ void main() {
     addTearDown(store.dispose);
   });
 
-  ProviderContainer makeContainer() {
+  ProviderContainer makeContainer({SelectedTeamStore? cache}) {
     final container = ProviderContainer(
       overrides: [
         authServiceProvider.overrideWithValue(auth),
         userDataStoreProvider.overrideWithValue(store),
+        if (cache != null) selectedTeamStoreProvider.overrideWithValue(cache),
       ],
     );
     addTearDown(container.dispose);
@@ -288,6 +289,22 @@ void main() {
     expect(await settledTeamId(container), isNull);
   });
 
+  test('캐시 쓰기가 실패해도 선택은 서버에 남고 예외가 새지 않는다', () async {
+    // 기기 저장이 던지는 실행 — 원본은 서버이므로 그것이 먼저 서야 하고,
+    // 사본을 적지 못한 것이 선택 자체를 무르게 만들어서는 안 된다. 화면 쪽
+    // `TeamSelectScreen._select` 는 `BackendError` 만 잡으므로, 여기서 다른
+    // 예외가 새면 안내도 없이 그대로 터진다.
+    SharedPreferences.setMockInitialValues({});
+    final container = makeContainer(cache: const _FailingCacheStore());
+    expect(await settledTeamId(container), isNull);
+
+    await container.read(selectedTeamIdProvider.notifier).select('lg');
+
+    expect(store.profileCreates, 1);
+    expect(store.documents[uid]![UserFields.favoriteTeamId], 'lg');
+    expect(container.read(selectedTeamIdProvider).value, 'lg');
+  });
+
   test('로그인하지 않은 실행의 선택은 권한 오류로 드러난다', () async {
     SharedPreferences.setMockInitialValues({});
     auth = FakeAuthService();
@@ -301,4 +318,15 @@ void main() {
     );
     expect(store.documents, isEmpty);
   });
+}
+
+/// 기기 저장이 언제나 실패하는 캐시 — 저장 공간이 꽉 찼거나 플랫폼 채널이
+/// 죽은 실행의 대역이다. 읽기는 부모 구현 그대로다.
+class _FailingCacheStore extends SelectedTeamStore {
+  const _FailingCacheStore();
+
+  @override
+  Future<void> write(String uid, String teamId) async {
+    throw StateError('기기 저장에 적을 수 없다');
+  }
 }
