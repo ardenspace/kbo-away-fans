@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../backend/errors.dart';
 import '../../content/content_loader.dart';
 import '../../content/content_providers.dart';
 import '../../content/models.dart';
@@ -11,18 +12,35 @@ import 'selected_team.dart';
 ///
 /// 팀 목록은 teams.json([teamsProvider])에서 온다. 각 팀 카드는 그 팀의
 /// 테마 색으로 칠해져, 고르기 전에 "앱이 물들 색"을 미리 보여 준다.
-/// 탭 즉시 저장([SelectedTeamNotifier.select])되고, 온보딩 모드에서는
+/// 탭 즉시 반영([SelectedTeamNotifier.select])되고, 온보딩 모드에서는
 /// 루트 게이트가 홈으로 전환하며, 변경 모드([isChange])에서는 pop 한다.
+///
+/// 사용자 문서 쓰기(2.4)가 끝나기를 기다렸다가 화면을 넘기지 않는다 —
+/// Firestore 쓰기의 Future 는 서버에 닿아야 끝나므로, 통신이 나쁜 자리에서
+/// 기다리면 선택이 먹히지 않은 것처럼 보인다. 쓰기가 실패하면 그때 안내를
+/// 띄운다.
 class TeamSelectScreen extends ConsumerWidget {
   const TeamSelectScreen({super.key, this.isChange = false});
+
+  /// 서버에 선택을 남기지 못했을 때의 안내.
+  static const String saveFailureNotice = '선택을 저장하지 못했어요. 잠시 뒤 다시 시도해 주세요.';
 
   /// true 면 팀 변경 모드 — 앱바(뒤로 가기)가 있고 선택 후 pop 한다.
   final bool isChange;
 
   Future<void> _select(BuildContext context, WidgetRef ref, Team team) async {
-    await ref.read(selectedTeamIdProvider.notifier).select(team.id);
-    if (isChange && context.mounted) {
-      Navigator.of(context).pop();
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    final navigator = isChange ? Navigator.of(context) : null;
+    // `select` 는 첫 await 앞에서 상태와 캐시를 이미 옮겨 놓는다 — 그래서
+    // 여기서 곧바로 화면을 넘겨도 홈은 새 팀 테마로 뜬다.
+    final saved = ref.read(selectedTeamIdProvider.notifier).select(team.id);
+    navigator?.pop();
+    try {
+      await saved;
+    } on BackendError {
+      // 문구만 얹고 꾸밈은 SnackBar 기본값에 맡긴다 — 어두운 바탕 위의 글자라
+      // 본문 토큰(어두운 글자색)을 그대로 쓰면 읽히지 않는다.
+      messenger?.showSnackBar(const SnackBar(content: Text(saveFailureNotice)));
     }
   }
 

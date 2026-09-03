@@ -1,0 +1,221 @@
+/// Step 2.4 boundary tests — 선택 팀의 원본이 Firestore 사용자 문서로 옮겨온
+/// 뒤의 상태 계층.
+///
+/// 재는 갈래는 넷이다 (계획의 boundary test 가 괄호로 지정한 그대로).
+///  1) 문서 최초 생성 1회 — 온보딩에서 팀을 고른 그 순간 문서가 만들어진다.
+///  2) 재로그인 무변경 — 다시 로그인해도 가입 시각·배지 판이 그대로다.
+///  3) 캐시 → 서버 수렴 — 서버를 모르는 첫 프레임은 캐시 값으로 그리고,
+///     서버 값이 오면 그것으로 수렴한다.
+///  4) 서버 값과 캐시 불일치 시 서버 우선 — 캐시는 원본이 아니다.
+library;
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:kbo_away_fans/backend/auth.dart';
+import 'package:kbo_away_fans/backend/errors.dart';
+import 'package:kbo_away_fans/backend/user_data.dart';
+import 'package:kbo_away_fans/features/team_select/selected_team.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import '../../backend/fake_backend.dart';
+
+/// 서버에 이미 남아 있는 사용자 문서 — 가입 시각과 배지 판을 함께 들고 있어야
+/// "재로그인이 덮지 않는다"를 잴 수 있다.
+Map<String, Object?> _serverDocument(String teamId) => <String, Object?>{
+      UserFields.nickname: '먼저있던닉',
+      UserFields.favoriteTeamId: teamId,
+      UserFields.profileThemeKey: teamId,
+      UserFields.joinedAt: DateTime.utc(2026, 3, 1),
+      UserFields.board: <String, Object?>{
+        'jamsil_lg': BoardCell.forCount(count: 2).toData(),
+      },
+    };
+
+void main() {
+  const uid = 'kakao:1234567890';
+  late FakeUserDataStore store;
+  late FakeAuthService auth;
+
+  setUp(() {
+    store = FakeUserDataStore();
+    auth = FakeAuthService(
+      signedIn: const AuthUser(uid: uid, displayName: '카카오원정러'),
+    );
+    addTearDown(auth.dispose);
+    addTearDown(store.dispose);
+  });
+
+  ProviderContainer makeContainer() {
+    final container = ProviderContainer(
+      overrides: [
+        authServiceProvider.overrideWithValue(auth),
+        userDataStoreProvider.overrideWithValue(store),
+      ],
+    );
+    addTearDown(container.dispose);
+    // 화면이 구독한 것과 같은 상태를 만든다 — 구독이 없으면 provider 는 읽는
+    // 순간에야 서고, 그 사이 세션·스냅샷이 흐를 자리가 없다.
+    container.listen(selectedTeamIdProvider, (_, _) {});
+    return container;
+  }
+
+  Future<String?> settledTeamId(ProviderContainer container) async {
+    await pumpEventQueue();
+    return container.read(selectedTeamIdProvider).value;
+  }
+
+  Future<String?> cachedTeamId() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(kSelectedTeamPrefsKey);
+  }
+
+  test('첫 로그인: 팀을 고르면 사용자 문서가 한 번 만들어진다', () async {
+    SharedPreferences.setMockInitialValues({});
+    final container = makeContainer();
+
+    // 문서가 없으니 온보딩 상태다 (선택 팀 없음).
+    expect(await settledTeamId(container), isNull);
+
+    await container.read(selectedTeamIdProvider.notifier).select('hanwha');
+
+    expect(store.profileCreates, 1);
+    final document = store.documents[uid]!;
+    expect(document[UserFields.favoriteTeamId], 'hanwha');
+    // 프로필 색이 선택한 팀 색으로 함께 선다.
+    expect(document[UserFields.profileThemeKey], 'hanwha');
+    expect(document[UserFields.nickname], '카카오원정러');
+    expect(document[UserFields.joinedAt], kFakeServerNow);
+    expect(document[UserFields.board], isEmpty);
+    // 캐시도 따라간다 — 다음 콜드 스타트의 첫 프레임이 이 값으로 그려진다.
+    expect(await cachedTeamId(), 'hanwha');
+    expect(container.read(selectedTeamIdProvider).value, 'hanwha');
+  });
+
+  test('표시 이름이 없는 계정도 기본 닉네임으로 문서를 받는다', () async {
+    // 카카오 닉네임 동의를 켜지 않은 사람 — functions/kakao.js 가 null 을 준다.
+    SharedPreferences.setMockInitialValues({});
+    auth = FakeAuthService(signedIn: const AuthUser(uid: uid));
+    addTearDown(auth.dispose);
+    final container = makeContainer();
+    await settledTeamId(container);
+
+    await container.read(selectedTeamIdProvider.notifier).select('nc');
+
+    final nickname = store.documents[uid]![UserFields.nickname]! as String;
+    expect(nickname, seedNickname(uid: uid));
+    expect(nickname.length, inInclusiveRange(kNicknameMinLength, kNicknameMaxLength));
+  });
+
+  test('재로그인은 문서를 덮지 않는다 — 가입 시각과 배지 판이 그대로다', () async {
+    SharedPreferences.setMockInitialValues({});
+    store.documents[uid] = _serverDocument('lg');
+    final before = Map<String, Object?>.from(store.documents[uid]!);
+
+    // 첫 로그인 세션.
+    final first = makeContainer();
+    expect(await settledTeamId(first), 'lg');
+    first.dispose();
+
+    // 다시 로그인한 세션.
+    final second = makeContainer();
+    expect(await settledTeamId(second), 'lg');
+
+    expect(store.profileCreates, 0);
+    expect(store.documents[uid], before);
+  });
+
+  test('캐시 → 서버 수렴: 첫 프레임은 캐시 값, 이후 서버 값', () async {
+    SharedPreferences.setMockInitialValues({kSelectedTeamPrefsKey: 'lg'});
+    store.documents[uid] = _serverDocument('samsung');
+    // 서버 스냅샷을 붙잡아 둔다 — 아직 서버 값을 모르는 구간.
+    store.holdProfiles = true;
+    final container = makeContainer();
+
+    expect(await settledTeamId(container), 'lg');
+
+    store.releaseProfiles();
+
+    expect(await settledTeamId(container), 'samsung');
+    // 캐시도 서버를 따라간다.
+    expect(await cachedTeamId(), 'samsung');
+  });
+
+  test('서버 값과 캐시가 다르면 서버가 이긴다', () async {
+    SharedPreferences.setMockInitialValues({kSelectedTeamPrefsKey: 'lg'});
+    store.documents[uid] = _serverDocument('kia');
+    final container = makeContainer();
+
+    expect(await settledTeamId(container), 'kia');
+    expect(await cachedTeamId(), 'kia');
+  });
+
+  test('서버에 문서가 없으면 캐시가 있어도 온보딩이다', () async {
+    // 같은 기기에서 다른 계정으로 처음 로그인한 경우 — 앞사람의 캐시가 남아
+    // 있어도 이 계정의 원본은 없다.
+    SharedPreferences.setMockInitialValues({kSelectedTeamPrefsKey: 'lg'});
+    final container = makeContainer();
+
+    expect(await settledTeamId(container), isNull);
+  });
+
+  test('기기를 바꿔 로그인해도 선택 팀이 따라온다', () async {
+    // 새 기기라 캐시가 비어 있다.
+    SharedPreferences.setMockInitialValues({});
+    store.documents[uid] = _serverDocument('lotte');
+    final container = makeContainer();
+
+    expect(await settledTeamId(container), 'lotte');
+    expect(await cachedTeamId(), 'lotte');
+  });
+
+  test('팀을 바꾸면 서버 문서가 갱신되고 캐시도 따라간다', () async {
+    SharedPreferences.setMockInitialValues({kSelectedTeamPrefsKey: 'lg'});
+    store.documents[uid] = _serverDocument('lg');
+    final container = makeContainer();
+    await settledTeamId(container);
+
+    await container.read(selectedTeamIdProvider.notifier).select('doosan');
+
+    final document = store.documents[uid]!;
+    expect(document[UserFields.favoriteTeamId], 'doosan');
+    expect(document[UserFields.profileThemeKey], 'doosan');
+    expect(document[UserFields.updatedAt], kFakeServerNow);
+    // 문서를 새로 만들지 않았다 — 가입 시각과 배지 판이 그대로다.
+    expect(store.profileCreates, 0);
+    expect(document[UserFields.joinedAt], DateTime.utc(2026, 3, 1));
+    expect(document[UserFields.board], isNotEmpty);
+    expect(await cachedTeamId(), 'doosan');
+    expect(container.read(selectedTeamIdProvider).value, 'doosan');
+  });
+
+  test('서버 값을 아직 모르는 채로 고른 팀도 문서를 덮지 않는다', () async {
+    // 스냅샷이 늦는 사이 온보딩 화면이 떴다가 선택이 일어난 경우 — 이미 있는
+    // 문서를 만들려 들면 가입 시각이 지워진다. 저장소가 그 앞에서 막는다.
+    SharedPreferences.setMockInitialValues({});
+    store.documents[uid] = _serverDocument('lg');
+    store.holdProfiles = true;
+    final container = makeContainer();
+    expect(await settledTeamId(container), isNull);
+
+    await container.read(selectedTeamIdProvider.notifier).select('kt');
+
+    expect(store.profileCreates, 0);
+    final document = store.documents[uid]!;
+    expect(document[UserFields.favoriteTeamId], 'kt');
+    expect(document[UserFields.joinedAt], DateTime.utc(2026, 3, 1));
+  });
+
+  test('로그인하지 않은 실행의 선택은 권한 오류로 드러난다', () async {
+    SharedPreferences.setMockInitialValues({});
+    auth = FakeAuthService();
+    addTearDown(auth.dispose);
+    final container = makeContainer();
+    await settledTeamId(container);
+
+    await expectLater(
+      container.read(selectedTeamIdProvider.notifier).select('lg'),
+      throwsA(isA<BackendPermissionError>()),
+    );
+    expect(store.documents, isEmpty);
+  });
+}

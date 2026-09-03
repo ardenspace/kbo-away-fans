@@ -2,11 +2,15 @@
 ///
 /// 팀 픽스처는 저장소의 `content-pipeline/data/teams.json` 실물을 그대로
 /// 파싱해(계약 드리프트 방지) [teamsProvider] override 로 주입한다.
-/// 저장은 shared_preferences mock 초기값으로 제어한다.
 ///
 /// step 2.1 이후로는 로그인 게이트가 앞에 서므로 인증 상태도 함께 주입한다
 /// ([FakeAuthService] 로 로그인한 실행) — 온보딩·홈 분기는 로그인 뒤의
 /// 이야기이고, 그 분기 자체는 이 파일이 재던 그대로다.
+///
+/// step 2.4 부터 선택 팀의 원본은 사용자 문서다. 그래서 이 파일도 서버
+/// 대역([FakeUserDataStore])을 함께 주입하고, shared_preferences mock 은
+/// **첫 렌더용 캐시**를 제어하는 자리로 남는다 — 둘이 어긋날 때 화면이 무엇을
+/// 그리는지가 이 단계의 계약이다.
 library;
 
 import 'dart:convert';
@@ -17,6 +21,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kbo_away_fans/app.dart';
 import 'package:kbo_away_fans/backend/auth.dart';
+import 'package:kbo_away_fans/backend/user_data.dart';
 import 'package:kbo_away_fans/content/content_loader.dart';
 import 'package:kbo_away_fans/content/content_providers.dart';
 import 'package:kbo_away_fans/content/models.dart';
@@ -29,7 +34,17 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../backend/fake_backend.dart';
 
+/// 서버에 이미 남아 있는 사용자 문서.
+Map<String, Object?> serverDocument(String teamId) => <String, Object?>{
+      UserFields.nickname: '먼저있던닉',
+      UserFields.favoriteTeamId: teamId,
+      UserFields.profileThemeKey: teamId,
+      UserFields.joinedAt: DateTime.utc(2026, 3, 1),
+      UserFields.board: const <String, Object?>{},
+    };
+
 void main() {
+  const uid = 'uid-1';
   late TeamsDocument teamsDoc;
   late StadiumsDocument stadiumsDoc;
   late PlacesDocument placesDoc;
@@ -48,6 +63,13 @@ void main() {
     );
   });
 
+  late FakeUserDataStore store;
+
+  setUp(() {
+    store = FakeUserDataStore();
+    addTearDown(store.dispose);
+  });
+
   Widget app() {
     // 홈이 소비하는 콘텐츠 provider 4종을 모두 override 한다 — 실제
     // 파일/네트워크 IO 는 widget test 의 fake async 안에서 완료되지 않아
@@ -57,12 +79,13 @@ void main() {
         ScheduleDocument(generatedAt: DateTime.utc(2026), games: const []);
     // 로그인 게이트를 지나야 온보딩·홈이 나온다 — 로그인한 실행을 주입한다.
     final auth = FakeAuthService(
-      signedIn: const AuthUser(uid: 'uid-1', displayName: '원정러'),
+      signedIn: const AuthUser(uid: uid, displayName: '원정러'),
     );
     addTearDown(auth.dispose);
     return ProviderScope(
       overrides: [
         authServiceProvider.overrideWithValue(auth),
+        userDataStoreProvider.overrideWithValue(store),
         teamsProvider.overrideWith(
           (ref) async => ContentFresh<TeamsDocument>(teamsDoc),
         ),
@@ -96,7 +119,7 @@ void main() {
     }
   });
 
-  testWidgets('팀 선택 → 기기에 저장되고 홈으로 넘어간다', (tester) async {
+  testWidgets('팀 선택 → 사용자 문서가 만들어지고 홈으로 넘어간다', (tester) async {
     SharedPreferences.setMockInitialValues({});
     await tester.pumpWidget(app());
     await tester.pumpAndSettle();
@@ -107,6 +130,11 @@ void main() {
     await tester.tap(hanwha);
     await tester.pumpAndSettle();
 
+    // 원본은 사용자 문서다 — 다섯 필수 필드를 갖춰 한 번에 만들어진다.
+    expect(store.profileCreates, 1);
+    expect(store.documents[uid]![UserFields.favoriteTeamId], 'hanwha');
+    expect(store.documents[uid]![UserFields.profileThemeKey], 'hanwha');
+    // 캐시도 따라간다 — 다음 콜드 스타트의 첫 프레임용.
     final prefs = await SharedPreferences.getInstance();
     expect(prefs.getString(kSelectedTeamPrefsKey), 'hanwha');
     // 선택 즉시 온보딩을 떠나 홈이 뜬다.
@@ -114,21 +142,50 @@ void main() {
     expect(find.byType(TeamSelectScreen), findsNothing);
   });
 
-  testWidgets('저장이 있으면 온보딩을 건너뛰고 홈으로 간다', (tester) async {
-    SharedPreferences.setMockInitialValues({kSelectedTeamPrefsKey: 'lg'});
+  testWidgets('서버에 문서가 있으면 온보딩을 건너뛰고 홈으로 간다', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    store.documents[uid] = serverDocument('lg');
     await tester.pumpWidget(app());
     await tester.pumpAndSettle();
 
     expect(find.byType(TeamSelectScreen), findsNothing);
     expect(find.byType(HomeScreen), findsOneWidget);
-    // 저장된 팀의 테마가 걸려 있다 (themeKey 경유).
+    // 서버가 든 팀의 테마가 걸려 있다 (themeKey 경유).
     final scope = tester.widget<TeamThemeScope>(find.byType(TeamThemeScope));
     final expectedKey = teamsDoc.byId('lg')!.themeKey;
     expect(scope.theme.primary, TeamThemes.byId[expectedKey]!.primary);
   });
 
-  testWidgets('팀 변경(설정 진입점) → primary 색이 새 팀 토큰과 일치한다', (tester) async {
+  testWidgets('첫 프레임은 캐시 값으로 그리고 서버 값이 오면 수렴한다', (tester) async {
     SharedPreferences.setMockInitialValues({kSelectedTeamPrefsKey: 'lg'});
+    store.documents[uid] = serverDocument('samsung');
+    // 서버 스냅샷을 붙잡아 둔다 — 콜드 스타트의 "아직 모르는" 구간.
+    store.holdProfiles = true;
+    await tester.pumpWidget(app());
+    await tester.pumpAndSettle();
+
+    expect(find.byType(HomeScreen), findsOneWidget);
+    var scope = tester.widget<TeamThemeScope>(find.byType(TeamThemeScope));
+    expect(
+      scope.theme.primary,
+      TeamThemes.byId[teamsDoc.byId('lg')!.themeKey]!.primary,
+    );
+
+    store.releaseProfiles();
+    await tester.pumpAndSettle();
+
+    scope = tester.widget<TeamThemeScope>(find.byType(TeamThemeScope));
+    expect(
+      scope.theme.primary,
+      TeamThemes.byId[teamsDoc.byId('samsung')!.themeKey]!.primary,
+    );
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getString(kSelectedTeamPrefsKey), 'samsung');
+  });
+
+  testWidgets('팀 변경(설정 진입점) → primary 색이 새 팀 토큰과 일치한다', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    store.documents[uid] = serverDocument('lg');
     await tester.pumpWidget(app());
     await tester.pumpAndSettle();
 
@@ -148,7 +205,11 @@ void main() {
     final scope = tester.widget<TeamThemeScope>(find.byType(TeamThemeScope));
     final expectedKey = teamsDoc.byId('samsung')!.themeKey;
     expect(scope.theme.primary, TeamThemes.byId[expectedKey]!.primary);
-    // 저장 값도 바뀌었다.
+    // 서버 문서가 갱신되고(새로 만들지 않는다) 캐시도 따라갔다.
+    expect(store.profileCreates, 0);
+    expect(store.documents[uid]![UserFields.favoriteTeamId], 'samsung');
+    expect(store.documents[uid]![UserFields.profileThemeKey], 'samsung');
+    expect(store.documents[uid]![UserFields.joinedAt], DateTime.utc(2026, 3, 1));
     final prefs = await SharedPreferences.getInstance();
     expect(prefs.getString(kSelectedTeamPrefsKey), 'samsung');
   });

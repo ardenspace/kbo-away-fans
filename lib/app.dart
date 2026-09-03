@@ -93,9 +93,11 @@ class _SplashGateState extends State<SplashGate> {
 /// acceptance 계약:
 /// - 로그인하지 않은 실행은 여기서 멈춘다. 계정 없이 앱을 쓰는 경로가 없다
 ///   ([XL] 소셜 로그인 필수 결정) — 팀이 기기에 저장돼 있어도 마찬가지다.
-/// - 로그인한 실행의 분기는 사이클 1 그대로다: 온보딩은 팀 저장이 없을 때만
-///   뜨고, 저장소 읽기 오류는 미선택과 같이 온보딩으로 보낸다(잘못된 값으로
-///   홈 진입 방지).
+/// - 로그인한 실행의 분기 모양은 사이클 1 그대로다: 온보딩은 선택 팀이 없을
+///   때만 뜨고, 읽기 오류는 미선택과 같이 온보딩으로 보낸다(잘못된 값으로 홈
+///   진입 방지). 다만 그 값의 원본은 2.4 부터 사용자 문서이고 기기 저장값은
+///   첫 프레임용 캐시다 — 서버 값을 알게 되면 그것으로 수렴한다
+///   (`features/team_select/selected_team.dart`).
 /// - 로그아웃하면 [authStateProvider] 가 null 을 흘려 이 자리가 다시 로그인
 ///   화면이 된다.
 ///
@@ -183,7 +185,7 @@ class _RootGateState extends ConsumerState<RootGate> {
 bool _isSignedIn(AsyncValue<AuthUser?> state) =>
     !state.hasError && state.hasValue && state.value != null;
 
-/// 로그인한 뒤의 분기 — 저장된 응원 팀이 없으면 온보딩, 있으면 홈.
+/// 로그인한 뒤의 분기 — 응원 팀이 없으면 온보딩, 있으면 홈.
 class _SignedInGate extends ConsumerWidget {
   const _SignedInGate();
 
