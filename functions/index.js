@@ -67,10 +67,34 @@ export const kakaoCustomToken = onCall({ enforceAppCheck: true }, async (request
       // `message` 가 아니라 `reason` 인 것은 firebase-functions 로거가 구조화 로그의
       // `message` 키를 이벤트 이름으로 이미 쓰고 있어 같은 이름을 실으면 덮이기 때문이다.
       reason: err?.message ?? String(err),
+      // 원인 사슬의 맨 아래. 이것이 없으면 `internal` 은 로그에서 "무언가 실패했다"
+      // 이상을 말하지 못한다 — 카카오가 준 코드는 위 두 필드가 받지만, 커스텀 토큰
+      // 발급처럼 우리 쪽에서 터진 실패는 `cause` 에만 남는다. 사용자에게 나가는
+      // 응답은 그대로 코드와 문구뿐이고, 이 필드는 서버 로그에만 실린다.
+      cause: causeOf(err),
     });
     throw new HttpsError(code, err?.message ?? '카카오 로그인을 처리하지 못했습니다');
   }
 });
+
+/**
+ * 오류의 원인 사슬을 로그에 실을 수 있는 모양으로 편다.
+ *
+ * `Error` 를 그대로 구조화 로그에 넣으면 `{}` 로 직렬화되어 아무것도 남지 않는다.
+ * 이름·문구·`code` 만 뽑고 스택은 첫 몇 줄로 자른다 — 진단에 필요한 것은 어디서
+ * 터졌는가이지 전체 사슬이 아니고, 로그 한 줄이 길어질수록 읽히지 않는다.
+ */
+function causeOf(err) {
+  const cause = err?.cause;
+  if (cause === undefined || cause === null) return null;
+  if (!(cause instanceof Error)) return String(cause);
+  return {
+    name: cause.name,
+    message: cause.message,
+    code: cause.code ?? null,
+    stack: (cause.stack ?? '').split('\n').slice(0, 4).join(' | '),
+  };
+}
 
 /** `custom-token.js`·`kakao.js` 가 내는 코드 — 그대로 callable 오류 코드가 된다. */
 const KNOWN_CODES = new Set([
