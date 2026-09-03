@@ -17,6 +17,8 @@
 ///  7) 그 구간에서 고른 팀은 이미 있는 원본을 덮지 않는다.
 library;
 
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kbo_away_fans/backend/auth.dart';
@@ -224,11 +226,15 @@ void main() {
     );
     expect(document[UserFields.profileThemeKey], 'lg');
     expect(document[UserFields.joinedAt], DateTime.utc(2026, 3, 1));
-    // 사본도 옮기지 않는다 — 서버에 없는 팀이 다음 콜드 스타트의 첫 프레임을
-    // 칠하면 같은 오해가 한 번 더 선다.
-    expect(await cachedTeamId(), isNull);
+    // 고른 팀은 사본에도 남지 않는다 — 서버에 없는 팀이 다음 콜드 스타트의 첫
+    // 프레임을 칠하면 같은 오해가 한 번 더 선다. 사본은 물러선 자리에서 읽어
+    // 온 **원본의 값**으로 선다.
+    expect(await cachedTeamId(), 'lg');
+    // 물러선 자리에서 원본을 읽어 화면이 이미 그 값으로 수렴했다 — 이 갈래에는
+    // 뒤이어 오는 스냅샷이 없을 수 있으므로 스냅샷에 맡기지 않는다.
+    expect(container.read(selectedTeamIdProvider).value, 'lg');
 
-    // 스냅샷이 오면 화면이 서버 값으로 바로잡힌다.
+    // 뒤이어 스냅샷이 오는 실행에서도 같은 값이다.
     store.releaseProfiles();
     expect(await settledTeamId(container), 'lg');
   });
@@ -428,6 +434,119 @@ void main() {
     expect(container.read(selectedTeamIdProvider).value, 'lg');
   });
 
+  test('줄에 선 선택은 그 사이에 바뀐 계정의 문서에 실리지 않는다', () async {
+    // 앞선 선택의 서버 쓰기가 끝나기 전에 한 번 더 고르면 뒤엣것은 줄에 선다.
+    // 그 사이에 계정이 바뀌면(로그아웃 → 다른 계정 로그인) 줄에 선 선택이
+    // 실행될 때의 계정은 **고른 사람이 아니다.** 그것을 그대로 쓰면 새 계정의
+    // 첫 문서가 앞사람의 선택으로 만들어지고, "재로그인이 덮지 않는다"는
+    // 보장 때문에 새 계정은 그 잘못된 문서를 그대로 안고 간다.
+    SharedPreferences.setMockInitialValues({});
+    final slow = _GatedCreateStore();
+    addTearDown(slow.dispose);
+    slow.holdProfiles = true;
+    final container = ProviderContainer(
+      overrides: [
+        authServiceProvider.overrideWithValue(auth),
+        userDataStoreProvider.overrideWithValue(slow),
+      ],
+    );
+    addTearDown(container.dispose);
+    container.listen(selectedTeamIdProvider, (_, _) {});
+    await pumpEventQueue();
+
+    final notifier = container.read(selectedTeamIdProvider.notifier);
+    final first = notifier.select('lg');
+    final second = notifier.select('kia');
+    await pumpEventQueue();
+
+    await auth.signOut();
+    await pumpEventQueue();
+    final next = await auth.signIn(AuthProviderId.google);
+    await pumpEventQueue();
+    expect(next.uid, isNot(uid));
+
+    slow.gate.complete();
+    await first;
+    await second;
+    await pumpEventQueue();
+
+    expect(slow.documents[uid]![UserFields.favoriteTeamId], 'lg');
+    expect(
+      slow.documents[next.uid],
+      isNull,
+      reason: '앞 계정의 선택이 새 계정의 첫 문서를 만들었다',
+    );
+    expect(slow.profileCreates, 1);
+    expect(await const SelectedTeamStore().read(next.uid), isNull);
+    expect(
+      container.read(selectedTeamIdProvider).value,
+      isNot('kia'),
+      reason: '새 계정의 화면에 앞 계정의 선택이 남았다',
+    );
+  });
+
+  test('물러선 선택은 서버 값을 읽어 화면을 그 값으로 수렴시킨다', () async {
+    // 온보딩이 뜬 채 서버에 문서가 이미 있는 상태에 이르는 주된 길은 "캐시가
+    // 비어 있고 스냅샷이 오류로 끝난 실행"이고, 그 갈래에는 **뒤이어 오는
+    // 스냅샷이 없다.** 물러서기만 하고 아무 일도 하지 않으면 사람은 그 세션
+    // 내내 고른 팀의 홈을 보다가 다음 콜드 스타트에서 아무 설명 없이 옛 팀으로
+    // 돌아온다.
+    SharedPreferences.setMockInitialValues({});
+    store.documents[uid] = _serverDocument('lg');
+    store.holdProfiles = true;
+    final container = makeContainer();
+    await pumpEventQueue();
+
+    store.emitProfileError(const BackendNetworkError(code: 'unavailable'));
+    await pumpEventQueue();
+    expect(container.read(selectedTeamIdProvider).value, isNull, reason: '온보딩이다');
+
+    await container.read(selectedTeamIdProvider.notifier).select('kt');
+    await pumpEventQueue();
+
+    expect(store.profileCreates, 0);
+    expect(store.documents[uid]![UserFields.favoriteTeamId], 'lg');
+    expect(
+      container.read(selectedTeamIdProvider).value,
+      'lg',
+      reason: '물러선 자리에서 아무 일도 일어나지 않아 화면이 고른 팀에 남았다',
+    );
+    // 사본도 그 서버 값으로 선다 — 다음 콜드 스타트의 첫 프레임이 원본과
+    // 같은 팀으로 그려진다.
+    expect(await cachedTeamId(), 'lg');
+  });
+
+  test('수렴시킬 값을 읽지도 못하면 선택은 오류로 드러난다', () async {
+    // 물러섰는데 서버 읽기까지 실패하면 화면은 고른 팀에 남는다. 그 상태를
+    // 조용히 두면 사람은 자기 선택이 남았다고 믿는다 — 화면 쪽 `BackendError`
+    // 안내 경로에 걸리도록 던진다.
+    SharedPreferences.setMockInitialValues({});
+    final unreadable = _UnreadableProfileStore();
+    addTearDown(unreadable.dispose);
+    unreadable.documents[uid] = _serverDocument('lg');
+    unreadable.holdProfiles = true;
+    final container = ProviderContainer(
+      overrides: [
+        authServiceProvider.overrideWithValue(auth),
+        userDataStoreProvider.overrideWithValue(unreadable),
+      ],
+    );
+    addTearDown(container.dispose);
+    container.listen(selectedTeamIdProvider, (_, _) {});
+    await pumpEventQueue();
+    unreadable.emitProfileError(const BackendNetworkError(code: 'unavailable'));
+    await pumpEventQueue();
+
+    await expectLater(
+      container.read(selectedTeamIdProvider.notifier).select('kt'),
+      throwsA(isA<BackendError>()),
+    );
+
+    expect(unreadable.profileCreates, 0);
+    expect(unreadable.documents[uid]![UserFields.favoriteTeamId], 'lg');
+    expect(await cachedTeamId(), isNull);
+  });
+
   test('로그인하지 않은 실행의 선택은 권한 오류로 드러난다', () async {
     SharedPreferences.setMockInitialValues({});
     auth = FakeAuthService();
@@ -441,6 +560,27 @@ void main() {
     );
     expect(store.documents, isEmpty);
   });
+}
+
+/// 첫 문서 만들기를 붙잡아 두는 대역 — 서버 왕복이 끝나지 않은 구간이다.
+/// 그 사이에 다음 선택이 줄에 서고, 계정도 바뀔 수 있다.
+class _GatedCreateStore extends FakeUserDataStore {
+  final Completer<void> gate = Completer<void>();
+
+  @override
+  Future<bool> createProfile(String uid, NewUserProfile profile) async {
+    await gate.future;
+    return super.createProfile(uid, profile);
+  }
+}
+
+/// 사용자 문서를 **읽지 못하는** 저장소 — 물러선 자리에서 수렴시킬 값을
+/// 가져오지도 못하는 실행의 대역이다. 쓰기는 부모 구현 그대로다.
+class _UnreadableProfileStore extends FakeUserDataStore {
+  @override
+  Future<UserProfile?> readProfile(String uid) async {
+    throw const BackendNetworkError(code: 'unavailable');
+  }
 }
 
 /// 기기 저장이 언제나 실패하는 캐시 — 저장 공간이 꽉 찼거나 플랫폼 채널이

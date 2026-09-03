@@ -23,8 +23,12 @@ import 'selected_team.dart';
 /// 실패가 아닌데도 선택이 서버에 남지 않는 갈래가 하나 있다: 이 화면이
 /// 온보딩으로 떴는데 서버에는 이미 그 계정의 문서가 있던 경우다
 /// ([SelectedTeamNotifier.select] 참조 — 그 원본을 덮지 않는다). 안내를 띄우지
-/// 않는 것은 실패한 것이 아니기 때문이고, 뒤이어 오는 스냅샷이 화면을 그 계정의
-/// 진짜 팀으로 바로잡는다.
+/// 않는 것은 실패한 것이 아니기 때문이고, 그 자리에서 원본을 한 번 읽어 화면이
+/// 그 계정의 진짜 팀으로 수렴한다(스냅샷에 맡기지 않는다 — 이 갈래에 이르는
+/// 주된 길이 스냅샷이 오류로 끝난 실행이라 뒤이어 오는 스냅샷이 없다).
+/// 읽기까지 실패해 수렴시키지 못하면 그때는 `BackendError` 로 던져 오고,
+/// 아래 [saveFailureNotice] 가 뜬다 — 화면이 고른 팀에 남은 채 조용히 끝나지
+/// 않게 하는 자리다.
 class TeamSelectScreen extends ConsumerWidget {
   const TeamSelectScreen({super.key, this.isChange = false});
 

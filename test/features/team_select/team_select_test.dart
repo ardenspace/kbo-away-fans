@@ -229,6 +229,48 @@ void main() {
     expect(find.byType(HomeScreen), findsOneWidget);
   });
 
+  testWidgets('물러선 선택은 그 자리에서 서버 값으로 수렴한다', (tester) async {
+    // 온보딩이 뜬 채 서버에 문서가 이미 있는 상태에 이르는 주된 길이다:
+    // 캐시가 비어 있고 스냅샷이 오류로 끝난 실행. 여기서 고른 팀은 이미 있는
+    // 원본을 덮지 않는데(`selected_team.dart`), 그 갈래에는 **뒤이어 오는
+    // 스냅샷이 없다** — 물러서기만 하고 아무 일도 하지 않으면 사람은 그 세션
+    // 내내 고른 팀의 홈을 보다가 다음 콜드 스타트에서 설명 없이 옛 팀으로
+    // 돌아온다.
+    SharedPreferences.setMockInitialValues({});
+    store.documents[uid] = serverDocument('lg');
+    store.holdProfiles = true;
+    await tester.pumpWidget(app());
+    // 스냅샷을 기다리는 구간의 화면은 도는 스피너라 `pumpAndSettle` 이 멈추지
+    // 않는다 — 스플래시와 그 뒤 전환을 지나갈 만큼만 시간을 민다. 게이트가
+    // 실제로 서기 전에 오류를 흘리면 스냅샷을 구독한 자리가 아직 없어 그
+    // 오류가 아무 데도 닿지 않는다.
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pump(const Duration(seconds: 1));
+
+    store.emitProfileError(const BackendNetworkError(code: 'unavailable'));
+    await tester.pumpAndSettle();
+    expect(find.byType(TeamSelectScreen), findsOneWidget);
+
+    final kt = find.text('kt wiz', skipOffstage: false);
+    await tester.ensureVisible(kt);
+    await tester.pumpAndSettle();
+    await tester.tap(kt);
+    await tester.pumpAndSettle();
+
+    // 원본은 그대로고, 화면이 그 원본으로 수렴했다.
+    expect(store.profileCreates, 0);
+    expect(store.documents[uid]![UserFields.favoriteTeamId], 'lg');
+    expect(find.byType(HomeScreen), findsOneWidget);
+    final scope = tester.widget<TeamThemeScope>(find.byType(TeamThemeScope));
+    expect(
+      scope.theme.primary,
+      TeamThemes.byId[teamsDoc.byId('lg')!.themeKey]!.primary,
+      reason: '고른 팀의 테마가 그대로 남았다 — 물러선 자리에서 아무 일도 일어나지 않았다',
+    );
+    expect(await const SelectedTeamStore().read(uid), 'lg');
+  });
+
   testWidgets('기기 저장을 읽지 못한 실행은 온보딩으로 간다', (tester) async {
     // 아는 값이 하나도 없는 실행이다 — 서버도 모르고 캐시도 읽지 못했다.
     // 이 갈래에 실제로 들어가는 것은 `SharedPreferences` 읽기가 던지는

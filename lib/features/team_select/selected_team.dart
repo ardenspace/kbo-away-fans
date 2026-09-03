@@ -213,7 +213,7 @@ class SelectedTeamNotifier extends Notifier<AsyncValue<String?>> {
       final teamId = value?.favoriteTeamId;
       // 서버를 알게 된 순간부터 캐시는 사본이다 — 다음 콜드 스타트의 첫
       // 프레임이 이 값으로 그려진다.
-      _mirror(teamId);
+      _mirror(value);
       return AsyncData(teamId);
     }
     // 서버를 아직 모르는(또는 읽지 못한) 구간: 캐시가 화면을 그린다. 서버
@@ -260,46 +260,60 @@ class SelectedTeamNotifier extends Notifier<AsyncValue<String?>> {
   /// 만들어지지 않는다(그 예외는 화면 쪽 `BackendError` 처리에도 걸리지 않아
   /// 안내 없이 샌다). 순서가 이 계층이 스스로 적어 둔 "서버가 원본, 기기
   /// 저장은 캐시"와 같아야 한다.
+  ///
+  /// **고른 사람을 선택과 함께 줄에 태운다.** 실행 시점에 계정을 다시 읽으면,
+  /// 줄에 서 있는 사이에 계정이 바뀐 실행에서 앞 계정의 선택이 새 계정의 첫
+  /// 문서로 굳는다 — 그리고 "재로그인이 덮지 않는다"는 보장 때문에 새 계정은
+  /// 그 잘못된 문서를 그대로 안고 간다. 캐시가 값에 소유 계정을 매다는 것
+  /// ([CachedTeamId])과 같은 결속이고, 같은 까닭이다.
   Future<void> select(String teamId) async {
     assert(kTeamIds.contains(teamId), '알 수 없는 teamId: $teamId');
+    final owner = ref.read(authStateProvider).value;
     state = AsyncData(teamId);
     final task = _queue.then(
       // 앞선 선택이 실패했더라도 줄은 이어진다 — 한 번의 통신 실패가 그
       // 뒤의 선택을 통째로 막아서는 안 된다.
-      (_) => _store(teamId),
-      onError: (Object _) => _store(teamId),
+      (_) => _store(teamId, owner),
+      onError: (Object _) => _store(teamId, owner),
     );
     _queue = task.then((_) {}, onError: (Object _) {});
     await task;
   }
 
   /// 한 번의 선택을 원본과 사본에 남긴다 — 줄 안에서 도는 몸통.
-  Future<void> _store(String teamId) async {
-    if (await _writeProfile(teamId)) await _writeCache(teamId);
-  }
-
-  /// 선택을 사용자 문서에 남긴다 — 문서가 없으면 만들고, 있으면 고친다.
-  ///
-  /// 돌려주는 값은 **선택이 원본에 실제로 남았는가**다. false 는 "이미 있는
-  /// 문서를 덮지 않고 물러섰다"는 뜻이고, 그때는 사본도 옮기지 않는다.
-  Future<bool> _writeProfile(String teamId) async {
-    final user = ref.read(authStateProvider).value;
-    if (user == null) {
+  Future<void> _store(String teamId, AuthUser? owner) async {
+    if (owner == null) {
       // 계정 없이 쓰는 경로가 없는 앱이라 여기 오는 것은 게이트를 지나지 않은
       // 실행뿐이다. 조용히 캐시에만 남기면 그 선택은 어느 계정의 것도 아니다.
       throw const BackendPermissionError(code: 'unauthenticated');
     }
+    if (await _writeProfile(teamId, owner)) await _writeCache(teamId, owner.uid);
+  }
+
+  /// 선택을 사용자 문서에 남긴다 — 문서가 없으면 만들고, 있으면 고친다.
+  ///
+  /// 돌려주는 값은 **선택이 원본에 실제로 남았는가**다. false 는 "이 선택을
+  /// 원본에 남기지 않았다"는 뜻이고(계정이 바뀌었거나, 이미 있는 문서를 덮지
+  /// 않고 물러섰거나), 그때는 사본도 옮기지 않는다.
+  Future<bool> _writeProfile(String teamId, AuthUser owner) async {
+    if (ref.read(authStateProvider).value?.uid != owner.uid) {
+      // 줄에 서 있는 사이에 계정이 바뀌었다. 이 선택은 지금 사람의 것이
+      // 아니므로 버린다 — 고른 사람은 이미 떠났고, 그 선택을 지금 계정에
+      // 남기면 새 계정의 첫 문서가 앞사람의 팀으로 굳는다. 안내하지 않는 것은
+      // 실패가 아니어서다(들을 사람도 없다).
+      return false;
+    }
     final store = ref.read(userDataStoreProvider);
 
-    if (_knownDocumentUid != user.uid) {
+    if (_knownDocumentUid != owner.uid) {
       // 이 실행은 이 계정의 문서를 아직 본 적이 없다. 문서 유무를 따로
       // 물어보지 않는 것은 `createProfile` 이 트랜잭션이라 그 판정을 이미 안에서
       // 하기 때문이다 — 앞에 읽기를 하나 더 두면 결과는 그대로인 채 문서
       // 읽기만 한 번 더 든다.
       final created = await store.createProfile(
-        user.uid,
+        owner.uid,
         NewUserProfile(
-          nickname: seedNickname(uid: user.uid, displayName: user.displayName),
+          nickname: seedNickname(uid: owner.uid, displayName: owner.displayName),
           favoriteTeamId: teamId,
           // 프로필 색은 선택한 팀 색으로 함께 선다. 두 값을 따로 둔 것은
           // "색만 바꾸는" 경로(마이페이지)를 위해서지, 팀을 바꾼 사람의 색을
@@ -308,14 +322,14 @@ class SelectedTeamNotifier extends Notifier<AsyncValue<String?>> {
         ),
       );
       if (created) {
-        _knownDocumentUid = user.uid;
+        _knownDocumentUid = owner.uid;
         return true;
       }
       // 만들지 못했다 = 이미 문서가 있다. 그런데 이 실행은 그 문서를 본 적이
       // 없으므로 게이트는 이 사람을 "팀이 없는 사람"으로 다루었고, 사람은
       // "처음 고르는 중"이라고 믿고 눌렀다. 여기서 수정으로 이어 가면 그
       // 사람은 자기가 팀을 **바꿨다는 것조차** 모른 채 원본을 잃는다.
-      // 물러서고, 뒤이어 오는 스냅샷이 화면을 바로잡게 둔다.
+      // 물러서고, 그 자리에서 원본을 읽어 화면을 그 값으로 수렴시킨다.
       //
       // 이 갈래에는 정당한 팀 변경 하나가 함께 걸린다: 캐시가 홈을 그린 채
       // 스냅샷이 오기 전에 곧바로 "팀 바꾸기"까지 간 실행이다. 그 창은 온라인
@@ -323,39 +337,66 @@ class SelectedTeamNotifier extends Notifier<AsyncValue<String?>> {
       // 도 서버 확인을 기다리다 끝나지 않는다 — 그 좁은 창에서 변경이 한 번
       // 먹히지 않는 쪽이, 기기를 바꾼 사람이 자기 팀을 조용히 잃는 쪽보다
       // 싸다고 보았다.
+      await _convergeToServer(owner);
       return false;
     }
 
     await store.patchProfile(
-      user.uid,
+      owner.uid,
       UserProfilePatch(favoriteTeamId: teamId, profileThemeKey: teamId),
     );
     return true;
   }
 
-  /// 캐시를 서버 값에 맞춘다.
-  void _mirror(String? teamId) {
-    if (teamId == null) return;
-    // 기다리지 않는 것은 이 갱신이 화면을 막을 이유가 없어서다 — 캐시는 다음
-    // 콜드 스타트의 첫 프레임에만 쓰인다.
-    unawaited(_writeCache(teamId));
+  /// 물러선 자리에서 원본을 한 번 읽어 화면을 그 값으로 수렴시킨다.
+  ///
+  /// 스냅샷에 맡기지 않는 것은, **이 갈래에 뒤이어 오는 스냅샷이 없기**
+  /// 때문이다. 온보딩이 뜬 채 서버에 문서가 이미 있는 상태에 이르는 주된 길이
+  /// "캐시가 비어 있고 스냅샷이 오류로 끝난 실행"이고, 그 스트림은 오류와 함께
+  /// 끝나 자동 재시도도 없다. 물러서기만 하면 사람은 그 세션 내내 고른 팀의
+  /// 홈을 보다가 다음 콜드 스타트에서 아무 설명 없이 옛 팀으로 돌아온다.
+  ///
+  /// 읽기 실패는 그대로 던진다 — 수렴시키지 못한 채 화면이 고른 팀에 남는
+  /// 상태를 조용히 두면 사람은 자기 선택이 남았다고 믿는다. 화면 쪽
+  /// `BackendError` 안내 경로가 그 던짐을 받는다
+  /// (`team_select_screen.dart` 의 `_select`).
+  Future<void> _convergeToServer(AuthUser owner) async {
+    final profile = await ref.read(userDataStoreProvider).readProfile(owner.uid);
+    if (profile == null) {
+      // 방금 "이미 있다"고 답한 문서가 읽을 때는 없다. 앱에 문서를 지우는
+      // 경로가 없으니 실제로 오기 어려운 자리이지만, 수렴시킬 값이 없는 것은
+      // 읽기 실패와 같으므로 같이 다룬다 — 화면이 고른 팀에 남은 채 조용히
+      // 끝나지 않게 한다.
+      throw const BackendUnknownError(code: 'profile-missing');
+    }
+    // 읽는 사이에 계정이 바뀌었으면 이 값은 지금 사람의 것이 아니다.
+    if (ref.read(authStateProvider).value?.uid != owner.uid) return;
+    _knownDocumentUid = owner.uid;
+    state = AsyncData(profile.favoriteTeamId);
+    await _writeCache(profile.favoriteTeamId, owner.uid);
   }
 
-  /// 캐시를 지금 계정의 것으로 적는다.
+  /// 캐시를 서버 값에 맞춘다 — 그 문서를 가진 계정의 것으로 적는다.
+  void _mirror(UserProfile? profile) {
+    if (profile == null) return;
+    // 기다리지 않는 것은 이 갱신이 화면을 막을 이유가 없어서다 — 캐시는 다음
+    // 콜드 스타트의 첫 프레임에만 쓰인다.
+    unawaited(_writeCache(profile.favoriteTeamId, profile.uid));
+  }
+
+  /// 캐시를 [uid] 계정의 것으로 적는다.
   ///
-  /// 계정을 모르는 구간에서는 적지 않는다 — 소유자 없는 캐시는 다음 실행에서
-  /// 누구의 것도 아니게 되어 어차피 읽히지 않는다.
+  /// 소유 계정을 부르는 쪽이 건네는 것은, 이 값이 "누구의 선택인가"를 지금
+  /// 로그인 상태가 아니라 그 선택이 난 자리에서 정해야 하기 때문이다.
   ///
   /// **실패를 밖으로 내보내지 않는다.** 이 값은 다음 콜드 스타트의 첫 프레임을
   /// 그리는 데만 쓰이므로, 적지 못한 결과는 그 한 프레임이 늦게 칠해지는
   /// 것뿐이다 — 원본은 이미 서버에 있다. 반면 이 실패를 던지면 이미 서버에
   /// 남은 선택이 실패한 것처럼 보이고, 화면 쪽 `BackendError` 처리에도 걸리지
   /// 않아 안내 없이 샌다.
-  Future<void> _writeCache(String teamId) async {
-    final user = ref.read(authStateProvider).value;
-    if (user == null) return;
+  Future<void> _writeCache(String teamId, String uid) async {
     try {
-      await ref.read(cachedTeamIdProvider.notifier).write(user.uid, teamId);
+      await ref.read(cachedTeamIdProvider.notifier).write(uid, teamId);
     } on Object {
       // 위 문단 참조 — 사본을 적지 못한 것이 선택을 무르게 하지 않는다.
     }
