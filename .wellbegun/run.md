@@ -136,7 +136,7 @@ cycle: 2
   | # | 할 일 | 끝난 것을 아는 방법 |
   |---|---|---|
   | 1 | 카카오 개발자 콘솔(developers.kakao.com) → 내 애플리케이션 추가 | 앱 상세에 **네이티브 앱 키**가 보인다 |
-  | 2 | 그 키를 세 자리에 **같은 값으로** 적는다: `lib/backend/auth_kakao.dart` 의 `kKakaoNativeAppKey`, `android/app/src/main/AndroidManifest.xml` 의 `android:scheme="kakao{키}"`, `ios/Runner/Info.plist` 의 `CFBundleURLTypes` → `kakao{키}` | `flutter test test/backend/kakao_app_key_sync_test.dart` 가 통과하고(세 자리가 어긋나면 여기서 잡힌다), **`flutter test` 전체도 그대로 초록불로 남는다** — 채우기 전에 통과하던 것이 채운 뒤 깨지면 그건 앱 키가 틀린 것이 아니라 시험이 "키가 비어 있음"에 얹혀 있었다는 뜻이니 지휘자에게 알린다 |
+  | 2 | 그 키를 세 자리에 적는다 — **앞의 하나는 키만, 뒤의 둘은 `kakao` 뒤에 키를 붙인 스킴**: ① `lib/backend/auth_kakao.dart` 의 `kKakaoNativeAppKey` 에 키 그대로, ② `android/app/src/main/AndroidManifest.xml` 의 `android:scheme="kakao"` 를 `android:scheme="kakao<키>"` 로, ③ `ios/Runner/Info.plist` 의 `CFBundleURLSchemes` 배열 안 `<string>kakao</string>` 를 `<string>kakao<키></string>` 로. **plist 의 `<key>…</key>` 는 항목의 이름 자리라 값이 들어갈 곳이 아니다** — 거기 키를 넣으면 `CFBundleURLTypes` 라는 구조 이름이 사라져 iOS 가 URL 스킴 설정을 아예 못 읽는다 | `flutter test test/backend/kakao_app_key_sync_test.dart` 가 통과하고(세 자리가 어긋나면 여기서 잡힌다), **`flutter test` 전체도 그대로 초록불로 남는다** — 채우기 전에 통과하던 것이 채운 뒤 깨지면 그건 앱 키가 틀린 것이 아니라 시험이 "키가 비어 있음"에 얹혀 있었다는 뜻이니 지휘자에게 알린다 |
   | 3 | 콘솔 → 플랫폼: Android 패키지명 `com.ardenspace.kbo_away_fans` + **키 해시**, iOS 번들 ID 등록 | 플랫폼 목록에 둘이 보인다. 이 등록이 앱 키의 실제 방어선이다 (키 자체는 저장소에 두는 값 — decisions.md [S]) |
   | 4 | 콘솔 → 카카오 로그인 **활성화**, 동의 항목은 **닉네임 하나만** | 카카오 로그인 상태가 ON, 동의 항목에 프로필 정보(닉네임)만 선택됨. 이메일·전화번호를 켜지 말 것 (비즈니스 채널을 요구하고 앱이 그 값으로 하는 일이 없다) |
   | 5 | Firebase 콘솔 → App Check → 앱 두 개(Android·iOS) 등록 | App Check 앱 목록에 둘이 보인다. **증명 제공자는 지금 등록할 수 없다** — Play Integrity 는 Play Console 등록을, DeviceCheck·App Attest 는 유료 Apple Developer Program 을 요구한다(아래 "인계 사실" 참조). 디버그 토큰만으로 6번을 진행한다 |
@@ -149,6 +149,15 @@ cycle: 2
   | 12 | 함수 로그 확인 (`firebase functions:log --only kakaoCustomToken`) | `kakao_custom_token_issued` 가 보이고, 실패했다면 `kakao_custom_token_failed` 의 `code` 로 어디서 끊겼는지 읽힌다 |
   | 13 | **App Check 이 실제로 막는지** 확인: 6번에서 등록한 디버그 토큰을 콘솔에서 잠시 지우고 카카오 로그인을 시도 | 로그인 화면에 "로그인이 완료되지 않았어요"가 뜨고 **앱이 죽지 않는다**. 함수 로그에는 `kakao_custom_token_issued`·`_failed` 둘 다 안 보이고(함수 몸이 돌기 전에 거절된다) 대신 firebase-admin 의 `Failed to validate AppCheck token` 경고가 보인다 — **로그가 비어 있는 것이 아니라 그 경고가 있는 것이 성공 신호다**. 확인했으면 토큰을 다시 등록한다 |
   | 14 | 카카오톡이 **깔린** 기기와 **안 깔린** 기기에서 각각 10번 | 깔린 쪽은 카카오톡 앱이 떴다가 돌아오고, 안 깔린 쪽은 카카오계정 웹 화면이 뜬다. 어느 쪽이든 앱으로 **돌아와야** 한다 — 안 돌아오면 2번(스킴)이나 3번(플랫폼 등록)을 다시 본다 |
+
+  **진행 상황 (2026-09-03):** 1~2번 완료. 네이티브 앱 키는 `fe1a15ceb43fbb468f94e71ee21028f7`
+  (콘솔의 "네이티브 앱 키 · Default Native AppKey" 항목을 사용자가 스크린샷으로 확인해 줌 —
+  REST API 키·Admin 키와 자릿수·모양이 같아 지휘자가 넣기 전에 종류를 되물었다).
+  2번에서 실제로 함정이 한 번 걸렸다: 처음에 `ios/Runner/Info.plist` 의 `<key>CFBundleURLTypes</key>`
+  줄이 `<key>fe1a…</key>` 로 대체되어 구조 이름이 사라졌고, `test/ios_url_scheme_injection_test.dart`
+  가 "저장소의 Info.plist 에 CFBundleURLTypes 배열이 없다"로 잡았다. **지휘자가 2번 행에 넣어 둔
+  "전체도 초록불로 남는다"는 확인 조건이 실제로 값을 했다** — 앱 키 대조 시험만 봤다면 그 시험은
+  스킴 문자열만 보므로 통과했을 것이다. 되돌린 뒤 flutter 424통과·1스킵, analyze 무지적, 훅 4종 exit 0.
 
   1~4 는 서로 순서가 없지만 **2번은 1번 뒤**, **9번은 5·6번 뒤**, **10~14 는 9번 뒤**다.
   13번을 건너뛰지 말 것 — 클라이언트 배선과 함수 강제 중 하나만 서도 테스트는 전부 초록불이고,

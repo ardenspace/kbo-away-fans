@@ -43,7 +43,7 @@ import 'errors.dart';
 ///
 /// 빈 문자열은 "아직 카카오 앱을 등록하지 않았다"는 뜻이고, 그 실행에서 카카오
 /// 로그인은 [kKakaoKeyMissingCode] 로 드러나게 실패한다.
-const String kKakaoNativeAppKey = '';
+const String kKakaoNativeAppKey = 'fe1a15ceb43fbb468f94e71ee21028f7';
 
 /// 커스텀 토큰 함수가 사는 리전 — `functions/index.js` 의 `setGlobalOptions` 와
 /// 같은 값이어야 한다. 다르면 호출은 존재하지 않는 함수로 나가 `not-found` 로
