@@ -60,6 +60,17 @@ function patchPayload(teamId) {
   };
 }
 
+/**
+ * 같은 타입이 **닉네임만** 실었을 때의 모양 — 3.x 마이페이지가 여는 경로다.
+ * 팀 변경만 재 두면 규칙이 이 모양을 받아 주는지 아무도 모르는 채 배포된다.
+ */
+function nicknamePatchPayload(nickname) {
+  return {
+    nickname,
+    updatedAt: serverTimestamp(),
+  };
+}
+
 /** lib/backend/user_data_firestore.dart 의 createProfile 그대로. */
 function createProfile(db, uid, payload) {
   return runTransaction(db, async (transaction) => {
@@ -135,6 +146,19 @@ describe('탐침 — 앱의 팀 변경 payload 가 규칙을 통과한다', () =
     assert.equal(after_.profileThemeKey, 'doosan');
     assert.ok(after_.joinedAt, '가입 시각이 남아야 한다');
     assert.ok(after_.updatedAt, 'updatedAt 이 서버 시각으로 확정돼야 한다');
+  });
+
+  it('닉네임만 실은 update 도 통과하고 나머지 필드가 남는다', async () => {
+    const db = asUser(env, OWNER_UID);
+
+    await assertSucceeds(
+      updateDoc(doc(db, paths.user(OWNER_UID)), nicknamePatchPayload('바꾼닉')),
+    );
+
+    const after_ = (await getDoc(doc(db, paths.user(OWNER_UID)))).data();
+    assert.equal(after_.nickname, '바꾼닉');
+    assert.equal(after_.favoriteTeamId, 'lg');
+    assert.ok(after_.joinedAt, '가입 시각이 남아야 한다');
   });
 
   it('계약 밖 팀 id 는 규칙이 거부한다 (앱이 먼저 막지만 바닥이 여기다)', async () => {
