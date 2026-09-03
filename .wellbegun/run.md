@@ -141,16 +141,18 @@ cycle: 2
   | 4 | 콘솔 → **카카오 로그인 활성화**(필수). 동의항목은 **앱 관리 화면 → 카카오 로그인 → 동의항목 → 개인정보**에서 프로필 정보(닉네임)만 켠다 — **선택 사항이다** | 로그인 상태가 ON 이면 이 단계는 끝이다. 동의항목은 로그인 가능 여부가 아니라 동의 화면에 무엇이 보이는지를 정할 뿐이고, 닉네임을 안 켜면 `functions/kakao.js:166` 의 `readNickname` 이 null 을 돌려주며 로그인은 그대로 성립한다(그 사람은 2.4 의 기본 닉네임 갈래로 간다). **이메일·전화번호는 켜지 말 것** — 비즈니스 채널 등록을 요구하는데 앱이 그 값으로 하는 일이 없다 |
   | 5 | Firebase 콘솔 → App Check → 앱 탭. **Android 는 Play Integrity 를 골라 등록**하고, **iOS 는 등록하지 않고 둔다** | 안드로이드 행의 증명 제공업체가 Play Integrity 로 바뀐다. **두 플랫폼이 갈리는 까닭:** Play Integrity 는 *등록* 에 Play Console 이 필요하지 않다(스토어로 배포되지 않은 빌드가 실제 *판정* 을 못 받는 것이고, 개발 빌드는 6번의 디버그 토큰으로 지나간다). 반면 iOS 의 DeviceCheck 는 Apple Developer 포털에서 받는 `.p8` 키를 요구해 유료 멤버십 없이는 등록 자체가 안 된다 — 애플 로그인과 같은 벽이다. reCAPTCHA Enterprise 는 웹용이고 프리뷰라 고르지 말 것 |
   | 6 | **디버그 토큰 등록** — 개발에 쓰는 기기·시뮬레이터·에뮬레이터마다 각각 한 번씩: 앱을 디버그로 실행 → 콘솔 로그에서 `Firebase App Check Debug Token: <UUID>` 를 찾아 복사 → Firebase 콘솔 → App Check → 해당 앱의 ⋮ → **디버그 토큰 관리** → 추가 | 콘솔의 디버그 토큰 목록에 기기 수만큼 있다. **토큰은 앱을 지웠다 깔면 바뀐다** — 다시 안 되면 여기부터 의심한다 |
-  | 7 | 배포 대상 프로젝트 확인 (`firebase use`) | `firebase use` 가 이 앱의 프로젝트 id 를 답한다 |
+  | 7 | firebase CLI 로그인 (`./firebase/node_modules/.bin/firebase login` — 저장소 밖에 설치된 CLI 는 쓰지 않는다, 규칙 테스트가 쓰는 그 바이너리다) | `firebase login:list` 가 계정을 답한다. **`.firebaserc` 는 만들지 않는다** — 배포 명령마다 `--project kbo-away-fans` 를 명시한다(decisions.md [S] 2026-09-03: 저장소에서 유일하게 실제 프로젝트를 지목하는 자리가 생기면, 자기 설정을 받아 놓은 사람이 배포만 우리 프로젝트로 내보내는 갈래가 열린다) |
   | 8 | `npm ci --prefix functions` | `functions/node_modules/` 가 생기고 `npm --prefix functions test` 가 그대로 통과 |
-  | 9 | `firebase deploy --only functions` | 콘솔 → Functions 에 `kakaoCustomToken` 이 `asia-northeast3` 리전으로 보인다. **5·6번 뒤에 할 것** |
+  | 9 | `./firebase/node_modules/.bin/firebase deploy --only functions --project kbo-away-fans` | 콘솔 → Functions 에 `kakaoCustomToken` 이 `asia-northeast3` 리전으로 보인다. **5·6번 뒤에 할 것** |
   | 10 | 실기기(또는 시뮬레이터)에서 **카카오로 로그인** | Firebase 콘솔 → Authentication → Users 에 `kakao:` 로 시작하는 uid 의 계정이 생긴다 |
   | 11 | 앱을 완전히 종료했다 다시 켜고 **같은 카카오 계정으로 또 로그인** | Users 목록의 계정 수가 **늘지 않는다** (uid 가 결정적이라 같은 계정에 붙는다) |
   | 12 | 함수 로그 확인 (`firebase functions:log --only kakaoCustomToken`) | `kakao_custom_token_issued` 가 보이고, 실패했다면 `kakao_custom_token_failed` 의 `code` 로 어디서 끊겼는지 읽힌다 |
   | 13 | **App Check 이 실제로 막는지** 확인: 6번에서 등록한 디버그 토큰을 콘솔에서 잠시 지우고 카카오 로그인을 시도 | 로그인 화면에 "로그인이 완료되지 않았어요"가 뜨고 **앱이 죽지 않는다**. 함수 로그에는 `kakao_custom_token_issued`·`_failed` 둘 다 안 보이고(함수 몸이 돌기 전에 거절된다) 대신 firebase-admin 의 `Failed to validate AppCheck token` 경고가 보인다 — **로그가 비어 있는 것이 아니라 그 경고가 있는 것이 성공 신호다**. 확인했으면 토큰을 다시 등록한다 |
   | 14 | 카카오톡이 **깔린** 기기와 **안 깔린** 기기에서 각각 10번 | 깔린 쪽은 카카오톡 앱이 떴다가 돌아오고, 안 깔린 쪽은 카카오계정 웹 화면이 뜬다. 어느 쪽이든 앱으로 **돌아와야** 한다 — 안 돌아오면 2번(스킴)이나 3번(플랫폼 등록)을 다시 본다 |
 
-  **진행 상황 (2026-09-03):** 1~4번 완료(3번 플랫폼 등록, 4번 로그인 활성화). 4번의 동의항목은 켜지 않았고 그래도 된다 — 지휘자가 처음에 "닉네임 하나만"이라고 써서 필수처럼 읽혔으나, 코드를 확인하니 닉네임 결측은 이미 정상 갈래이고 카카오 문서도 동의항목이 로그인 가능 여부를 정하지 않는다고 말한다. 그 행을 사실에 맞게 고쳤다. 네이티브 앱 키는 `fe1a15ceb43fbb468f94e71ee21028f7`
+  **진행 상황 (2026-09-03):** 1~4번 완료(3번 플랫폼 등록, 4번 로그인 활성화). 4번의 동의항목은 켜지 않았고 그래도 된다 — 지휘자가 처음에 "닉네임 하나만"이라고 써서 필수처럼 읽혔으나, 코드를 확인하니 닉네임 결측은 이미 정상 갈래이고 카카오 문서도 동의항목이 로그인 가능 여부를 정하지 않는다고 말한다. 그 행을 사실에 맞게 고쳤다.
+  **5~6번 완료.** 5번은 안드로이드에 Play Integrity 를 붙였고 iOS 는 "등록되지 않음"으로 두었다(위 미룬 항목의 $99 묶음). 6번은 `kbo_pixel8` 에뮬레이터에서 앱을 디버그로 띄워 `DebugAppCheckProvider` 가 찍은 토큰을 콘솔에 등록했다 — **토큰 값은 여기 적지 않는다.** SDK 가 로그에 직접 "This debug token is a secret and should not be shared or uploaded to source code" 라고 경고하며, App Check 을 통째로 우회하는 열쇠라 카카오 네이티브 앱 키와 정반대 성격이다(같은 판별 기준을 적용한 결과가 반대로 나오는 자리다 — 이것은 바이너리에 실려 나가지 않는다).
+  이 실행으로 **App Check 배선이 실물에서 처음 확인됐다**: 로그를 찍은 주체가 `com.google.firebase.appcheck.debug.internal.DebugAppCheckProvider` 라, `lib/backend/app_check.dart` 의 빌드 모드 갈림이 의도대로 동작한다. 그동안 단위 테스트로만 재던 자리다. iOS 시뮬레이터로도 테스트하려면 거기서 앱을 띄워 토큰을 하나 더 등록해야 한다(기기·설치마다 다르다). 네이티브 앱 키는 `fe1a15ceb43fbb468f94e71ee21028f7`
   (콘솔의 "네이티브 앱 키 · Default Native AppKey" 항목을 사용자가 스크린샷으로 확인해 줌 —
   REST API 키·Admin 키와 자릿수·모양이 같아 지휘자가 넣기 전에 종류를 되물었다).
   2번에서 실제로 함정이 한 번 걸렸다: 처음에 `ios/Runner/Info.plist` 의 `<key>CFBundleURLTypes</key>`
