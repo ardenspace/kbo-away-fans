@@ -135,8 +135,7 @@ void main() {
     expect(store.documents[uid]![UserFields.favoriteTeamId], 'hanwha');
     expect(store.documents[uid]![UserFields.profileThemeKey], 'hanwha');
     // 캐시도 따라간다 — 다음 콜드 스타트의 첫 프레임용.
-    final prefs = await SharedPreferences.getInstance();
-    expect(prefs.getString(kSelectedTeamPrefsKey), 'hanwha');
+    expect(await const SelectedTeamStore().read(uid), 'hanwha');
     // 선택 즉시 온보딩을 떠나 홈이 뜬다.
     expect(find.byType(HomeScreen), findsOneWidget);
     expect(find.byType(TeamSelectScreen), findsNothing);
@@ -157,7 +156,9 @@ void main() {
   });
 
   testWidgets('첫 프레임은 캐시 값으로 그리고 서버 값이 오면 수렴한다', (tester) async {
-    SharedPreferences.setMockInitialValues({kSelectedTeamPrefsKey: 'lg'});
+    SharedPreferences.setMockInitialValues({});
+    // 캐시는 계정에 매여 있다 — 이 계정의 것으로 심어야 첫 프레임이 그려진다.
+    await const SelectedTeamStore().write(uid, 'lg');
     store.documents[uid] = serverDocument('samsung');
     // 서버 스냅샷을 붙잡아 둔다 — 콜드 스타트의 "아직 모르는" 구간.
     store.holdProfiles = true;
@@ -179,8 +180,7 @@ void main() {
       scope.theme.primary,
       TeamThemes.byId[teamsDoc.byId('samsung')!.themeKey]!.primary,
     );
-    final prefs = await SharedPreferences.getInstance();
-    expect(prefs.getString(kSelectedTeamPrefsKey), 'samsung');
+    expect(await const SelectedTeamStore().read(uid), 'samsung');
   });
 
   testWidgets('팀 변경(설정 진입점) → primary 색이 새 팀 토큰과 일치한다', (tester) async {
@@ -210,7 +210,6 @@ void main() {
     expect(store.documents[uid]![UserFields.favoriteTeamId], 'samsung');
     expect(store.documents[uid]![UserFields.profileThemeKey], 'samsung');
     expect(store.documents[uid]![UserFields.joinedAt], DateTime.utc(2026, 3, 1));
-    final prefs = await SharedPreferences.getInstance();
-    expect(prefs.getString(kSelectedTeamPrefsKey), 'samsung');
+    expect(await const SelectedTeamStore().read(uid), 'samsung');
   });
 }

@@ -64,9 +64,14 @@ void main() {
     return container.read(selectedTeamIdProvider).value;
   }
 
-  Future<String?> cachedTeamId() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(kSelectedTeamPrefsKey);
+  /// 지금 계정이 읽어 낼 캐시 값.
+  Future<String?> cachedTeamId() => const SelectedTeamStore().read(uid);
+
+  /// 캐시에 팀을 심는다 — 실제 쓰기 경로를 그대로 쓰므로 저장 모양을 시험이
+  /// 다시 적지 않는다. [owner] 를 주면 그 계정의 캐시가 된다.
+  Future<void> seedCache(String teamId, {String? owner}) async {
+    SharedPreferences.setMockInitialValues({});
+    await const SelectedTeamStore().write(owner ?? uid, teamId);
   }
 
   test('첫 로그인: 팀을 고르면 사용자 문서가 한 번 만들어진다', () async {
@@ -125,7 +130,7 @@ void main() {
   });
 
   test('캐시 → 서버 수렴: 첫 프레임은 캐시 값, 이후 서버 값', () async {
-    SharedPreferences.setMockInitialValues({kSelectedTeamPrefsKey: 'lg'});
+    await seedCache('lg');
     store.documents[uid] = _serverDocument('samsung');
     // 서버 스냅샷을 붙잡아 둔다 — 아직 서버 값을 모르는 구간.
     store.holdProfiles = true;
@@ -141,7 +146,7 @@ void main() {
   });
 
   test('서버 값과 캐시가 다르면 서버가 이긴다', () async {
-    SharedPreferences.setMockInitialValues({kSelectedTeamPrefsKey: 'lg'});
+    await seedCache('lg');
     store.documents[uid] = _serverDocument('kia');
     final container = makeContainer();
 
@@ -152,7 +157,7 @@ void main() {
   test('서버에 문서가 없으면 캐시가 있어도 온보딩이다', () async {
     // 같은 기기에서 다른 계정으로 처음 로그인한 경우 — 앞사람의 캐시가 남아
     // 있어도 이 계정의 원본은 없다.
-    SharedPreferences.setMockInitialValues({kSelectedTeamPrefsKey: 'lg'});
+    await seedCache('lg');
     final container = makeContainer();
 
     expect(await settledTeamId(container), isNull);
@@ -169,7 +174,7 @@ void main() {
   });
 
   test('팀을 바꾸면 서버 문서가 갱신되고 캐시도 따라간다', () async {
-    SharedPreferences.setMockInitialValues({kSelectedTeamPrefsKey: 'lg'});
+    await seedCache('lg');
     store.documents[uid] = _serverDocument('lg');
     final container = makeContainer();
     await settledTeamId(container);
@@ -233,6 +238,32 @@ void main() {
     store.releaseProfiles();
     expect(await settledTeamId(container), 'kia');
     expect(await cachedTeamId(), 'kia');
+  });
+
+  test('앞사람의 캐시는 새 계정의 스냅샷 대기 구간에도 붙지 않는다', () async {
+    // 같은 기기를 넘겨받은 새 계정 — 서버에는 이 계정의 문서가 없고, 캐시에는
+    // 앞사람의 팀이 남아 있다. "서버 문서가 없으면 미선택" 한 줄은 **서버를
+    // 알게 된 뒤**에야 서므로, 그 앞 구간(스냅샷 대기)을 그리는 캐시가 계정에
+    // 매여 있지 않으면 새 계정이 앞사람 팀으로 홈에 들어간다.
+    await seedCache('lotte', owner: 'kakao:9999999999');
+    store.holdProfiles = true;
+    final container = makeContainer();
+
+    expect(await settledTeamId(container), isNull);
+
+    store.releaseProfiles();
+
+    expect(await settledTeamId(container), isNull);
+  });
+
+  test('소유자를 적지 않은 옛 판의 캐시는 읽지 않는다', () async {
+    // 앱을 올리기 전 판이 남긴 값 — 누구 것인지 알 수 없으므로 없는 것으로
+    // 본다 (앞사람의 팀일 수 있다).
+    SharedPreferences.setMockInitialValues({kSelectedTeamPrefsKey: 'lotte'});
+    store.holdProfiles = true;
+    final container = makeContainer();
+
+    expect(await settledTeamId(container), isNull);
   });
 
   test('로그인하지 않은 실행의 선택은 권한 오류로 드러난다', () async {

@@ -29,7 +29,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../backend/fake_backend.dart';
 
-const AuthUser _user = AuthUser(uid: 'uid-1', displayName: '원정러');
+/// 로그인해 둔 사람 — uid 를 [FakeAuthService] 의 구글 로그인이 세우는 것과
+/// 같게 잡는다 (캐시가 계정에 매여 있어서, 다시 로그인하는 갈래가 같은 계정으로
+/// 이어져야 한다).
+final AuthUser _user = AuthUser(
+  uid: fakeUidOf(AuthProviderId.google),
+  displayName: '원정러',
+);
 const ContentIssue _issue = ContentIssue(ContentIssueKind.network, 'fixture');
 
 Future<void> _turn(WidgetTester tester, [int frames = 20]) async {
@@ -82,7 +88,9 @@ void main() {
     testWidgets('주입은 있으나 로그아웃 상태면 스플래시를 지나도 로그인 화면에서 멈춘다', (
       tester,
     ) async {
-      SharedPreferences.setMockInitialValues({kSelectedTeamPrefsKey: 'lg'});
+      SharedPreferences.setMockInitialValues({});
+      // 캐시는 계정에 매여 있다 — 이 계정의 것으로 심어야 첫 프레임이 그려진다.
+      await const SelectedTeamStore().write(_user.uid, 'lg');
       await tester.pumpWidget(wholeApp(fakeAuth()));
       await tester.pumpAndSettle();
 
@@ -96,7 +104,9 @@ void main() {
 
   group('탐침 2 — route 로 뜨는 것들이 되감기에 함께 내려가는가', () {
     testWidgets('바텀시트가 떠 있을 때 로그아웃하면 시트도 내려간다', (tester) async {
-      SharedPreferences.setMockInitialValues({kSelectedTeamPrefsKey: 'lg'});
+      SharedPreferences.setMockInitialValues({});
+      // 캐시는 계정에 매여 있다 — 이 계정의 것으로 심어야 첫 프레임이 그려진다.
+      await const SelectedTeamStore().write(_user.uid, 'lg');
       final auth = fakeAuth(signedIn: _user);
       await tester.pumpWidget(gate(auth));
       await _turn(tester);
@@ -138,7 +148,9 @@ void main() {
       // 트리에 이미 있는 탐침은 `MaterialApp(home: RootGate())` 만 띄운다.
       // 실제 앱은 게이트가 SplashGate 의 AnimatedSwitcher 안에 들어 있어
       // route 구조가 다르므로 같은 보호가 서는지 따로 잰다.
-      SharedPreferences.setMockInitialValues({kSelectedTeamPrefsKey: 'lg'});
+      SharedPreferences.setMockInitialValues({});
+      // 캐시는 계정에 매여 있다 — 이 계정의 것으로 심어야 첫 프레임이 그려진다.
+      await const SelectedTeamStore().write(_user.uid, 'lg');
       final auth = fakeAuth(signedIn: _user);
       await tester.pumpWidget(wholeApp(auth));
       await tester.pumpAndSettle();
@@ -167,7 +179,9 @@ void main() {
 
   group('탐침 2c — 되감긴 뒤 다시 로그인하면 제자리로 돌아오는가', () {
     testWidgets('화면을 밀어 올린 채 세션이 끊기고 다시 로그인하면 홈 하나만 남는다', (tester) async {
-      SharedPreferences.setMockInitialValues({kSelectedTeamPrefsKey: 'lg'});
+      SharedPreferences.setMockInitialValues({});
+      // 캐시는 계정에 매여 있다 — 이 계정의 것으로 심어야 첫 프레임이 그려진다.
+      await const SelectedTeamStore().write(_user.uid, 'lg');
       final auth = fakeAuth(signedIn: _user);
       await tester.pumpWidget(gate(auth));
       await _turn(tester);
@@ -203,7 +217,9 @@ void main() {
     testWidgets('로그인한 채 authStateProvider 를 다시 세우면 밀어 올린 화면이 살아남는가', (
       tester,
     ) async {
-      SharedPreferences.setMockInitialValues({kSelectedTeamPrefsKey: 'lg'});
+      SharedPreferences.setMockInitialValues({});
+      // 캐시는 계정에 매여 있다 — 이 계정의 것으로 심어야 첫 프레임이 그려진다.
+      await const SelectedTeamStore().write(_user.uid, 'lg');
       final auth = fakeAuth(signedIn: _user);
       await tester.pumpWidget(gate(auth));
       await _turn(tester);
@@ -246,7 +262,9 @@ void main() {
     testWidgets('세션이 잠깐 끊겼다 같은 프레임에 같은 계정으로 돌아오면 화면 스택이 남는가', (
       tester,
     ) async {
-      SharedPreferences.setMockInitialValues({kSelectedTeamPrefsKey: 'lg'});
+      SharedPreferences.setMockInitialValues({});
+      // 캐시는 계정에 매여 있다 — 이 계정의 것으로 심어야 첫 프레임이 그려진다.
+      await const SelectedTeamStore().write(_user.uid, 'lg');
       final auth = _FlickerAuth(_user);
       addTearDown(auth.dispose);
       await tester.pumpWidget(gate(auth));
@@ -302,7 +320,9 @@ void main() {
 
   group('탐침 4 — 잠기고 풀리는 상태', () {
     testWidgets('끝나지 않는 로그인은 진행 중 표시도 없고 푸는 방법도 없다', (tester) async {
-      SharedPreferences.setMockInitialValues({kSelectedTeamPrefsKey: 'lg'});
+      SharedPreferences.setMockInitialValues({});
+      // 캐시는 계정에 매여 있다 — 이 계정의 것으로 심어야 첫 프레임이 그려진다.
+      await const SelectedTeamStore().write(_user.uid, 'lg');
       final auth = _HangingAuth();
       addTearDown(auth.dispose);
       await tester.pumpWidget(gate(auth));
@@ -345,7 +365,9 @@ void main() {
     });
 
     testWidgets('signIn 은 성공했는데 세션이 서지 않으면 다시 시도할 방법이 없다', (tester) async {
-      SharedPreferences.setMockInitialValues({kSelectedTeamPrefsKey: 'lg'});
+      SharedPreferences.setMockInitialValues({});
+      // 캐시는 계정에 매여 있다 — 이 계정의 것으로 심어야 첫 프레임이 그려진다.
+      await const SelectedTeamStore().write(_user.uid, 'lg');
       final auth = _SignInWithoutSession();
       addTearDown(auth.dispose);
       await tester.pumpWidget(gate(auth));

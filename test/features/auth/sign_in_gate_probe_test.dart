@@ -31,7 +31,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../backend/fake_backend.dart';
 
-const AuthUser _user = AuthUser(uid: 'uid-1', displayName: '원정러');
+/// 로그인해 둔 사람 — uid 를 [FakeAuthService] 의 구글 로그인이 세우는 것과
+/// 같게 잡는다 (캐시가 계정에 매여 있어서, 다시 로그인하는 갈래가 같은 계정으로
+/// 이어져야 한다).
+final AuthUser _user = AuthUser(
+  uid: fakeUidOf(AuthProviderId.google),
+  displayName: '원정러',
+);
 const ContentIssue _issue = ContentIssue(ContentIssueKind.network, 'fixture');
 
 /// 정해진 횟수만 돌리는 settle 대용 — 영원히 안 끝나는 프레임에 걸리지 않는다.
@@ -96,7 +102,9 @@ void main() {
 
   group('탐침 A — 게이트가 화면을 바꾼 뒤에 남는 상태', () {
     testWidgets('로그아웃하면 밀어 올린 화면도 함께 내려간다', (tester) async {
-      SharedPreferences.setMockInitialValues({kSelectedTeamPrefsKey: 'lg'});
+      SharedPreferences.setMockInitialValues({});
+      // 캐시는 계정에 매여 있다 — 이 계정의 것으로 심어야 첫 프레임이 그려진다.
+      await const SelectedTeamStore().write(_user.uid, 'lg');
       final auth = fakeAuth(signedIn: _user);
       await tester.pumpWidget(gate(auth));
       await _turn(tester);
@@ -123,7 +131,9 @@ void main() {
     });
 
     testWidgets('세션이 끊기면 밀어 올린 화면도 함께 내려간다', (tester) async {
-      SharedPreferences.setMockInitialValues({kSelectedTeamPrefsKey: 'lg'});
+      SharedPreferences.setMockInitialValues({});
+      // 캐시는 계정에 매여 있다 — 이 계정의 것으로 심어야 첫 프레임이 그려진다.
+      await const SelectedTeamStore().write(_user.uid, 'lg');
       final auth = fakeAuth(signedIn: _user);
       await tester.pumpWidget(gate(auth));
       await _turn(tester);
@@ -148,7 +158,9 @@ void main() {
 
   group('탐침 B — 같은 프레임의 중복 입력', () {
     testWidgets('같은 프레임에 두 제공자를 누르면 한 번만 로그인한다', (tester) async {
-      SharedPreferences.setMockInitialValues({kSelectedTeamPrefsKey: 'lg'});
+      SharedPreferences.setMockInitialValues({});
+      // 캐시는 계정에 매여 있다 — 이 계정의 것으로 심어야 첫 프레임이 그려진다.
+      await const SelectedTeamStore().write(_user.uid, 'lg');
       final auth = fakeAuth();
       await tester.pumpWidget(gate(auth));
       await _turn(tester);
@@ -176,7 +188,9 @@ void main() {
 
   group('탐침 D — 세션 스트림이 오류로 끝나 버린 경우', () {
     testWidgets('스트림이 닫힌 뒤 다시 로그인하면 앱으로 들어간다', (tester) async {
-      SharedPreferences.setMockInitialValues({kSelectedTeamPrefsKey: 'lg'});
+      SharedPreferences.setMockInitialValues({});
+      // 캐시는 계정에 매여 있다 — 이 계정의 것으로 심어야 첫 프레임이 그려진다.
+      await const SelectedTeamStore().write(_user.uid, 'lg');
       final auth = _SessionDropsAuth(_user);
       addTearDown(auth.dispose);
 
@@ -233,7 +247,9 @@ void main() {
 
   group('탐침 C — 전제 주입이 실제로 하중을 받는가', () {
     testWidgets('인증 주입을 빼면 앱 전체 경로가 로그인 화면에서 멈춘다', (tester) async {
-      SharedPreferences.setMockInitialValues({kSelectedTeamPrefsKey: 'lg'});
+      SharedPreferences.setMockInitialValues({});
+      // 캐시는 계정에 매여 있다 — 이 계정의 것으로 심어야 첫 프레임이 그려진다.
+      await const SelectedTeamStore().write(_user.uid, 'lg');
       await tester.pumpWidget(
         ProviderScope(
           overrides: [

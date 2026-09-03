@@ -13,8 +13,15 @@
 ///  - 서버를 아직 모르는 구간(콜드 스타트, 스냅샷 대기)에서만 캐시가 화면을
 ///    그린다.
 ///  - 서버 문서가 없으면(= 온보딩 전) 캐시에 값이 남아 있어도 미선택이다.
-///    같은 기기에서 다른 계정으로 처음 로그인한 사람이 앞사람의 팀으로 홈에
-///    들어가지 않게 하는 자리다.
+///
+/// **캐시는 계정에 매여 있다.** 저장하는 값이 소유 계정의 uid 를 함께 들고,
+/// 읽을 때 지금 계정과 다르면 없는 것으로 본다. 그래서 같은 기기에서 다른
+/// 계정으로 처음 로그인한 사람은 스냅샷을 기다리는 동안에도 앞사람의 팀으로
+/// 홈에 들지 않는다 — "서버 문서가 없으면 미선택" 한 줄로는 그것을 막지
+/// 못한다(그 판정은 **서버를 알게 된 뒤**에야 서고, 그 앞 구간을 그리는 것이
+/// 바로 캐시다). 로그아웃 시점에 캐시를 지우는 길은 쓰지 않는다 — 로그아웃
+/// UI 가 아직 없고, 앱이 강제 종료되는 갈래는 그 처리를 지나지 않아 같은
+/// 빈틈이 그대로 남는다.
 ///
 /// 팀 선택이 사용자 문서를 만드는 자리이기도 하다 — 문서는 다섯 필수 필드를
 /// 갖춰 한 번에 만들어지고(`docs/firestore-schema.md`), 그중 `favoriteTeamId`
@@ -34,26 +41,49 @@ import '../../content/content_ids.dart';
 /// 선택한 응원 팀 id 가 저장되는 prefs 키.
 const String kSelectedTeamPrefsKey = 'selected_team_id';
 
+/// 캐시 값 안에서 소유 계정과 팀 id 를 가르는 글자.
+///
+/// 팀 로스터에는 이 글자가 없고 Firebase uid 에도 없다. 그래도 가르는 자리를
+/// **마지막** 것으로 잡는 것은, 어떤 제공자가 uid 에 이 글자를 넣더라도 팀 id
+/// 쪽이 잘못 읽히지 않게 하기 위해서다.
+const String _cacheOwnerSeparator = '|';
+
 /// 응원 팀 id 의 기기 캐시 (shared_preferences 래퍼).
 ///
 /// 이 값은 원본이 아니다 — 서버 문서를 아직 읽지 못한 첫 프레임을 그리기 위한
 /// 사본이고, 서버 값을 알게 되면 그것으로 덮인다.
+///
+/// **캐시는 계정에 매여 있다.** 한 키 안에 `{uid}|{teamId}` 를 적고, 읽을 때
+/// 소유자가 지금 계정과 다르면 없는 것으로 본다. 계정마다 키를 따로 두지 않는
+/// 것은 그러면 로그인한 계정 수만큼 키가 쌓이기 때문이고, 한 키를 덮어쓰면
+/// 앞사람의 값이 저절로 사라진다.
 class SelectedTeamStore {
   const SelectedTeamStore();
 
-  /// 캐시된 팀 id. 없거나 로스터([kTeamIds]) 밖 값이면 null.
-  Future<String?> read() async {
+  /// [uid] 계정의 캐시된 팀 id. 없거나, 소유자가 다르거나, 로스터([kTeamIds])
+  /// 밖 값이면 null.
+  ///
+  /// 소유자를 적지 않던 옛 판이 남긴 값(가르는 글자가 없는 값)도 null 이다 —
+  /// 누구 것인지 알 수 없는 값은 없는 것으로 본다.
+  Future<String?> read(String uid) async {
     final prefs = await SharedPreferences.getInstance();
-    final id = prefs.getString(kSelectedTeamPrefsKey);
-    if (id == null || !kTeamIds.contains(id)) return null;
+    final stored = prefs.getString(kSelectedTeamPrefsKey);
+    if (stored == null) return null;
+    final cut = stored.lastIndexOf(_cacheOwnerSeparator);
+    if (cut < 0 || stored.substring(0, cut) != uid) return null;
+    final id = stored.substring(cut + 1);
+    if (!kTeamIds.contains(id)) return null;
     return id;
   }
 
-  /// 팀 id 를 캐시에 적는다. 로스터 밖 id 는 프로그래밍 오류.
-  Future<void> write(String teamId) async {
+  /// [uid] 계정의 팀 id 를 캐시에 적는다. 로스터 밖 id 는 프로그래밍 오류.
+  Future<void> write(String uid, String teamId) async {
     assert(kTeamIds.contains(teamId), '알 수 없는 teamId: $teamId');
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(kSelectedTeamPrefsKey, teamId);
+    await prefs.setString(
+      kSelectedTeamPrefsKey,
+      '$uid$_cacheOwnerSeparator$teamId',
+    );
   }
 }
 
@@ -62,7 +92,8 @@ final selectedTeamStoreProvider = Provider<SelectedTeamStore>(
   (_) => const SelectedTeamStore(),
 );
 
-/// 캐시에 남아 있는 팀 id — 서버 값을 모르는 동안의 첫 프레임용.
+/// 캐시에 남아 있는 **지금 계정의** 팀 id — 서버 값을 모르는 동안의 첫
+/// 프레임용.
 ///
 /// 별도 provider 로 둔 것은 [SelectedTeamNotifier] 를 동기 [Notifier] 로 두기
 /// 위해서다. 서버 값이 도착할 때마다 비동기 build 가 다시 도는 구조에서는 그
@@ -72,8 +103,14 @@ final selectedTeamStoreProvider = Provider<SelectedTeamStore>(
 /// 자동 재시도는 끈다 — 캐시 읽기 실패는 "선택 없음"과 같이 다루므로(아래
 /// [SelectedTeamNotifier] 참조) 다시 시도할 이유가 없고, 위젯 테스트에 타이머만
 /// 남긴다.
+/// 세션을 아직 모르거나 로그아웃 상태면 읽을 계정이 없으므로 null 이다 — 그
+/// 구간에서 루트 게이트는 어차피 대기 화면이나 로그인 화면에 있다.
 final cachedTeamIdProvider = FutureProvider<String?>(
-  (ref) => ref.watch(selectedTeamStoreProvider).read(),
+  (ref) async {
+    final user = ref.watch(authStateProvider).value;
+    if (user == null) return null;
+    return ref.watch(selectedTeamStoreProvider).read(user.uid);
+  },
   retry: (retryCount, error) => null,
 );
 
@@ -90,7 +127,12 @@ final selectedTeamIdProvider =
 /// 응원 팀 선택 상태 — 서버 문서를 원본으로 삼고 캐시를 그 뒤에 맞춘다.
 class SelectedTeamNotifier extends Notifier<AsyncValue<String?>> {
   /// 캐시에 마지막으로 적은 값 — 같은 값을 반복해서 쓰지 않으려고 들고 있다.
-  String? _mirrored;
+  ///
+  /// 소유 계정을 함께 들고 있는 것은 한 실행 안에서 계정이 바뀔 수 있기
+  /// 때문이다(로그아웃한 뒤 다른 계정으로 로그인). 팀 id 만 기억하면 새 계정이
+  /// 같은 팀을 고른 순간 "이미 적었다"로 판정되어 캐시의 소유자가 앞사람인 채
+  /// 남는다.
+  ({String uid, String teamId})? _mirrored;
 
   @override
   AsyncValue<String?> build() {
@@ -118,8 +160,7 @@ class SelectedTeamNotifier extends Notifier<AsyncValue<String?>> {
   Future<void> select(String teamId) async {
     assert(kTeamIds.contains(teamId), '알 수 없는 teamId: $teamId');
     state = AsyncData(teamId);
-    _mirrored = teamId;
-    await ref.read(selectedTeamStoreProvider).write(teamId);
+    await _writeCache(teamId);
     await _writeProfile(teamId);
   }
 
@@ -164,12 +205,24 @@ class SelectedTeamNotifier extends Notifier<AsyncValue<String?>> {
     );
   }
 
-  /// 캐시를 서버 값에 맞춘다 (같은 값이면 쓰지 않는다).
+  /// 캐시를 서버 값에 맞춘다.
   void _mirror(String? teamId) {
-    if (teamId == null || teamId == _mirrored) return;
-    _mirrored = teamId;
+    if (teamId == null) return;
     // 기다리지 않는 것은 이 갱신이 화면을 막을 이유가 없어서다 — 캐시는 다음
     // 콜드 스타트의 첫 프레임에만 쓰인다.
-    unawaited(ref.read(selectedTeamStoreProvider).write(teamId));
+    unawaited(_writeCache(teamId));
+  }
+
+  /// 캐시를 지금 계정의 것으로 적는다 (같은 계정의 같은 값이면 쓰지 않는다).
+  ///
+  /// 계정을 모르는 구간에서는 적지 않는다 — 소유자 없는 캐시는 다음 실행에서
+  /// 누구의 것도 아니게 되어 어차피 읽히지 않는다.
+  Future<void> _writeCache(String teamId) async {
+    final user = ref.read(authStateProvider).value;
+    if (user == null) return;
+    final entry = (uid: user.uid, teamId: teamId);
+    if (_mirrored == entry) return;
+    _mirrored = entry;
+    await ref.read(selectedTeamStoreProvider).write(user.uid, teamId);
   }
 }

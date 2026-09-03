@@ -176,6 +176,13 @@ class FakeUserDataStore implements UserDataStore {
   }
 }
 
+/// [FakeAuthService.signIn] 이 제공자별로 세우는 uid.
+///
+/// 따로 내놓는 것은 캐시가 계정에 매여 있기 때문이다(2.4) — "로그인하면 홈이
+/// 뜬다"를 재는 시험은 그 계정의 캐시를 심어야 하고, uid 를 문자열로 다시
+/// 적으면 이 대역의 규칙이 바뀌는 날 시험이 조용히 어긋난다.
+String fakeUidOf(AuthProviderId provider) => '${provider.name}-uid';
+
 /// 메모리 인증 서비스 — 로그인 상태를 테스트가 직접 조종한다.
 class FakeAuthService implements AuthService {
   FakeAuthService({AuthUser? signedIn}) : _current = signedIn;
@@ -207,7 +214,7 @@ class FakeAuthService implements AuthService {
     final error = failure;
     if (error != null) throw error;
     final user = AuthUser(
-      uid: '${provider.name}-uid',
+      uid: fakeUidOf(provider),
       displayName: '${provider.name} 사용자',
     );
     _current = user;
@@ -280,7 +287,7 @@ class UnknownSessionAuthService implements AuthService {
 
   @override
   Future<AuthUser> signIn(AuthProviderId provider) async {
-    final user = AuthUser(uid: '${provider.name}-uid');
+    final user = AuthUser(uid: fakeUidOf(provider));
     restore(user);
     return user;
   }
