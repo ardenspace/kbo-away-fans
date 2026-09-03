@@ -21,6 +21,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kbo_away_fans/app.dart';
 import 'package:kbo_away_fans/backend/auth.dart';
+import 'package:kbo_away_fans/backend/errors.dart';
 import 'package:kbo_away_fans/backend/user_data.dart';
 import 'package:kbo_away_fans/content/content_loader.dart';
 import 'package:kbo_away_fans/content/content_providers.dart';
@@ -181,6 +182,28 @@ void main() {
       TeamThemes.byId[teamsDoc.byId('samsung')!.themeKey]!.primary,
     );
     expect(await const SelectedTeamStore().read(uid), 'samsung');
+  });
+
+  testWidgets('서버를 읽지 못해도 캐시 값으로 홈에 머무른다', (tester) async {
+    // 이미 팀을 고른 사람을 통신 문제로 온보딩에 되돌려 세우지 않는다 —
+    // 캐시를 남긴 이유가 그것이다. 캐시가 계정에 매여 있어서 이 갈래에 남의
+    // 팀이 뜰 위험은 없다 (`selected_team_test.dart` 의 앞사람 캐시 시험).
+    SharedPreferences.setMockInitialValues({});
+    await const SelectedTeamStore().write(uid, 'lg');
+    store.holdProfiles = true;
+    await tester.pumpWidget(app());
+    await tester.pumpAndSettle();
+
+    store.emitProfileError(const BackendNetworkError(code: 'unavailable'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(HomeScreen), findsOneWidget);
+    expect(find.byType(TeamSelectScreen), findsNothing);
+    final scope = tester.widget<TeamThemeScope>(find.byType(TeamThemeScope));
+    expect(
+      scope.theme.primary,
+      TeamThemes.byId[teamsDoc.byId('lg')!.themeKey]!.primary,
+    );
   });
 
   testWidgets('팀 변경(설정 진입점) → primary 색이 새 팀 토큰과 일치한다', (tester) async {

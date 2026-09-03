@@ -240,6 +240,28 @@ void main() {
     expect(await cachedTeamId(), 'kia');
   });
 
+  test('서버 스냅샷이 오류로 끝나도 캐시 값으로 홈에 머무른다', () async {
+    // 결정: 서버를 읽지 못한 사람을 온보딩으로 되돌리지 않는다. 이미 팀을 고른
+    // 사람이 통신 문제로 팀 선택을 다시 하게 되고, 그것이 캐시를 남긴 이유와
+    // 정면으로 어긋나기 때문이다. 캐시가 계정에 매여 있으므로(위 시험) 이
+    // 갈래에서 남의 팀이 뜰 위험은 없다.
+    await seedCache('lg');
+    store.holdProfiles = true;
+    final container = makeContainer();
+    expect(await settledTeamId(container), 'lg');
+
+    store.emitProfileError(const BackendNetworkError(code: 'unavailable'));
+    await pumpEventQueue();
+
+    final state = container.read(selectedTeamIdProvider);
+    expect(
+      state.hasError,
+      isFalse,
+      reason: '오류로 읽히면 게이트가 이 사람을 온보딩으로 되돌린다',
+    );
+    expect(state.value, 'lg');
+  });
+
   test('앞사람의 캐시는 새 계정의 스냅샷 대기 구간에도 붙지 않는다', () async {
     // 같은 기기를 넘겨받은 새 계정 — 서버에는 이 계정의 문서가 없고, 캐시에는
     // 앞사람의 팀이 남아 있다. "서버 문서가 없으면 미선택" 한 줄은 **서버를
