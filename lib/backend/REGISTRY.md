@@ -16,7 +16,8 @@
 | `FirebaseAuthService` | 위 계약의 구현 — Firebase Auth 위의 세 제공자 로그인(`firebase_auth`·`google_sign_in` import 는 여기까지). 설정 파일이 없으면 서지 않고 `firebase-unconfigured` 로 드러나게 실패한다 | `lib/backend/auth_firebase.dart` | 앱이 실제로 로그인할 때 — 화면은 이 타입을 부르지 않고 `authServiceProvider` 만 본다 |
 | `KakaoAuthGateway` | 카카오의 두 걸음 — SDK 로그인(액세스 토큰)과 커스텀 토큰 교환(서울 리전 callable). 실 구현 `KakaoSdkAuthGateway` 에 `package:kakao_flutter_sdk_user`·`cloud_functions` import 가 모여 있고, 네이티브 앱 키 상수 `kKakaoNativeAppKey` 도 여기 산다. SDK 와 닿는 세 자리(앱 키·`KakaoSdk.init`·로그인 호출)는 `KakaoSdkAuthGateway.withSeams` 로 갈아 끼운다 — 시험이 "설정이 없는 실행"을 **스스로 만들 수 있게** 하는 자리다 | `lib/backend/auth_kakao.dart` | 카카오 로그인 — 화면은 이 타입을 모르고 `signIn(AuthProviderId.kakao)` 만 부른다 |
 | `BackendAppCheck` | App Check 배선 — 백엔드가 이 앱의 빌드가 건 호출만 받게 한다(디버그 빌드는 디버그 토큰, 릴리스는 Play Integrity / DeviceCheck). 함수 쪽 강제는 `functions/index.js` 의 `enforceAppCheck: true` 와 짝이다 | `lib/backend/app_check.dart` | `main` 에서 1회 — 인증보다 먼저. 그 한 번이 실패한 실행에서는 카카오 로그인 경로(`_signInWithKakao`)가 교환 직전에 다시 켠다 (실패한 시도를 기억하지 않는다). **기다림에는 `kAppCheckActivationTimeout`(5초) 상한이 있고 넘어도 던지지 않는다** — 두 호출자 모두 사람이 보는 화면을 붙잡고 있어서, 끝나지 않는 활성화가 스플래시나 로그인 버튼 잠금을 영구히 만들지 않게 한다 |
-| `UserDataStore` | 사용자 데이터 접근 — 사용자 문서·도장·좋아요 읽기/쓰기의 단일 경로 + 계약 필드만 싣는 업로드 payload 타입(`NewUserProfile`·`UserProfilePatch`·`StampWrite`·`LikeWrite`)과 칸 id 로스터(`kBoardCellIds`) | `lib/backend/user_data.dart` | 배지·좋아요·프로필을 다루는 모든 곳 |
+| `UserDataStore` | 사용자 데이터 접근 — 사용자 문서·도장·좋아요 읽기/쓰기의 단일 경로 + 계약 필드만 싣는 업로드 payload 타입(`NewUserProfile`·`UserProfilePatch`·`StampWrite`·`LikeWrite`)과 칸 id 로스터(`kBoardCellIds`), 첫 문서의 닉네임 씨앗(`seedNickname` — 제공자 표시 이름이 없을 수 있다), 그리고 **화면이 사용자 문서를 구독하는 유일한 자리 `userProfileProvider`**(문서가 없으면 값이 null = 온보딩 전) | `lib/backend/user_data.dart` | 배지·좋아요·프로필을 다루는 모든 곳 |
+| `FirestoreUserDataStore` | 위 계약의 구현 — Cloud Firestore 위의 읽기/쓰기(`cloud_firestore` import 는 여기까지)와 계약 타입 ↔ SDK 타입 어댑터(`encodeBackendValues`/`decodeBackendValues`: `ServerTimestamp`→서버 시각 센티널, `Timestamp`→UTC `DateTime`). 첫 문서 만들기는 트랜잭션이라 **이미 있는 문서를 덮지 않는다**(재로그인이 가입 시각·배지 판을 지우지 못한다). 설정 파일이 없으면 서지 않고 `firebase-unconfigured` 로 드러나게 실패한다 | `lib/backend/user_data_firestore.dart` | 앱이 실제로 사용자 문서를 읽고 쓸 때 — 화면은 이 타입을 부르지 않고 `userDataStoreProvider`·`userProfileProvider` 만 본다 |
 | `BackendError` | 오류 봉투 — Firebase 예외를 네트워크/권한/알 수 없음 세 도메인 오류로 바꾸는 유일한 변환 경로(Future 는 `guardBackend`, 스트림은 `guardBackendStream`) | `lib/backend/errors.dart` | 백엔드 호출의 모든 실패 경로 |
 
 ## 이 폴더 밖에 있는 짝
@@ -49,8 +50,9 @@
 ## 아직 구현이 없는 자리 (phase 2 이후)
 
 `authServiceProvider` 의 기본값은 `FirebaseAuthService` 이고, 세 제공자가 모두
-붙어 있다(2.2 구글·애플, 2.3 카카오). `userDataStoreProvider` 는 여전히 기본
-구현 없이 던지고 2.4 가 채운다.
+붙어 있다(2.2 구글·애플, 2.3 카카오). `userDataStoreProvider` 의 기본값도
+2.4 부터 실제 구현(`FirestoreUserDataStore`)이다 — 도장 쓰기의 트랜잭션 갱신
+(4.2)만 아직 이 계층 밖의 몫으로 남아 있다.
 
 카카오 네이티브 앱 키(`kKakaoNativeAppKey`)는 **저장소에 그대로 두는 값**이다
 (`.wellbegun/decisions.md` 의 [S] 줄: 감출지 말지를 "이 값이 바이너리에 실려
@@ -61,9 +63,9 @@
 `test/backend/kakao_app_key_sync_test.dart` 가 셋을 대조한다.
 
 설정 파일(`google-services.json` / `GoogleService-Info.plist`)이 없는 실행에서는
-인증 구현이 서지 못하고 `firebase-unconfigured` 로 던진다. 그 실행과, 주입 없이
-`userDataStoreProvider` 를 읽는 실행 양쪽에서 provider 는 오류 상태가 되고, 루트
-게이트(2.1)는 그것을 "로그인 화면 + 안내"로 받는다 — 조용히 로그아웃한 사람처럼
+인증 구현도 사용자 데이터 구현도 서지 못하고 둘 다 `firebase-unconfigured` 로
+던진다. 그 실행에서 두 provider 는 오류 상태가 되고, 루트 게이트(2.1)는 인증
+쪽 오류를 "로그인 화면 + 안내"로 받는다 — 조용히 로그아웃한 사람처럼
 보이지 않는다. 인증에서 분석 래퍼 같은 조용한 no-op 을 쓰지 않는 까닭이 이것이다:
 계정 없이 쓰는 경로가 없는 앱에서 "no-op 인증"은 설정 실수를 숨긴다.
 테스트용 가짜 구현은

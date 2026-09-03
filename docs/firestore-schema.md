@@ -7,6 +7,8 @@
 - 강제 지점: `firestore.rules` (이 문서의 규약을 규칙으로 옮긴 것)
 - 인덱스: `firestore.indexes.json`
 - 규칙 단위 테스트: `firebase/test/` — `npm --prefix firebase test`
+- 앱 쪽: `lib/backend/user_data.dart` (계약 타입) 과
+  `lib/backend/user_data_firestore.dart` (Firestore 구현 + 시각 타입 어댑터)
 - 관련 결정: `.wellbegun/decisions.md` 2026-09-01 (데이터 소유권 XL, 도장 문서 id L,
   배지 판 읽기 패턴 L, 등급 임계 1/3/10)
 

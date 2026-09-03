@@ -17,8 +17,9 @@
 ///     `lib/content/content_ids.dart`, 카테고리는 `PlaceCategory`, 등급은
 ///     `lib/design/tokens.dart` 의 [BadgeTier] 와 그 사다리를 그대로 쓴다.
 ///
-/// Firestore SDK 타입은 여기 없다. 어댑터(2.4)가 SDK 의 시각 타입을
-/// [DateTime] 으로, [ServerTimestamp] 를 SDK 의 서버 시각 표시로 옮긴다.
+/// Firestore SDK 타입은 여기 없다. 어댑터(`user_data_firestore.dart`)가 SDK 의
+/// 시각 타입을 [DateTime] 으로, [ServerTimestamp] 를 SDK 의 서버 시각 표시로
+/// 옮긴다.
 library;
 
 import 'package:flutter/foundation.dart';
@@ -27,6 +28,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../content/content_ids.dart';
 import '../content/models.dart' show PlaceCategory;
 import '../design/tokens.dart';
+import 'auth.dart';
+import 'user_data_firestore.dart';
 
 // ---------------------------------------------------------------------------
 // 시각
@@ -213,6 +216,20 @@ String boardCellTeamId(String cellId) {
   return cellId.split('_').last;
 }
 
+/// 칸 id 의 구장 id — `{stadiumId}_{homeTeamId}` 의 앞조각.
+///
+/// [boardCellTeamId] 와 같은 이유로 여기 산다: 칸 상세가 그 칸의 도장만
+/// 질의하려면 구장과 홈팀 두 값이 필요한데, 질의하는 쪽에서 문자열을 직접
+/// 가르면 id 체계를 아는 자리가 늘어난다.
+///
+/// [kBoardCellIds] 밖의 값이면 [ArgumentError].
+String boardCellStadiumId(String cellId) {
+  if (!kBoardCellIds.contains(cellId)) {
+    throw ArgumentError.value(cellId, 'cellId', '배지 판에 없는 칸 id');
+  }
+  return cellId.split('_').first;
+}
+
 // ---------------------------------------------------------------------------
 // 값 검사 — 업로드 직전에 계약을 잰다
 // ---------------------------------------------------------------------------
@@ -233,6 +250,75 @@ final RegExp _placeIdPattern = RegExp(r'^[a-z][a-z0-9-]{0,63}$');
 /// 10개가 한도다.
 const int kNicknameMinLength = 1;
 const int kNicknameMaxLength = 20;
+
+/// 표시 이름이 없는 계정이 받는 기본 닉네임의 앞머리.
+const String kDefaultNicknamePrefix = '원정러';
+
+/// 첫 문서에 실을 닉네임을 정한다 — 2.4 의 기본 닉네임 갈래가 여기다.
+///
+/// 제공자가 준 표시 이름([AuthUser.displayName])이 씨앗이지만 **없을 수
+/// 있다**: 카카오는 닉네임 동의 항목을 켜지 않은 사람에게 값을 주지 않고
+/// (`functions/kakao.js` 의 정상 갈래), 구글·애플도 표시 이름이 비어 있을 수
+/// 있다. 그 사람들이 닉네임 없는 문서를 받으면 규칙(`nickname.size() >= 1`)이
+/// 문서 생성을 거부하므로, 이 함수가 언제나 계약 안의 값을 돌려준다.
+///
+/// 기본 닉네임을 uid 에서 결정적으로 짓는 것은 기기를 바꿔 다시 로그인해도
+/// 같은 이름이 나오게 하려는 것이다 — 문서는 한 번만 만들어지지만, 만들어지기
+/// 전에 두 기기에서 로그인하는 경우에도 이름이 갈리지 않는다. 무작위 값을 쓰면
+/// 그 성질이 사라지고, 사람이 바꾸기 전까지의 이름이 실행마다 달라진다.
+String seedNickname({required String uid, String? displayName}) {
+  final fromProvider = _fitNickname(displayName);
+  if (fromProvider != null) return fromProvider;
+  return '$kDefaultNicknamePrefix${_nicknameSuffix(uid)}';
+}
+
+/// 표시 이름을 닉네임 계약(UTF-16 코드 단위 1~20)에 맞춘다. 남는 것이 없으면
+/// null — 그때는 호출자가 기본 닉네임으로 간다.
+String? _fitNickname(String? displayName) {
+  if (displayName == null) return null;
+  final trimmed = displayName.trim();
+  if (trimmed.isEmpty) return null;
+  final fitted = _truncateToUtf16Length(trimmed, kNicknameMaxLength);
+  return fitted.isEmpty ? null : fitted;
+}
+
+/// UTF-16 코드 단위로 한도에 맞추되 깨진 글자를 남기지 않는다.
+///
+/// [String.substring] 을 쓰지 않는 것은 그것이 코드 단위 한가운데를 자를 수
+/// 있기 때문이다 — 이모지처럼 두 단위를 차지하는 글자가 경계에 걸리면 짝 잃은
+/// 서러게이트 반쪽이 남는다. 코드 포인트를 하나씩 얹으며 길이를 재고 한도를
+/// 넘기는 코드 포인트는 통째로 버린다(그래서 결과는 19단위가 될 수 있다).
+/// `functions/kakao.js` 의 `truncateToUtf16Length` 와 같은 규칙이다.
+String _truncateToUtf16Length(String value, int maxUtf16Length) {
+  var kept = value;
+  if (kept.length > maxUtf16Length) {
+    final buffer = StringBuffer();
+    var length = 0;
+    for (final rune in value.runes) {
+      final glyph = String.fromCharCode(rune);
+      if (length + glyph.length > maxUtf16Length) break;
+      buffer.write(glyph);
+      length += glyph.length;
+    }
+    kept = buffer.toString();
+  }
+  // 끝에 남은 ZWJ 는 이어 줄 뒷짝이 없다 — trim 은 이 문자를 공백으로 보지
+  // 않으므로 여기서 떼어 낸다 (가족 이모지 사슬이 경계에 걸린 경우).
+  while (kept.endsWith('\u200d')) {
+    kept = kept.substring(0, kept.length - 1);
+  }
+  return kept.trimRight();
+}
+
+/// uid 에서 뽑은 네 자리 — 실행이 달라져도 같은 값이어야 하므로
+/// [Object.hashCode] 를 쓰지 않는다 (문자열 해시는 실행마다 달라질 수 있다).
+String _nicknameSuffix(String uid) {
+  var hash = 0;
+  for (final unit in uid.codeUnits) {
+    hash = (hash * 31 + unit) & 0x1FFFFFFF;
+  }
+  return (hash % 10000).toString().padLeft(4, '0');
+}
 
 String _checkTeamId(String value, String field) {
   if (!kTeamIds.contains(value)) {
@@ -713,13 +799,50 @@ abstract class UserDataStore {
 
 /// 화면이 소비하는 사용자 데이터 저장소 주입 지점.
 ///
-/// 기본 구현은 아직 없다 — Firestore 연결은 2.4 가 붙이고, 그때까지는
-/// override 로 주입한다 (빈 대역을 기본값으로 두면 주입을 빠뜨린 화면이
-/// "데이터가 없는 사람"처럼 조용히 동작한다).
+/// 기본값은 Firestore 구현이다(2.4). 설정 파일이 없는 실행에서는 그 구현이
+/// 서지 못하고 `firebase-unconfigured` 로 던져 provider 가 오류 상태가 된다 —
+/// 인증과 같은 판단이다(빈 대역을 기본값으로 두면 주입을 빠뜨린 화면이
+/// "데이터가 없는 사람"처럼 조용히 동작한다). 테스트는 override 로 가짜
+/// 구현을 주입한다.
 final Provider<UserDataStore> userDataStoreProvider = Provider<UserDataStore>(
-  (ref) => throw UnimplementedError(
-    'UserDataStore 구현은 step 2.4 에서 붙인다 — 그전에는 override 로 주입한다',
-  ),
+  (ref) => FirestoreUserDataStore.instance,
+);
+
+/// 지금 로그인한 사람의 사용자 문서 — 문서가 없으면 값이 null 이다.
+///
+/// 이 하나가 사용자 문서를 구독하는 유일한 자리다. 배지 판(4.3)·프로필·선택
+/// 팀이 모두 여기서 값을 받는다 — 화면마다 따로 구독하면 같은 문서를 여러 번
+/// 읽게 되고, 그 읽기 수가 무료 할당량을 갉아먹는 자리가 배지 판이다
+/// (decisions.md 의 운영 비용 M 결정).
+///
+/// 세션 상태와 세 가지로 맞물린다.
+///  - 세션을 **아직 모르는** 구간(콜드 스타트의 복원 대기)에서는 아무것도
+///    흘리지 않는다. 여기서 null 을 흘리면 로그인해 둔 사람이 한 프레임 동안
+///    "문서 없는 사람"(= 온보딩 대상)으로 보인다.
+///  - 세션이 없으면(로그아웃) 문서도 없다 — null.
+///  - 세션 스트림이 실패하면 그 오류를 그대로 물려받는다. 문서를 읽을 수 없는
+///    실행을 "문서가 없는 사람"으로 바꾸지 않는다.
+///
+/// 자동 재시도는 끈다 — `authStateProvider` 와 같은 이유이고, 그 위에 하나가
+/// 더 있다: 설정이 없는 실행에서는 저장소가 언제나 같은 오류로 던지므로
+/// 재시도가 타이머만 남긴다.
+final StreamProvider<UserProfile?> userProfileProvider =
+    StreamProvider<UserProfile?>(
+  (ref) {
+    final session = ref.watch(authStateProvider);
+    if (session.hasError) {
+      throw session.error!;
+    }
+    if (!session.hasValue) {
+      return const Stream<UserProfile?>.empty();
+    }
+    final user = session.value;
+    if (user == null) {
+      return Stream<UserProfile?>.value(null);
+    }
+    return ref.watch(userDataStoreProvider).watchProfile(user.uid);
+  },
+  retry: (retryCount, error) => null,
 );
 
 // ---------------------------------------------------------------------------

@@ -36,6 +36,19 @@ class FakeUserDataStore implements UserDataStore {
   /// 도장 조회 호출 횟수.
   int stampReads = 0;
 
+  /// **문서가 실제로 만들어진** 횟수 — 2.4 의 "첫 로그인에 한 번"을 재는 자리.
+  /// 이미 있는 문서에 대고 부른 [createProfile] 은 이 수를 올리지 않는다.
+  int profileCreates = 0;
+
+  /// 첫 스냅샷을 붙잡아 둔다 — true 인 동안 [watchProfile] 은 아무것도 흘리지
+  /// 않는다. "서버 값을 아직 모르는 구간"(콜드 스타트의 첫 프레임)을 재는
+  /// 자리이고, [releaseProfiles] 가 그 구간을 끝낸다.
+  bool holdProfiles = false;
+
+  /// uid → 사용자 문서 스냅샷 스트림. 실 Firestore 처럼 **쓰기가 곧바로 자기
+  /// 스냅샷으로 돌아온다** (로컬 반영이 먼저고 서버 확인이 나중인 그 동작).
+  final Map<String, StreamController<UserProfile?>> _profileStreams = {};
+
   @override
   Future<UserProfile?> readProfile(String uid) async {
     profileReads++;
@@ -45,16 +58,43 @@ class FakeUserDataStore implements UserDataStore {
   }
 
   @override
-  Stream<UserProfile?> watchProfile(String uid) async* {
-    yield await readProfile(uid);
+  Stream<UserProfile?> watchProfile(String uid) {
+    final controller = _profileStreams.putIfAbsent(
+      uid,
+      () => StreamController<UserProfile?>.broadcast(),
+    );
+    // 구독이 붙은 뒤에 첫 스냅샷을 흘린다 (스트림은 언제나 비동기 전달이다).
+    scheduleMicrotask(() => _emitProfile(uid));
+    return controller.stream;
+  }
+
+  /// 붙잡아 둔 스냅샷을 흘려보낸다 ([holdProfiles] 를 끄고 현재 값을 낸다).
+  void releaseProfiles() {
+    holdProfiles = false;
+    for (final uid in _profileStreams.keys.toList()) {
+      _emitProfile(uid);
+    }
+  }
+
+  void _emitProfile(String uid) {
+    if (holdProfiles) return;
+    final controller = _profileStreams[uid];
+    if (controller == null || controller.isClosed) return;
+    final data = documents[uid];
+    controller.add(
+      data == null ? null : UserProfile.fromData(uid: uid, data: data),
+    );
   }
 
   @override
   Future<void> createProfile(String uid, NewUserProfile profile) async {
-    if (documents.containsKey(uid)) {
-      throw StateError('이미 있는 사용자 문서를 다시 만들 수 없다: $uid');
-    }
-    documents[uid] = _accept(profile.toData(), UserFields.all);
+    // 실 구현은 트랜잭션 안에서 같은 판정을 한다 — 이미 있는 문서는 **덮지
+    // 않는다**(재로그인이 가입 시각과 배지 판을 지우지 못하게 하는 자리).
+    final data = _accept(profile.toData(), UserFields.all);
+    if (documents.containsKey(uid)) return;
+    profileCreates++;
+    documents[uid] = data;
+    _emitProfile(uid);
   }
 
   @override
@@ -64,6 +104,15 @@ class FakeUserDataStore implements UserDataStore {
       throw StateError('없는 사용자 문서를 고칠 수 없다: $uid');
     }
     documents[uid] = {...current, ..._accept(patch.toData(), UserFields.all)};
+    _emitProfile(uid);
+  }
+
+  /// 스냅샷 스트림 정리 — 테스트의 tearDown 에서 부른다.
+  Future<void> dispose() async {
+    for (final controller in _profileStreams.values) {
+      if (!controller.isClosed) await controller.close();
+    }
+    _profileStreams.clear();
   }
 
   @override

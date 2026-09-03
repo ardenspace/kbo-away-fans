@@ -58,6 +58,71 @@ void main() {
         throwsArgumentError,
       );
     });
+
+    test('칸 id 를 되돌리면 구장과 홈팀이 나온다', () {
+      for (final cellId in kBoardCellIds) {
+        expect(
+          boardCellIdOf(
+            stadiumId: boardCellStadiumId(cellId),
+            homeTeamId: boardCellTeamId(cellId),
+          ),
+          cellId,
+        );
+      }
+      expect(() => boardCellStadiumId('gocheok_lg'), throwsArgumentError);
+    });
+  });
+
+  group('첫 문서의 닉네임 씨앗 (2.4)', () {
+    test('제공자 표시 이름이 있으면 그것을 쓴다', () {
+      expect(seedNickname(uid: 'kakao:1', displayName: '원정러'), '원정러');
+    });
+
+    test('앞뒤 공백은 털어 내고, 남는 것이 없으면 기본 닉네임이다', () {
+      expect(seedNickname(uid: 'kakao:1', displayName: '  잠실단골  '), '잠실단골');
+      expect(
+        seedNickname(uid: 'kakao:1', displayName: '   '),
+        seedNickname(uid: 'kakao:1'),
+      );
+    });
+
+    test('표시 이름이 없는 계정도 계약 길이 안의 닉네임을 받는다', () {
+      // 카카오는 동의 항목을 켜지 않은 사람의 닉네임을 null 로 준다
+      // (functions/kakao.js 의 정상 갈래) — 구글·애플도 표시 이름이 없을 수 있다.
+      final nickname = seedNickname(uid: 'kakao:1234567890');
+
+      expect(nickname.length, greaterThanOrEqualTo(kNicknameMinLength));
+      expect(nickname.length, lessThanOrEqualTo(kNicknameMaxLength));
+      // 계약 검사를 통과한다 — 곧 규칙(validUser)도 통과한다.
+      expect(
+        NewUserProfile(
+          nickname: nickname,
+          favoriteTeamId: 'lg',
+          profileThemeKey: 'lg',
+        ).toData()[UserFields.nickname],
+        nickname,
+      );
+    });
+
+    test('기본 닉네임은 uid 마다 결정적이다 — 기기를 바꿔도 같은 이름', () {
+      expect(seedNickname(uid: 'kakao:1'), seedNickname(uid: 'kakao:1'));
+      expect(seedNickname(uid: 'kakao:1'), isNot(seedNickname(uid: 'kakao:2')));
+    });
+
+    test('긴 표시 이름은 UTF-16 코드 단위 20 으로 자른다', () {
+      final nickname = seedNickname(uid: 'u1', displayName: '가' * 30);
+
+      expect(nickname.length, kNicknameMaxLength);
+      expect(nickname, '가' * 20);
+    });
+
+    test('자르는 자리가 서러게이트 짝 한가운데면 그 글자를 통째로 버린다', () {
+      // 이모지는 UTF-16 으로 2단위 — 19단위에서 하나를 더 얹으면 21이 된다.
+      final nickname = seedNickname(uid: 'u1', displayName: '가' * 19 + '🐯');
+
+      expect(nickname, '가' * 19);
+      expect(nickname.length, lessThanOrEqualTo(kNicknameMaxLength));
+    });
   });
 
   group('업로드 payload 는 계약 필드만 싣는다', () {
@@ -248,6 +313,43 @@ void main() {
 
     test('문서가 없으면 null — 온보딩이 필요한 상태', () async {
       expect(await store.readProfile('없는사람'), isNull);
+    });
+
+    test('이미 있는 문서에 대고 만들면 덮지 않는다 — 재로그인이 지우지 못한다', () async {
+      await store.createProfile('u1', _newProfile);
+      store.documents['u1']![UserFields.board] = <String, Object?>{
+        'jamsil_lg': BoardCell.forCount(count: 2).toData(),
+      };
+      final before = Map<String, Object?>.from(store.documents['u1']!);
+
+      await store.createProfile(
+        'u1',
+        const NewUserProfile(
+          nickname: '다른사람',
+          favoriteTeamId: 'kia',
+          profileThemeKey: 'kia',
+        ),
+      );
+
+      expect(store.documents['u1'], before);
+      expect(store.profileCreates, 1);
+    });
+
+    test('스냅샷 스트림은 쓰기를 그대로 되비춘다', () async {
+      final seen = <String?>[];
+      final subscription = store
+          .watchProfile('u1')
+          .listen((profile) => seen.add(profile?.favoriteTeamId));
+      addTearDown(subscription.cancel);
+      addTearDown(store.dispose);
+
+      await pumpEventQueue();
+      await store.createProfile('u1', _newProfile);
+      await pumpEventQueue();
+      await store.patchProfile('u1', const UserProfilePatch(favoriteTeamId: 'nc'));
+      await pumpEventQueue();
+
+      expect(seen, [null, 'lotte', 'nc']);
     });
 
     test('수정은 준 필드만 바꾸고 나머지는 남긴다', () async {
