@@ -773,6 +773,12 @@ abstract class UserDataStore {
   Future<UserProfile?> readProfile(String uid);
 
   /// 사용자 문서의 변화 — 배지 판과 프로필이 이 하나만 구독한다.
+  ///
+  /// **null(= 문서 없음)은 확인된 답일 때만 흐른다.** 구현이 서버에 물어보는
+  /// 중인 구간에는 아무것도 흘리지 않는다 — "아직 모른다"를 "문서가 없다"로
+  /// 흘리면 이미 팀을 고른 사람이 온보딩 대상으로 보이고, 거기서 고른 팀이
+  /// 서버의 원본을 덮는 경로가 열린다. 그 기다림에는 상한이 있다
+  /// (`user_data_firestore.dart` 의 `kProfileServerConfirmGrace`).
   Stream<UserProfile?> watchProfile(String uid);
 
   /// 첫 문서를 만든다 (2.4 — 재로그인이 덮지 않는다).

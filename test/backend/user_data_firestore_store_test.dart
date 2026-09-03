@@ -19,8 +19,15 @@
 ///
 /// 규칙(`firestore.rules`)이 이 payload 를 실제로 받아 주는지는 에뮬레이터가
 /// 재는 몫이다 — `firebase/test/probe-2-4-app-payload.test.mjs`.
+///
+/// 파일 끝의 [_snapshotSourceTests] 는 **가짜 Firestore 로도 재현되지 않는**
+/// 갈래를 따로 잰다 — 오프라인 지속성이 스냅샷을 로컬 캐시에서 먼저 흘리는
+/// 자리다. 그 까닭은 그 함수의 문서에 적어 두었다.
 library;
 
+import 'dart:async';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kbo_away_fans/backend/user_data.dart';
@@ -165,6 +172,122 @@ void main() {
       await pumpEventQueue();
 
       expect(seen.last, 'ssg');
+    });
+  });
+
+  _snapshotSourceTests();
+}
+
+/// 오프라인 지속성이 켜진 실 SDK 는 스냅샷을 **로컬 캐시에서 먼저** 흘린다.
+/// 기기를 바꾼 사람의 로컬 캐시에는 그 문서가 없으므로, 서버 왕복 전에
+/// "문서 없음" 스냅샷이 먼저 온다 — 그것을 답으로 받으면 이미 팀을 고른
+/// 사람이 온보딩을 보고, 거기서 팀을 누르면 자기 팀을 바꾸게 된다.
+///
+/// **그 순서 자체는 `fake_cloud_firestore` 로 재현되지 않는다.** 그 대역의
+/// `snapshots()` 는 언제나 `isFromCache: false` 를 실어 보내고(4.2.0 의
+/// `MockDocumentReference.snapshots` → `_getSync()` 를 인수 없이 부른다),
+/// 출처가 캐시인 스냅샷은 `get(GetOptions(source: Source.cache))` 로만 얻을 수
+/// 있다. 그래서 여기서는 그 읽기로 **네 조합의 실제 스냅샷**을 만들어 출처를
+/// 읽는 술어([tellsProfileExistence])를 직접 돌리고, 붙잡아 두는 변환
+/// ([awaitServerConfirmation])은 평범한 스트림으로 따로 돌린다. 둘을 엮은
+/// `watchProfile` 의 조합은 실기기와 에뮬레이터가 재는 몫으로 남는다.
+void _snapshotSourceTests() {
+  group('로컬 캐시만 보고 말하는 "문서 없음"은 아직 답이 아니다', () {
+    late FakeFirebaseFirestore db;
+
+    setUp(() => db = FakeFirebaseFirestore());
+
+    Future<DocumentSnapshot<Map<String, dynamic>>> snapshot(
+      String id, {
+      required bool fromCache,
+    }) =>
+        db.collection(kUsersCollection).doc(id).get(
+              fromCache ? const GetOptions(source: Source.cache) : null,
+            );
+
+    test('출처와 존재의 네 조합', () async {
+      await db.collection(kUsersCollection).doc('있는사람').set(
+        <String, Object?>{UserFields.favoriteTeamId: 'lg'},
+      );
+
+      // 있는 문서는 어디서 왔든 답이다 — 로컬 캐시에 있다는 것은 이 기기가
+      // 전에 그 문서를 받았다는 뜻이라 이 계정 자신의 데이터다.
+      expect(
+        tellsProfileExistence(await snapshot('있는사람', fromCache: true)),
+        isTrue,
+      );
+      expect(
+        tellsProfileExistence(await snapshot('있는사람', fromCache: false)),
+        isTrue,
+      );
+      // 서버가 확인해 준 "없음"은 답이다.
+      expect(
+        tellsProfileExistence(await snapshot('없는사람', fromCache: false)),
+        isTrue,
+      );
+      // 로컬 캐시만 보고 말하는 "없음"은 답이 아니다 — 기기를 바꾼 사람의
+      // 캐시에는 서버에 있는 문서도 없다.
+      expect(
+        tellsProfileExistence(await snapshot('없는사람', fromCache: true)),
+        isFalse,
+        reason: '이 한 조합을 답으로 받으면 이미 팀을 고른 사람이 온보딩으로 내려간다',
+      );
+    });
+  });
+
+  group('답이 아닌 스냅샷은 상한까지 붙잡아 둔다', () {
+    test('확인된 값이 뒤이어 오면 붙잡아 둔 것은 버린다', () async {
+      final source = StreamController<String>();
+      addTearDown(source.close);
+      final seen = <String>[];
+      final subscription = awaitServerConfirmation(
+        source.stream,
+        isConfirmed: (value) => value != '모름',
+      ).listen(seen.add);
+      addTearDown(subscription.cancel);
+
+      source.add('모름');
+      await pumpEventQueue();
+      expect(seen, isEmpty, reason: '답이 아닌 값이 그대로 흘렀다');
+
+      source.add('lg');
+      await pumpEventQueue();
+      expect(seen, ['lg']);
+    });
+
+    test('상한을 넘도록 확인이 오지 않으면 붙잡아 둔 것을 내보낸다', () async {
+      final source = StreamController<String>();
+      addTearDown(source.close);
+      final seen = <String>[];
+      final subscription = awaitServerConfirmation(
+        source.stream,
+        isConfirmed: (value) => value != '모름',
+        grace: const Duration(milliseconds: 20),
+      ).listen(seen.add);
+      addTearDown(subscription.cancel);
+
+      source.add('모름');
+      await Future<void>.delayed(const Duration(milliseconds: 60));
+
+      // 영영 답하지 않는 실행이 사람을 대기 화면에 가두지 않는다.
+      expect(seen, ['모름']);
+    });
+
+    test('오류는 붙잡지 않는다 — 그 자체가 답이다', () async {
+      final source = StreamController<String>();
+      addTearDown(source.close);
+      final errors = <Object>[];
+      final subscription = awaitServerConfirmation(
+        source.stream,
+        isConfirmed: (value) => value != '모름',
+      ).listen((_) {}, onError: errors.add);
+      addTearDown(subscription.cancel);
+
+      source.add('모름');
+      source.addError(StateError('끊겼다'));
+      await pumpEventQueue();
+
+      expect(errors, hasLength(1));
     });
   });
 }

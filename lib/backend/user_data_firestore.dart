@@ -20,7 +20,15 @@
 /// 계약 위반(`toData()` 의 [ArgumentError])은 감싸지 않는다 — 그것은 서버에
 /// 닿기 전에 드러나는 프로그래밍 오류이고, 도메인 오류로 옮기면 "네트워크·권한·
 /// 알 수 없음" 셋 중 어느 것도 아닌 실패가 `unknown` 아래로 숨는다.
+///
+/// 몫이 하나 더 있다: **스냅샷의 출처를 읽는 일**([tellsProfileExistence] ·
+/// [awaitServerConfirmation]). 오프라인 지속성이 켜진 SDK 는 스냅샷을 로컬
+/// 캐시에서 먼저 흘리는데, 기기를 바꾼 사람의 로컬 캐시에는 그 문서가 없어서
+/// 서버 왕복 전에 "문서 없음"이 먼저 온다. 그것을 답으로 올려보내면 이미 팀을
+/// 고른 사람이 온보딩으로 내려간다 — SDK 사정이라 이 파일의 몫이다.
 library;
+
+import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -37,6 +45,83 @@ const String kStampsCollection = 'stamps';
 
 /// 좋아요 하위 컬렉션.
 const String kLikesCollection = 'likes';
+
+/// 서버가 문서 유무를 확인해 주기를 기다리는 상한.
+///
+/// 넘으면 로컬 캐시만 보고 말한 "문서 없음"이라도 그대로 올려보낸다 — 영영
+/// 답하지 않는 실행(비행기 모드 그대로 켠 앱)에서 사람이 대기 화면에 갇히지
+/// 않게 하는 바닥이다. 인증 쪽 `kAppCheckActivationTimeout` 과 같은 판단이고
+/// 같은 길이다: 사람이 보는 화면을 붙잡는 기다림에는 상한이 있다.
+const Duration kProfileServerConfirmGrace = Duration(seconds: 5);
+
+/// 이 스냅샷이 문서의 유무를 실제로 **답하는가**.
+///
+/// 있는 문서는 어디서 왔든 답이다 — 로컬 캐시에 있다는 것은 이 기기가 전에
+/// 그 문서를 받았다는 뜻이라 이 계정 자신의 데이터다. 반면 로컬 캐시만 보고
+/// 말하는 "없음"은 답이 아니다: 기기를 바꾼 사람의 캐시에는 서버에 있는
+/// 문서도 없다.
+bool tellsProfileExistence(DocumentSnapshot<Object?> snapshot) =>
+    snapshot.exists || !snapshot.metadata.isFromCache;
+
+/// 아직 답이 아닌 값을 [grace] 동안 붙잡아 둔다.
+///
+/// 붙잡아 두는 사이에 답인 값이 오면 그것만 내보내고 붙잡아 둔 것은 버린다.
+/// 상한까지 답이 오지 않으면 마지막으로 붙잡아 둔 것을 내보낸다 — 모른다는
+/// 이유로 화면을 영원히 붙잡지 않는다. 한 번 답을 받은 뒤로는 뒤엣값을 그대로
+/// 흘린다(상한은 **첫 답**에만 걸린다). 오류는 붙잡지 않는다 — 그 자체가
+/// 답이고, 위 계층이 그것을 보고 갈래를 정한다.
+Stream<T> awaitServerConfirmation<T>(
+  Stream<T> source, {
+  required bool Function(T value) isConfirmed,
+  Duration grace = kProfileServerConfirmGrace,
+}) {
+  StreamSubscription<T>? subscription;
+  Timer? deadline;
+  var answered = false;
+  var hasWithheld = false;
+  late T withheld;
+  late StreamController<T> controller;
+
+  void releaseWithheld() {
+    answered = true;
+    if (!hasWithheld) return;
+    hasWithheld = false;
+    if (!controller.isClosed) controller.add(withheld);
+  }
+
+  controller = StreamController<T>(
+    onListen: () {
+      deadline = Timer(grace, releaseWithheld);
+      subscription = source.listen(
+        (value) {
+          if (answered || isConfirmed(value)) {
+            answered = true;
+            hasWithheld = false;
+            deadline?.cancel();
+            controller.add(value);
+          } else {
+            withheld = value;
+            hasWithheld = true;
+          }
+        },
+        onError: (Object error, StackTrace stackTrace) {
+          deadline?.cancel();
+          controller.addError(error, stackTrace);
+        },
+        onDone: () {
+          deadline?.cancel();
+          releaseWithheld();
+          controller.close();
+        },
+      );
+    },
+    onCancel: () async {
+      deadline?.cancel();
+      await subscription?.cancel();
+    },
+  );
+  return controller.stream;
+}
 
 /// Firestore 위의 사용자 데이터 구현 — 앱이 실제로 쓰는 [UserDataStore].
 class FirestoreUserDataStore implements UserDataStore {
@@ -77,9 +162,21 @@ class FirestoreUserDataStore implements UserDataStore {
   Future<UserProfile?> readProfile(String uid) =>
       guardBackend(() async => _profileOf(uid, await _userDoc(uid).get()));
 
+  /// 사용자 문서의 변화 — **로컬 캐시만 보고 말하는 "문서 없음"은 흘리지
+  /// 않는다.**
+  ///
+  /// 오프라인 지속성이 켜진 SDK 는 구독이 붙는 순간 로컬 캐시의 스냅샷을 먼저
+  /// 흘리고 서버 확인을 뒤에 붙인다. 기기를 바꾼 사람의 로컬 캐시에는 그
+  /// 문서가 없으므로 서버 왕복 전에 "없음"이 먼저 오는데, 그것을 답으로
+  /// 올려보내면 이미 팀을 고른 사람이 온보딩으로 내려가고 거기서 팀을 누르면
+  /// 자기 팀을 바꾸게 된다. 그래서 그 한 갈래만 [kProfileServerConfirmGrace]
+  /// 까지 붙잡아 둔다 — 상한을 넘으면 그대로 내보낸다.
   @override
   Stream<UserProfile?> watchProfile(String uid) => guardBackendStream(
-        _userDoc(uid).snapshots().map((snapshot) => _profileOf(uid, snapshot)),
+        awaitServerConfirmation(
+          _userDoc(uid).snapshots(),
+          isConfirmed: tellsProfileExistence,
+        ).map((snapshot) => _profileOf(uid, snapshot)),
       );
 
   /// 첫 문서를 만든다 — **이미 있으면 아무것도 하지 않고 false 를 돌려준다.**
