@@ -71,7 +71,7 @@ void main() {
     addTearDown(store.dispose);
   });
 
-  Widget app() {
+  Widget app({SelectedTeamStore? cache}) {
     // 홈이 소비하는 콘텐츠 provider 4종을 모두 override 한다 — 실제
     // 파일/네트워크 IO 는 widget test 의 fake async 안에서 완료되지 않아
     // pumpAndSettle 이 멈춘다. schedule 은 빈 일정(시즌 종료 빈 상태)으로
@@ -87,6 +87,7 @@ void main() {
       overrides: [
         authServiceProvider.overrideWithValue(auth),
         userDataStoreProvider.overrideWithValue(store),
+        if (cache != null) selectedTeamStoreProvider.overrideWithValue(cache),
         teamsProvider.overrideWith(
           (ref) async => ContentFresh<TeamsDocument>(teamsDoc),
         ),
@@ -206,6 +207,41 @@ void main() {
     );
   });
 
+  testWidgets('기기를 바꿔 로그인한 첫 왕복 구간에는 온보딩이 뜨지 않는다', (tester) async {
+    // 캐시가 비어 있고 서버 문서는 있는데 첫 스냅샷이 아직 오지 않은 구간이다.
+    // 캐시의 부재를 "팀 없음"으로 읽으면 이미 팀을 고른 사람이 그 구간 내내
+    // 온보딩을 본다 — 그리고 거기서 팀을 누르면 자기 팀을 바꾸게 된다.
+    SharedPreferences.setMockInitialValues({});
+    store.documents[uid] = serverDocument('lotte');
+    store.holdProfiles = true;
+    await tester.pumpWidget(app());
+    // 이 구간의 화면은 도는 스피너라 `pumpAndSettle` 이 멈추지 않는다 —
+    // 스플래시 연출을 지나갈 만큼만 시간을 밀고 프레임을 본다.
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 5));
+
+    expect(find.byType(TeamSelectScreen), findsNothing);
+    expect(find.byType(HomeScreen), findsNothing);
+
+    store.releaseProfiles();
+    await tester.pumpAndSettle();
+
+    expect(find.byType(HomeScreen), findsOneWidget);
+  });
+
+  testWidgets('기기 저장을 읽지 못한 실행은 온보딩으로 간다', (tester) async {
+    // 아는 값이 하나도 없는 실행이다 — 서버도 모르고 캐시도 읽지 못했다.
+    // 이 갈래에 실제로 들어가는 것은 `SharedPreferences` 읽기가 던지는
+    // 경우뿐이라, 그 대역이 없으면 게이트의 `AsyncError` 갈래를 대기 화면으로
+    // 바꿔도 전 시험이 초록불이다.
+    SharedPreferences.setMockInitialValues({});
+    store.holdProfiles = true;
+    await tester.pumpWidget(app(cache: const _UnreadableCacheStore()));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(TeamSelectScreen), findsOneWidget);
+  });
+
   testWidgets('팀 변경(설정 진입점) → primary 색이 새 팀 토큰과 일치한다', (tester) async {
     SharedPreferences.setMockInitialValues({});
     store.documents[uid] = serverDocument('lg');
@@ -235,4 +271,16 @@ void main() {
     expect(store.documents[uid]![UserFields.joinedAt], DateTime.utc(2026, 3, 1));
     expect(await const SelectedTeamStore().read(uid), 'samsung');
   });
+}
+
+/// 기기 저장을 **읽지 못하는** 캐시 — 저장 공간이 망가졌거나 플랫폼 채널이
+/// 죽은 실행의 대역. 이 실패는 "선택 없음"과 같이 다룬다(아는 값이 하나도
+/// 없으므로 게이트가 온보딩으로 읽는다).
+class _UnreadableCacheStore extends SelectedTeamStore {
+  const _UnreadableCacheStore();
+
+  @override
+  Future<String?> read(String uid) async {
+    throw StateError('기기 저장을 읽을 수 없다');
+  }
 }

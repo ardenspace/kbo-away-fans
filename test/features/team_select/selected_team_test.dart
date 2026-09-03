@@ -7,6 +7,14 @@
 ///  3) 캐시 → 서버 수렴 — 서버를 모르는 첫 프레임은 캐시 값으로 그리고,
 ///     서버 값이 오면 그것으로 수렴한다.
 ///  4) 서버 값과 캐시 불일치 시 서버 우선 — 캐시는 원본이 아니다.
+///
+/// 여기에 **아는 값이 없는 구간**의 갈래 셋이 더 붙는다. 셋 다 기기를 바꿔
+/// 처음 로그인한 사람(= 시작할 때 기기 저장이 비어 있는 실행)에서만 열리는
+/// 자리라, 캐시를 심어 두는 시험만으로는 통째로 빠진다.
+///  5) 캐시가 비어 있던 실행에서도 스냅샷 오류가 사람을 홈에 남겨 둔다 —
+///     서버 값을 한 번 읽었으면 캐시가 이미 그 값이기 때문이다.
+///  6) 서버를 모르고 캐시도 비었으면 "팀 없음"이 아니라 "모름"이다.
+///  7) 그 구간에서 고른 팀은 이미 있는 원본을 덮지 않는다.
 library;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -194,21 +202,130 @@ void main() {
     expect(container.read(selectedTeamIdProvider).value, 'doosan');
   });
 
-  test('서버 값을 아직 모르는 채로 고른 팀도 문서를 덮지 않는다', () async {
-    // 스냅샷이 늦는 사이 온보딩 화면이 떴다가 선택이 일어난 경우 — 이미 있는
-    // 문서를 만들려 들면 가입 시각이 지워진다. 저장소가 그 앞에서 막는다.
+  test('서버 값을 아직 모르는 채로 고른 팀은 이미 있는 원본을 덮지 않는다', () async {
+    // 기기를 바꿔 로그인한 사람이 스냅샷을 기다리는 구간이다. 그 구간에서
+    // 온보딩이 뜨면(게이트의 상한을 넘긴 실행) 사람은 "처음 고르는 중"이라고
+    // 믿고 팀을 누르는데, 서버에는 이미 그 사람이 고른 팀이 있다. 그 원본을
+    // 이 선택으로 갈아 끼우면 사람은 자기가 팀을 **바꿨다는 것조차** 모른다.
     SharedPreferences.setMockInitialValues({});
     store.documents[uid] = _serverDocument('lg');
     store.holdProfiles = true;
     final container = makeContainer();
-    expect(await settledTeamId(container), isNull);
+    await pumpEventQueue();
 
     await container.read(selectedTeamIdProvider.notifier).select('kt');
 
     expect(store.profileCreates, 0);
     final document = store.documents[uid]!;
-    expect(document[UserFields.favoriteTeamId], 'kt');
+    expect(
+      document[UserFields.favoriteTeamId],
+      'lg',
+      reason: '문서를 모른 채 고른 선택이 원본을 덮었다',
+    );
+    expect(document[UserFields.profileThemeKey], 'lg');
     expect(document[UserFields.joinedAt], DateTime.utc(2026, 3, 1));
+    // 사본도 옮기지 않는다 — 서버에 없는 팀이 다음 콜드 스타트의 첫 프레임을
+    // 칠하면 같은 오해가 한 번 더 선다.
+    expect(await cachedTeamId(), isNull);
+
+    // 스냅샷이 오면 화면이 서버 값으로 바로잡힌다.
+    store.releaseProfiles();
+    expect(await settledTeamId(container), 'lg');
+  });
+
+  test('캐시가 비어 있던 실행도 스냅샷 오류에 온보딩으로 내려가지 않는다', () async {
+    // 기기를 바꿔 처음 로그인한 실행이다 — 시작할 때 기기 저장이 비어 있다.
+    // 서버 값을 한 번 읽고 나면 캐시에 그 값이 적히므로, 뒤이어 스냅샷이
+    // 오류로 끝나도 그 사람은 홈에 남아야 한다. 캐시를 읽는 provider 가 시작
+    // 시점의 값에 묶여 있으면 여기서 팀이 null 로 떨어진다.
+    SharedPreferences.setMockInitialValues({});
+    store.documents[uid] = _serverDocument('lg');
+    final container = makeContainer();
+    expect(await settledTeamId(container), 'lg');
+    expect(await cachedTeamId(), 'lg');
+
+    store.emitProfileError(const BackendNetworkError(code: 'unavailable'));
+    await pumpEventQueue();
+
+    final state = container.read(selectedTeamIdProvider);
+    expect(
+      state.hasError,
+      isFalse,
+      reason: '오류로 읽히면 게이트가 이 사람을 온보딩으로 되돌린다',
+    );
+    expect(
+      state.value,
+      'lg',
+      reason: '기기 저장에는 lg 가 적혀 있는데 그것을 읽는 provider 가 옛 값을 들고 있다',
+    );
+  });
+
+  test('서버를 아직 모르고 캐시도 비었으면 "팀 없음"이 아니라 로딩이다', () async {
+    // 기기를 바꿔 로그인한 사람의 첫 왕복 구간이다. 캐시 읽기는 몇 ms 만에
+    // 끝나고 첫 스냅샷은 네트워크 왕복이라, 캐시의 부재를 답으로 쓰면 이미
+    // 팀을 고른 사람이 그 구간 내내 온보딩을 본다. 모르는 것은 모른다고
+    // 말해야 게이트가 대기 화면에 머무른다.
+    SharedPreferences.setMockInitialValues({});
+    store.documents[uid] = _serverDocument('lotte');
+    store.holdProfiles = true;
+    final container = makeContainer();
+    await pumpEventQueue();
+
+    final waiting = container.read(selectedTeamIdProvider);
+    expect(waiting.isLoading, isTrue);
+    expect(waiting.hasValue, isFalse, reason: '"팀 없음"으로 확정되면 온보딩이 뜬다');
+
+    store.releaseProfiles();
+
+    expect(await settledTeamId(container), 'lotte');
+  });
+
+  test('서버 쓰기가 실패한 실행은 캐시에 새 팀을 남기지 않는다', () async {
+    // 순서가 "사본 → 원본"으로 뒤집히면 서버에 닿지 못한 팀이 기기 저장에
+    // 남고, 다음 콜드 스타트의 첫 프레임이 서버에 없는 팀으로 칠해진다.
+    await seedCache('lg');
+    store.documents[uid] = _serverDocument('lg');
+    final container = makeContainer();
+    expect(await settledTeamId(container), 'lg');
+
+    store.profileWriteFailure = const BackendNetworkError(code: 'unavailable');
+    await expectLater(
+      container.read(selectedTeamIdProvider.notifier).select('doosan'),
+      throwsA(isA<BackendNetworkError>()),
+    );
+
+    expect(
+      await cachedTeamId(),
+      'lg',
+      reason: '서버에 닿지 못한 선택이 사본에 남았다 — 원본보다 사본을 먼저 적었다',
+    );
+  });
+
+  test('같은 실행에서 계정이 바뀌면 같은 팀을 골라도 캐시 소유자가 바뀐다', () async {
+    // 앞사람 A 가 lotte 를 캐시에 남긴 채 로그아웃하고, B 가 같은 실행에서
+    // 같은 팀을 고른 경우다. 캐시에 마지막으로 적은 값을 팀 id 로만 기억하면
+    // "이미 적었다"로 판정해 건너뛰고, 캐시의 소유자가 A 인 채 남는다.
+    SharedPreferences.setMockInitialValues({});
+    final container = makeContainer();
+    await settledTeamId(container);
+
+    await container.read(selectedTeamIdProvider.notifier).select('lotte');
+    expect(await const SelectedTeamStore().read(uid), 'lotte');
+
+    await auth.signOut();
+    await pumpEventQueue();
+    final second = await auth.signIn(AuthProviderId.kakao);
+    await pumpEventQueue();
+    expect(second.uid, isNot(uid));
+
+    await container.read(selectedTeamIdProvider.notifier).select('lotte');
+
+    expect(
+      await const SelectedTeamStore().read(second.uid),
+      'lotte',
+      reason: '캐시의 소유자가 앞 계정인 채 남았다',
+    );
+    expect(await const SelectedTeamStore().read(uid), isNull);
   });
 
   test('첫 문서가 생기기 전에 두 번 고르면 마지막 선택이 서버에 남는다', () async {
@@ -271,8 +388,9 @@ void main() {
     await seedCache('lotte', owner: 'kakao:9999999999');
     store.holdProfiles = true;
     final container = makeContainer();
+    await pumpEventQueue();
 
-    expect(await settledTeamId(container), isNull);
+    expect(container.read(selectedTeamIdProvider).value, isNot('lotte'));
 
     store.releaseProfiles();
 
@@ -285,6 +403,11 @@ void main() {
     SharedPreferences.setMockInitialValues({kSelectedTeamPrefsKey: 'lotte'});
     store.holdProfiles = true;
     final container = makeContainer();
+    await pumpEventQueue();
+
+    expect(container.read(selectedTeamIdProvider).value, isNot('lotte'));
+
+    store.releaseProfiles();
 
     expect(await settledTeamId(container), isNull);
   });

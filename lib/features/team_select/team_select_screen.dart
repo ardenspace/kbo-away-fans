@@ -19,6 +19,12 @@ import 'selected_team.dart';
 /// Firestore 쓰기의 Future 는 서버에 닿아야 끝나므로, 통신이 나쁜 자리에서
 /// 기다리면 선택이 먹히지 않은 것처럼 보인다. 쓰기가 실패하면 그때 안내를
 /// 띄운다.
+///
+/// 실패가 아닌데도 선택이 서버에 남지 않는 갈래가 하나 있다: 이 화면이
+/// 온보딩으로 떴는데 서버에는 이미 그 계정의 문서가 있던 경우다
+/// ([SelectedTeamNotifier.select] 참조 — 그 원본을 덮지 않는다). 안내를 띄우지
+/// 않는 것은 실패한 것이 아니기 때문이고, 뒤이어 오는 스냅샷이 화면을 그 계정의
+/// 진짜 팀으로 바로잡는다.
 class TeamSelectScreen extends ConsumerWidget {
   const TeamSelectScreen({super.key, this.isChange = false});
 
@@ -31,8 +37,9 @@ class TeamSelectScreen extends ConsumerWidget {
   Future<void> _select(BuildContext context, WidgetRef ref, Team team) async {
     final messenger = ScaffoldMessenger.maybeOf(context);
     final navigator = isChange ? Navigator.of(context) : null;
-    // `select` 는 첫 await 앞에서 상태와 캐시를 이미 옮겨 놓는다 — 그래서
-    // 여기서 곧바로 화면을 넘겨도 홈은 새 팀 테마로 뜬다.
+    // `select` 는 첫 await 앞에서 상태를 이미 옮겨 놓는다 — 그래서 여기서
+    // 곧바로 화면을 넘겨도 홈은 새 팀 테마로 뜬다. 원본(사용자 문서)과
+    // 사본(기기 캐시)은 그 뒤에 그 순서로 따라간다.
     final saved = ref.read(selectedTeamIdProvider.notifier).select(team.id);
     navigator?.pop();
     try {

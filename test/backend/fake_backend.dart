@@ -45,6 +45,14 @@ class FakeUserDataStore implements UserDataStore {
   /// 자리이고, [releaseProfiles] 가 그 구간을 끝낸다.
   bool holdProfiles = false;
 
+  /// null 이 아니면 [createProfile]·[patchProfile] 이 이것을 던진다 — **서버
+  /// 쓰기가 실패한 실행**의 대역.
+  ///
+  /// 이 자리가 없으면 "원본을 먼저 쓰고 사본을 뒤에 맞춘다"는 순서를 잴 수
+  /// 없다: 서버 쓰기가 언제나 성공하는 대역에서는 두 쓰기의 순서를 뒤집어도
+  /// 결과가 같기 때문이다.
+  Object? profileWriteFailure;
+
   /// uid → 사용자 문서 스냅샷 스트림. 실 Firestore 처럼 **쓰기가 곧바로 자기
   /// 스냅샷으로 돌아온다** (로컬 반영이 먼저고 서버 확인이 나중인 그 동작).
   final Map<String, StreamController<UserProfile?>> _profileStreams = {};
@@ -103,6 +111,8 @@ class FakeUserDataStore implements UserDataStore {
     // 않고**(재로그인이 가입 시각과 배지 판을 지우지 못하게 하는 자리) 만들지
     // 않았다는 사실을 false 로 돌려준다.
     final data = _accept(profile.toData(), UserFields.all);
+    final failure = profileWriteFailure;
+    if (failure != null) throw failure;
     if (documents.containsKey(uid)) return false;
     profileCreates++;
     documents[uid] = data;
@@ -112,6 +122,8 @@ class FakeUserDataStore implements UserDataStore {
 
   @override
   Future<void> patchProfile(String uid, UserProfilePatch patch) async {
+    final failure = profileWriteFailure;
+    if (failure != null) throw failure;
     final current = documents[uid];
     if (current == null) {
       throw StateError('없는 사용자 문서를 고칠 수 없다: $uid');
