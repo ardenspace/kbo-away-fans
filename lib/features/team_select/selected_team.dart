@@ -5,7 +5,20 @@
 /// (decisions.md 2026-09-01 [M]: 계정이 필수가 되면서 기기 저장이 원본일 이유가
 /// 없어졌고, 캐시를 없애면 로그인 직후 첫 프레임에 팀 테마가 늦게 붙는다).
 /// 값은 common.defs teamId 10종(`lib/content/content_ids.dart` 의 [kTeamIds])
-/// 그대로이고, 미지·오염 값은 읽기 시 null 로 취급해 온보딩으로 복귀한다.
+/// 그대로다.
+///
+/// **로스터 검사는 사본에만 건다.** 기기 저장에서 읽은 미지·오염 값은 null 로
+/// 취급한다([SelectedTeamStore.read]) — 사본이 없는 것으로 보아도 원본이 곧
+/// 답하므로 잃는 것이 첫 프레임의 테마 하나뿐이다. 반면 **서버가 준
+/// `favoriteTeamId` 는 걸러 내지 않고 그대로 흘린다.** 값 공간을 강제하는 자리는
+/// `firestore.rules` 의 `favoriteTeamId in teamIds()` 이고, 앱이 그 위에 검사를
+/// 하나 더 얹으면 로스터가 어긋난 실행(콘솔 직접 수정, 앱보다 새로운 규칙·판)의
+/// 사람이 온보딩으로 내려간다 — 거기서 고른 팀은 이미 있는 원본을 덮지 않고
+/// 물러서는데 물러서기의 수렴이 읽어 오는 값도 같은 검사에 걸려 다시 온보딩이
+/// 되므로, 나갈 길 없는 되돌이가 된다. 그래서 그 실행은 **테마 없는 홈**으로
+/// 저하시킨다(`HomeScreen` 이 팀을 찾지 못한 갈래를 이미 견딘다) — 사람이 자기
+/// 선택을 잃는 것보다 색이 빠지는 편이 작은 손해다. 사본에는 그 값을 옮기지
+/// 않는다([SelectedTeamNotifier._mirror]).
 ///
 /// 두 자리의 관계는 한 방향이다.
 ///  - 서버 값을 아는 순간부터는 서버가 이긴다. 캐시가 다르면 캐시를 서버에
@@ -69,6 +82,19 @@ import '../../content/content_ids.dart';
 
 /// 선택한 응원 팀 id 가 저장되는 prefs 키.
 const String kSelectedTeamPrefsKey = 'selected_team_id';
+
+/// 기기 캐시 읽기의 상한.
+///
+/// 기다림에 상한을 두는 까닭은 `kAppCheckActivationTimeout` 과 같다: 이
+/// 기다림을 붙잡고 있는 것이 사람이 보는 화면(루트 게이트의 대기 화면)이라,
+/// 끝나지 않는 읽기가 곧 앱을 다시 켜는 것 말고 나갈 길이 없는 상태가 된다.
+/// 서버 쪽 기다림에는 `kProfileServerConfirmGrace` 가 이미 서 있고, 그 상한이
+/// 지나 오류가 흘러도 캐시 쪽이 끝나지 않으면 게이트는 여전히 로딩을 그린다 —
+/// 두 기다림 중 하나만 끝나서는 화면이 갈래를 정하지 못한다.
+///
+/// `shared_preferences` 의 플랫폼 채널이 멎는 일은 드물다. 상한을 두는 것은
+/// 확률이 아니라 **빠져나갈 길이 없다는 성질** 때문이다.
+const Duration kCachedTeamReadTimeout = Duration(seconds: 5);
 
 /// 캐시 값 안에서 소유 계정과 팀 id 를 가르는 글자.
 ///
@@ -159,7 +185,16 @@ class CachedTeamId extends AsyncNotifier<String?> {
   Future<String?> build() async {
     final user = ref.watch(authStateProvider).value;
     if (user == null) return null;
-    final stored = await ref.watch(selectedTeamStoreProvider).read(user.uid);
+    // 기다림에는 상한이 있다([kCachedTeamReadTimeout]) — 넘으면 "캐시에 값이
+    // 없다"로 본다. 던지지 않는 것은 두 실패의 뜻이 다르기 때문이다: 읽기가
+    // **던진** 실행은 이 기기에서 더 알아낼 것이 없다는 답이라 오류가 맞지만,
+    // 상한을 넘긴 실행에서는 서버가 곧 답할 수 있고 그 답이 오면 화면은 그
+    // 값으로 선다. 오류로 확정하면 서버의 답을 1초 앞둔 사람까지 온보딩으로
+    // 내려간다.
+    final stored = await ref
+        .watch(selectedTeamStoreProvider)
+        .read(user.uid)
+        .timeout(kCachedTeamReadTimeout, onTimeout: () => null);
     // 읽는 사이에 이 계정의 값을 적었으면 그것이 최신이다 — 늦게 끝난 읽기가
     // 방금 적은 값을 덮지 않게 한다.
     final written = _written;
@@ -424,8 +459,15 @@ class SelectedTeamNotifier extends Notifier<AsyncValue<String?>> {
   }
 
   /// 캐시를 서버 값에 맞춘다 — 그 문서를 가진 계정의 것으로 적는다.
+  ///
+  /// **로스터 밖 값은 옮기지 않는다.** 사본을 읽는 쪽([SelectedTeamStore.read])이
+  /// 그런 값을 거부하므로 적어 봐야 다음 콜드 스타트에 읽히지 않고, 적는 쪽이
+  /// 스스로 적어 둔 "로스터 밖 id 는 프로그래밍 오류"도 거짓이 된다. 서버 값이
+  /// 로스터 밖일 수 있다는 것은 이 계층이 인정하는 사실이다(파일 머리말) —
+  /// 그 값을 화면에는 그대로 흘리되 사본에는 남기지 않는다.
   void _mirror(UserProfile? profile) {
     if (profile == null) return;
+    if (!kTeamIds.contains(profile.favoriteTeamId)) return;
     // 기다리지 않는 것은 이 갱신이 화면을 막을 이유가 없어서다 — 캐시는 다음
     // 콜드 스타트의 첫 프레임에만 쓰인다.
     unawaited(_writeCache(profile.favoriteTeamId, profile.uid));

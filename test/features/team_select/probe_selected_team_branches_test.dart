@@ -358,6 +358,34 @@ void main() {
       expect(container.read(cachedTeamIdProvider).value, isNull);
     });
 
+    test('서버가 준 로스터 밖 팀 id 는 그대로 흐르고 사본에는 남지 않는다', () async {
+      // 서버 값에는 로스터 검사를 걸지 않는다 — 값 공간을 강제하는 자리는
+      // `firestore.rules` 의 `favoriteTeamId in teamIds()` 이고, 앱이 여기서
+      // 한 번 더 걸러 null 로 만들면 앱보다 새로운 판이 고른 팀을 든 사람이
+      // 온보딩으로 내려가고, 거기서 고른 팀이 원본을 덮는다(물러서기의 수렴도
+      // 같은 값을 다시 걸러 온보딩으로 되돌리므로 나갈 길이 없다). 홈은
+      // 로스터 밖 id 를 테마 없는 화면으로 견딘다.
+      final cache = _RecordingCacheStore();
+      store.documents[uid] = <String, Object?>{
+        ..._serverDocument('lg'),
+        UserFields.favoriteTeamId: 'yankees',
+      };
+      final container = makeContainer(cache: cache);
+      await pumpEventQueue();
+
+      final state = container.read(selectedTeamIdProvider);
+      expect(state.hasError, isFalse);
+      expect(
+        state.value,
+        'yankees',
+        reason: '서버 값을 걸러 온보딩으로 내려보내면 그 사람은 나갈 길이 없다',
+      );
+      // 사본에는 옮기지 않는다 — 읽는 쪽([SelectedTeamStore.read])이 로스터
+      // 밖 값을 거부하므로 적어 봐야 다음 콜드 스타트에 읽히지 않고, 적는
+      // 자리의 assert("로스터 밖 id 는 프로그래밍 오류")도 거짓이 된다.
+      expect(cache.writes, isEmpty, reason: '읽는 쪽이 거부할 값을 사본에 적었다');
+    });
+
     test('가르는 글자가 든 uid 도 제 캐시를 읽는다', () async {
       // 팀 로스터에는 이 글자가 없지만 uid 에 없다는 보장은 우리 것이 아니다 —
       // 그래서 가르는 자리를 **마지막** 것으로 잡았다. 첫 것으로 잡으면 그런
@@ -406,6 +434,19 @@ class _UnwritableCacheStore extends SelectedTeamStore {
   @override
   Future<void> write(String uid, String teamId) async {
     throw StateError('기기 저장에 적을 수 없다');
+  }
+}
+
+/// 기기 저장에 **실제로 넘어간 값**을 기록하는 캐시 — 부모의 assert 를 지나지
+/// 않으므로 로스터 밖 값이 넘어오는지도 잴 수 있다.
+class _RecordingCacheStore extends SelectedTeamStore {
+  _RecordingCacheStore();
+
+  final List<String> writes = [];
+
+  @override
+  Future<void> write(String uid, String teamId) async {
+    writes.add('$uid|$teamId');
   }
 }
 

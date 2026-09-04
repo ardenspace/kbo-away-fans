@@ -279,6 +279,38 @@ void main() {
     );
   });
 
+  testWidgets('기기 저장 읽기가 끝나지 않아도 대기 화면이 상한에서 끝난다', (tester) async {
+    // 서버 쪽 기다림에는 상한이 있는데 기기 저장 쪽에는 없던 자리다. 캐시
+    // 읽기가 끝나지 않으면 서버 상한이 지나 오류가 흐른 **뒤에도** 게이트가
+    // 로딩을 그린다 — 앱을 다시 켜는 것 말고 나갈 길이 없는 상태이고, 그것이
+    // App Check 활성화에 상한을 둔 까닭(`kAppCheckActivationTimeout`)과 같다.
+    const grace = Duration(seconds: 5);
+    SharedPreferences.setMockInitialValues({});
+    final graced = FakeUserDataStore(profileConfirmGrace: grace);
+    addTearDown(graced.dispose);
+    graced.documents[uid] = serverDocument('lotte');
+    graced.holdProfiles = true;
+    await tester.pumpWidget(
+      app(cache: _UnendingCacheStore(), backend: graced),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pump(const Duration(milliseconds: 500));
+
+    // 두 기다림이 함께 시작한 자리다 — 아직은 대기 화면이 맞다.
+    expect(find.byType(TeamSelectScreen), findsNothing);
+    expect(find.byType(HomeScreen), findsNothing);
+
+    await tester.pump(kCachedTeamReadTimeout * 2);
+    await tester.pump(const Duration(milliseconds: 500));
+
+    expect(
+      find.byType(TeamSelectScreen),
+      findsOneWidget,
+      reason: '기기 저장 읽기가 끝나지 않아 대기 화면이 그대로다 — 나갈 길이 없다',
+    );
+  });
+
   testWidgets('물러선 선택은 그 자리에서 서버 값으로 수렴한다', (tester) async {
     // 온보딩이 뜬 채 서버에 문서가 이미 있는 상태에 이르는 주된 길이다:
     // 캐시가 비어 있고 스냅샷이 오류로 끝난 실행. 여기서 고른 팀은 이미 있는
@@ -477,6 +509,15 @@ class _GatedPatchStore extends FakeUserDataStore {
     await gate.future;
     return super.patchProfile(uid, patch);
   }
+}
+
+/// 기기 저장 읽기가 **끝나지 않는** 캐시 — 플랫폼 채널이 멎은 실행의 대역.
+/// 던지지도 답하지도 않는 자리라, 상한이 없으면 게이트가 영영 대기 화면이다.
+class _UnendingCacheStore extends SelectedTeamStore {
+  _UnendingCacheStore();
+
+  @override
+  Future<String?> read(String uid) => Completer<String?>().future;
 }
 
 /// 기기 저장을 **읽지 못하는** 캐시 — 저장 공간이 망가졌거나 플랫폼 채널이
