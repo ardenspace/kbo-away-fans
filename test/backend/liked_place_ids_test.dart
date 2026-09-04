@@ -10,8 +10,11 @@
 ///     [LikeButton] 이 자기 모습을 되돌리는 자리로 넘어간다.
 ///  5) 세션이 없으면 빈 집합이고 서버를 읽지 않는다.
 ///  6) 세션이 눌린 순간 사라지면 `unauthenticated` 로 던진다.
-///  7) 좋아요 목록을 못 읽어도(네트워크 등) 추천 목록 전체를 막지 않고 빈
-///     집합으로 본다 — 다시 읽으면 바로잡히는 정보다.
+///  7) 좋아요 목록을 못 읽어도(네트워크 등) `.value ?? const {}` 로 읽는
+///     소비자(카드·상세 시트)에게는 빈 집합으로 보여 추천 목록 전체를 막지
+///     않는다 — 다시 읽으면 바로잡히는 정보다. 다만 provider 자체는
+///     `AsyncError` 로 끝난다(2026-09-04 [M] supersede) — 좋아요 탭(3.3)이
+///     그 오류를 그대로 보고 "못 읽었다"를 "하나도 없다"와 가른다.
 ///
 /// `authStateProvider` 는 세션 스트림이라 첫 값이 비동기로 온다 —
 /// `container.listen` 으로 구독을 미리 세우고 [_settledLikes] 로 그 값이
@@ -107,10 +110,18 @@ void main() {
     addTearDown(failing.dispose);
     final container = makeContainer(backend: failing);
 
+    // 카드·상세 시트가 읽는 방식(`.value ?? const {}`)으로는 여전히 빈
+    // 집합이다 — 3.2 가 지키려던 성질(추천 목록이 좋아요 하나로 막히지
+    // 않는다)은 그대로다.
     final result = await settledLikes(container);
-
     expect(result, isEmpty);
     expect(failing.likeReads, 1);
+
+    // 그런데 provider 자체는 빈 데이터가 아니라 오류로 끝나 있다(2026-09-04
+    // [M], 3.2 의 빈-집합 fail-open 을 뒤집는 supersede) — 이 provider 를
+    // 직접 보는 소비자(좋아요 탭)는 "못 읽었다"와 "하나도 없다"를 가를 수
+    // 있어야 한다.
+    expect(container.read(likedPlaceIdsProvider).hasError, isTrue);
   });
 
   test('토글로 누르면 서버에 문서가 남고, 다시 읽지 않고도 집합에 반영된다', () async {

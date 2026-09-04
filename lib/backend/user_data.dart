@@ -880,10 +880,26 @@ final StreamProvider<UserProfile?> userProfileProvider =
 /// [LikeButton.onFailed] 로 알리는 자리다).
 ///
 /// 세션이 없으면(로그아웃) 빈 집합이다 — 좋아요는 로그인한 사람의 것이라
-/// 쓸 자리가 없다. 읽기가 실패해도 빈 집합으로 본다 — 좋아요 여부를 못 읽은
-/// 것을 "전부 안 눌렀다"로 보이는 것은 되돌릴 수 있는 실수이고(다시 읽으면
-/// 바로잡힌다), 추천 목록 전체를 좋아요 하나 때문에 못 열게 막는 것이
-/// 더 나쁘다.
+/// 쓸 자리가 없다.
+///
+/// **읽기가 실패하면 이 provider 는 `AsyncError` 로 던진다 — 빈 집합으로
+/// 접지 않는다(2026-09-04 [M], 3.2 의 결정을 뒤집는다: supersedes
+/// 2026-09-04 liked-place-ids-fail-open).** 3.2 에서는 이 실패를 삼켜 빈
+/// 집합으로 보았다 — 카드 몇 개가 잠깐 "안 눌린 것처럼" 보이는 것이
+/// 추천 목록 전체를 막는 것보다 쌌기 때문이다. 그런데 3.3(좋아요 탭)에서는
+/// 이 provider 의 결과가 화면의 **전부**가 된다: 빈 집합을 그대로 돌려주면
+/// "좋아요를 못 읽은 사람"과 "좋아요가 하나도 없는 사람"이 같은 빈 상태를
+/// 보고, 앞의 사람은 자기가 누른 것이 사라졌다고 읽는다 —
+/// `userProfileProvider`·`selected_team.dart` 가 이미 지키는 "서버를 읽지
+/// 못했다" 대 "서버가 없다고 답했다"의 구분과 같은 종류의 거짓이다.
+///
+/// 그래서 오류를 여기서 삼키는 대신 그대로 흘리고, **그 오류를 접는 자리를
+/// 소비자 쪽으로 옮겼다.** 카드·상세 시트(`StadiumPlacesScreen`)는 여전히
+/// `likedPlaceIdsProvider.value ?? const <String>{}` 로 읽으므로(`AsyncError`
+/// 의 `.value` 는 이전 값이 없으면 null) 동작이 그대로다 — 추천 목록은
+/// 여전히 좋아요 하나 때문에 막히지 않는다. 오직 좋아요 탭
+/// (`LikesTabScreen`)만 `AsyncValue` 를 그대로 보고 `hasError` 로 "못
+/// 읽었다"를 가려 자기 얼굴(재시도 안내)을 보여준다.
 class LikedPlaceIds extends AsyncNotifier<Set<String>> {
   @override
   Future<Set<String>> build() async {
@@ -897,12 +913,10 @@ class LikedPlaceIds extends AsyncNotifier<Set<String>> {
     // 어긋남을 감내한다.
     final user = ref.watch(authStateProvider).value;
     if (user == null) return const {};
-    try {
-      final likes = await ref.watch(userDataStoreProvider).readLikes(user.uid);
-      return {for (final like in likes) like.placeId};
-    } on BackendError {
-      return const {};
-    }
+    // `BackendError` 를 여기서 잡지 않는다 — 위 문서화한 대로 오류는 그대로
+    // 위로 던져 이 provider 를 `AsyncError` 로 만든다.
+    final likes = await ref.watch(userDataStoreProvider).readLikes(user.uid);
+    return {for (final like in likes) like.placeId};
   }
 
   /// 좋아요를 누르거나(true) 취소한다(false).
