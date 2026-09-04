@@ -69,3 +69,14 @@ jobs:
 
       - name: 공유 컴포넌트 로스터 동기화 검사
         run: bash scripts/hooks/check-registry-sync.sh
+
+      # 아래 둘은 4.1 round 5 에서 배선했다. 그때까지 이 두 검사는 로컬
+      # 훅에만 걸려 있어서, 이 파일 3행이 적어 둔 세 갈래(훅을 설정하지 않은
+      # 클론 · --no-verify 커밋 · 크론 워크플로의 봇 커밋)가 전부 지나갔다.
+      # 기기 좌표에 대한 약속을 지는 겹 2·3·4 가 통째로 그 두 검사에 얹혀
+      # 있으므로, 여기가 마지막 관문이어야 한다.
+      - name: 기기 위치 반출 검사
+        run: bash scripts/hooks/check-no-location-upload.sh
+
+      - name: SDK import 경계 검사
+        run: bash scripts/hooks/check-firebase-import-boundary.sh

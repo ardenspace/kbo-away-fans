@@ -16,7 +16,17 @@
 ///     (b) 좌표를 얻는 통로가 `lib/location/` 안에서만 보인다는 것
 ///     (`visit_check.dart` 첫 문단의 겹 1)을 같은 방식으로 소스에서 잰다 —
 ///     round 3 이전에는 그 겹을 재는 검사도 시험도 하나도 없었다.
-///   - "홈·원정을 구분하지 않는다" — 후보를 짓는 자리가 팀으로 거르지 않는다.
+///   - "홈·원정을 구분하지 않는다" — 두 자리에서 잰다. 후보를 짓는 자리가
+///     팀으로 거르지 않는다는 것을 **응원 팀이 어느 쪽도 아닌 경기**와
+///     **응원 팀의 원정 경기**로 재고, 짝으로 후보 타입의 **필드 집합
+///     자체**를 소스로 못 박는다(팀 id 가 아예 없다는 것이 그 계약이다).
+///
+/// **이 파일의 소스 대조 파수꾼들이 무엇을 약속하는가.** 이것들은 소스
+/// 텍스트를 본다. 그래서 막는 것은 **실수와 무심코**이고, 작정하고 패턴을
+/// 비켜 가는 표기는 막지 못한다 — 그 성질과 실측 예, 그리고 새 표기 우회를
+/// 찾았을 때 무엇이 고칠 값어치가 있고 무엇이 이미 인정된 범위인지는
+/// `lib/location/visit_check.dart` 첫 문단에 적혀 있다. 파수꾼을 고치기
+/// 전에 그 문단을 먼저 읽을 것.
 ///
 /// 그리고 계약 Goal 의 "앱이 열려 있을 때 위치를 한 번 받는다"는 트리거 위젯
 /// 자체가 아니라 **그 위젯이 앱 골격에 매달려 있는지**로 잰다(마지막 케이스).
@@ -52,6 +62,12 @@ import '../../backend/fake_backend.dart';
 /// 잠실야구장 좌표(stadiums.json 과 같은 값의 근사) — 반경 계산의 기준점.
 const double _jamsilLat = 37.5121;
 const double _jamsilLng = 127.0719;
+
+/// 사직야구장 좌표(같은 근사) — "내 팀이 뛰지 않는 경기"·"원정 경기"를 잠실과
+/// **다른 구장**에서 재는 자리다. 잠실 하나로는 그 둘을 지을 수 없다:
+/// `homeTeams` 가 `['lg','doosan']` 이라 잠실 경기는 언제나 두 홈 팀의 것이다.
+const double _sajikLat = 35.1940;
+const double _sajikLng = 129.0615;
 
 /// 골격 시험이 쓰는 계정 — 로그인한 사람만 판정 트리거에 닿는다.
 const String _uid = 'google-uid';
@@ -171,6 +187,70 @@ List<({String owner, String line})> _byTopLevelOwner(String source) {
     if (line.trimLeft().startsWith('//')) continue;
     out.add((owner: owner, line: line));
   }
+  return out;
+}
+
+/// 최상위 선언 하나가 차지하는 줄들을 **하나로 이어 붙여 공백을 전부 지운**
+/// 표로 편다 — 겹 1 파수꾼이 줄과 공백에 덜 민감해지는 자리다.
+///
+/// round 5 의 검증자가 뚫은 것이 정확히 그 민감함이었다. 옛 파수꾼은
+/// `owned.line.contains('$prefix.')` 라서 별칭과 점이 **한 줄 안에 붙어**
+/// 있을 때만 표지가 섰고, 아래가 훅 4종·시험 663개를 전부 통과했다(지휘자
+/// 재현). 별칭과 점 사이에 공백 하나를 넣는 변종도 같았다.
+///
+/// ```dart
+/// Future<DeviceFix?> readFixSplit() async {
+///   final p = await geo
+///       .Geolocator
+///       .getCurrentPosition();
+///   return DeviceFix(lat: p.latitude, lng: p.longitude);
+/// }
+/// ```
+///
+/// 그래서 표지를 줄이 아니라 **선언 단위**로 본다: 한 선언이 차지하는 줄을
+/// 전부 이어 붙인 뒤, **점 둘레의 공백과 줄바꿈만 지우고** 나머지 공백은
+/// 하나로 접는다. 그러면 위 표기도, 공백을 끼우는 표기도 같은 자리로 온다.
+/// 점 둘레만 지우고 전부 지우지 않는 데는 까닭이 있다 — 전부 지우면
+/// `await geo.` 가 `awaitgeo.` 가 되어 "별칭 앞에 식별자 문자가 오면 다른
+/// 이름의 꼬리다"라는 표지 조건이 헛돌고, 그때 이 파수꾼은 조용히 아무것도
+/// 잡지 못한다(실측으로 그 상태를 한 번 만들어 보고 고쳤다).
+/// `import`·`export`·`part` 줄은 표에서 빼는데, 그 줄의 URI 안에 별칭과 같은
+/// 글자가 들어 있으면 표지가 헛돌기 때문이다.
+///
+/// **이것이 표기 우회를 없애 주지는 않는다.** 텍스트를 보는 파수꾼에는
+/// 언제나 다음 표기가 남는다 — `visit_check.dart` 첫 문단의 "이 파수꾼들이
+/// 막는 것" 문단을 읽으십시오. 여기서 늘어난 것은 **실수로 지나갈 수 있는
+/// 갈래**가 줄었다는 것뿐이다.
+List<({String owner, String compact, String snippet})> _compactedDeclarations(
+  String source,
+) {
+  final directive = RegExp(r'^\s*(import|export|part)\s');
+  final out = <({String owner, String compact, String snippet})>[];
+  var owner = '';
+  var lines = <String>[];
+  void flush() {
+    if (lines.isEmpty) return;
+    final snippet = lines.map((line) => line.trim()).where((l) => l.isNotEmpty).join(' ');
+    out.add((
+      owner: owner,
+      compact: lines
+          .join('\n')
+          .replaceAll(RegExp(r'\s*\.\s*'), '.')
+          .replaceAll(RegExp(r'\s+'), ' '),
+      snippet: snippet.length <= 160 ? snippet : '${snippet.substring(0, 160)}…',
+    ));
+  }
+
+  for (final entry in _byTopLevelOwner(source)) {
+    if (entry.owner != owner) {
+      flush();
+      owner = entry.owner;
+      lines = <String>[];
+    }
+    if (directive.hasMatch(entry.line)) continue;
+    lines.add(entry.line);
+  }
+  flush();
   return out;
 }
 
@@ -703,6 +783,13 @@ void main() {
   // 공개 함수에서 `gps.Geolocator.getCurrentPosition()` 을 부르면 아무것도
   // 보지 못했다(round 4 지휘자 재현 — 훅 4종·시험 전부 초록불) — 이제
   // 이 폴더가 geolocator 를 들이는 **모든** 별칭을 소스에서 읽어 쓴다.
+  //
+  // round 5 가 두 곳을 더 고쳤고, 그 둘의 실측과 한계는 `_compactedDeclarations`
+  // 문서와 `visit_check.dart` 첫 문단의 겹 1 에 적혀 있다: 표지를 줄이 아니라
+  // **선언 단위**로 보게 한 것(별칭과 점 사이의 줄바꿈·공백을 지운 뒤 찾는다)
+  // 과, 조건을 "private 선언이면 된다"에서 "`_readDeviceFix` 하나여야 한다"로
+  // 좁힌 것이다(앞엣것이 검증자가 뚫은 자리, 뒤엣것은 private 헬퍼 하나를 더
+  // 두고 공개 함수가 그것을 부르는 두 걸음짜리 갈래를 닫는다).
   // 짝으로 `part` 지시자도 여기서 잰다: Dart 의 `_` 는 파일이 아니라
   // 라이브러리 가시성이라, part 파일 하나면 `_readDeviceFix` 가 공개 이름으로
   // 다시 나갈 수 있는데 그 파일은 geolocator 를 import 하지 않아 겹 2 의
@@ -732,7 +819,7 @@ void main() {
       );
     });
 
-    test('플러그인을 만지는 줄은 전부 private 선언 안에 있다 (폴더 전체)', () {
+    test('플러그인을 만지는 최상위 선언은 _readDeviceFix 하나뿐이다 (폴더 전체)', () {
       // 이 파수꾼의 표지는 별칭 **하나**가 아니라 이 폴더가 geolocator 를
       // 들이는 별칭 **전부**다. 표지가 살아 있는지 먼저 못 박아 둔다(하나도
       // 못 찾으면 아래 단언이 조용히 빈 목록을 보게 된다).
@@ -743,15 +830,32 @@ void main() {
         reason: 'geolocator 를 별칭으로 들이는 줄이 이 파수꾼의 표지다',
       );
 
+      // 별칭 앞에 식별자 문자가 오면 다른 이름의 꼬리다 — 별칭 자체일 때만
+      // 표지로 센다.
+      final markers = {
+        for (final prefix in prefixes)
+          prefix: RegExp('(?<![A-Za-z0-9_\\\$])${RegExp.escape(prefix)}\\.'),
+      };
+
+      // **"private 안에 있으면 된다"가 아니라 "이 이름 하나여야 한다"로
+      // 좁힌 것이 round 5 의 변화다.** 앞엣것으로는 private 헬퍼를 하나 더
+      // 두고(`_wrap`) 그것을 공개 함수가 부르는 두 걸음짜리 갈래가 통째로
+      // 열려 있었다. 이제 그 첫 걸음에서 걸리고, 둘째 걸음은 아래
+      // "_readDeviceFix 를 부르는 최상위 선언은 둘뿐" 파수꾼이 받는다.
       final offenders = [
         for (final entry in locationSources.entries)
-          for (final owned in _byTopLevelOwner(entry.value))
+          for (final decl in _compactedDeclarations(entry.value))
             for (final prefix in prefixes)
-              if (owned.line.contains('$prefix.') && !owned.owner.startsWith('_'))
-                '${entry.key} — ${owned.owner}: ${owned.line.trim()}',
+              if (markers[prefix]!.hasMatch(decl.compact) &&
+                  decl.owner != '_readDeviceFix')
+                '${entry.key} — ${decl.owner}: ${decl.snippet}',
       ];
 
-      expect(offenders, isEmpty, reason: '기기 좌표를 읽는 자리가 라이브러리 밖에서 불릴 수 있다');
+      expect(
+        offenders,
+        isEmpty,
+        reason: '기기 좌표를 읽는 자리는 _readDeviceFix 하나여야 한다',
+      );
     });
 
     test('그 통로를 이름으로 부르는 최상위 선언은 둘뿐이다', () {
@@ -841,20 +945,28 @@ void main() {
     final stadiums = StadiumsDocument(
       stadiums: [
         _stadium('jamsil', _jamsilLat, _jamsilLng, const ['lg', 'doosan']),
-        _stadium('sajik', 35.1940, 129.0615, const ['lotte']),
+        _stadium('sajik', _sajikLat, _sajikLng, const ['lotte']),
       ],
     );
 
+    // round 5 의 검증자가 이 group 의 픽스처를 짚었다: 유일한 경기가 잠실의
+    // `lg` 대 `doosan` 이었고 잠실의 `homeTeams` 가 그 둘이라, 시험 이름이
+    // 말하는 "내 팀이 뛰지 않는 경기"도 "원정 경기"도 픽스처 안에 없었다.
+    // 계약은 타입 구조로 서 있었지만(후보 타입에 팀 id 가 아예 없다) 그
+    // 시험이 재는 것은 그 문장이 아니었다. 이제 셋으로 나눠 잰다: 응원 팀이
+    // 어느 쪽도 아닌 경기 · 응원 팀의 원정 경기 · 후보 타입의 필드 집합.
     test('내 팀이 뛰지 않는 경기도 후보다 — 그 구장에 있었는지만 본다', () {
+      // 응원 팀을 `lg` 로 두면 이 경기(사직의 `lotte` 대 `kt`)에는 그 팀이
+      // 어느 쪽으로도 없다.
       final schedule = ScheduleDocument(
         generatedAt: DateTime.utc(2026),
         games: [
           _game(
-            id: 'g-jamsil',
+            id: 'g-sajik',
             date: '2026-08-25',
-            home: 'lg',
-            away: 'doosan',
-            stadium: 'jamsil',
+            home: 'lotte',
+            away: 'kt',
+            stadium: 'sajik',
           ),
         ],
       );
@@ -865,16 +977,88 @@ void main() {
       );
 
       expect(candidates, hasLength(1));
-      expect(candidates.single.stadiumId, 'jamsil');
+      expect(candidates.single.stadiumId, 'sajik');
+      expect(candidates.single.gameId, 'g-sajik');
+
+      final result = judgeStadiumVisit(
+        permission: LocationPermissionStatus.granted,
+        candidates: candidates,
+        now: duringPregame,
+        fix: const DeviceFix(lat: _sajikLat, lng: _sajikLng),
+      );
+      expect(result.reason, StadiumVisitReason.visited);
+      expect(result.stadiumId, 'sajik');
+    });
+
+    test('원정 경기도 홈 경기와 똑같이 후보다 — 둘을 가르는 값이 없다', () {
+      // `lg` 를 응원 팀으로 보면 앞엣것은 홈 경기, 뒤엣것은 원정 경기다.
+      final schedule = ScheduleDocument(
+        generatedAt: DateTime.utc(2026),
+        games: [
+          _game(
+            id: 'g-home',
+            date: '2026-08-25',
+            home: 'lg',
+            away: 'doosan',
+            stadium: 'jamsil',
+          ),
+          _game(
+            id: 'g-away',
+            date: '2026-08-25',
+            home: 'lotte',
+            away: 'lg',
+            stadium: 'sajik',
+          ),
+        ],
+      );
+
+      final candidates = buildStadiumVisitCandidates(
+        schedule: schedule,
+        stadiums: stadiums,
+      );
+
       expect(
-        judgeStadiumVisit(
+        candidates.map((c) => c.gameId),
+        ['g-home', 'g-away'],
+        reason: '홈이든 원정이든 후보에서 빠지지 않는다',
+      );
+
+      // 그리고 그 구장에 있었는지만 본다 — 둘 다 같은 이유로 방문이 된다.
+      for (final probe in [
+        (const DeviceFix(lat: _jamsilLat, lng: _jamsilLng), 'jamsil', 'g-home'),
+        (const DeviceFix(lat: _sajikLat, lng: _sajikLng), 'sajik', 'g-away'),
+      ]) {
+        final result = judgeStadiumVisit(
           permission: LocationPermissionStatus.granted,
           candidates: candidates,
           now: duringPregame,
-          fix: _northOf(0),
-        ).reason,
-        StadiumVisitReason.visited,
+          fix: probe.$1,
+        );
+        expect(result.reason, StadiumVisitReason.visited);
+        expect(result.stadiumId, probe.$2);
+        expect(result.gameId, probe.$3);
+      }
+    });
+
+    // 위 두 시험은 **값**으로 잰다. 그것만으로는 후보 타입에 팀 id 를 하나
+    // 더하는 변이가 그대로 통과한다 — round 5 의 검증자가 재현했다:
+    // `final String? homeTeamId = null;` 한 줄을 [StadiumVisitCandidate] 에
+    // 더해도 `flutter analyze`·훅 4종·시험 663개가 전부 초록불이었다.
+    // 결과 타입([StadiumVisitResult])에는 필드 집합 파수꾼이 있는데 후보
+    // 타입에는 없었던 것이 그 까닭이다. 같은 방식으로 못 박는다.
+    test('후보 타입이 값을 두는 자리는 이 다섯뿐이다 (소스 대조)', () {
+      final body = _classBody(
+        File('lib/location/visit_check.dart').readAsStringSync(),
+        'StadiumVisitCandidate',
       );
+
+      expect(_declaredStorage(body), {
+        'gameId': 'final String',
+        'stadiumId': 'final String',
+        'startsAt': 'final DateTime',
+        'lat': 'final double',
+        'lng': 'final double',
+      }, reason: '후보 타입에 팀 id 가 아예 없는 것이 "홈·원정을 구분하지 않는다"의 계약이다');
     });
 
     test('취소된 경기는 후보가 아니다 — 그날 그 구장에 경기가 없다', () {

@@ -4,19 +4,62 @@
 /// 앱이 열려 있을 때만 하는 포그라운드 판정이고, (1) 그 구장에 그날 경기가
 /// 있고 (2) 기기 위치가 구장 좌표 반경 안이며 (3) 경기 시각 기준 시간 창 안일
 /// 때 도장이다. 홈·원정은 구분하지 않는다 — 후보([StadiumVisitCandidate])에
-/// 팀 id 가 아예 없는 것이 그 계약이다.
+/// 팀 id 가 아예 없는 것이 그 계약이고, round 5 부터는 그 필드 집합 자체를
+/// 소스로 대조하는 파수꾼이 `test/features/badges/visit_check_test.dart` 에
+/// 있다(그 전에는 `final String? homeTeamId = null;` 한 줄을 더해도 훅 4종과
+/// 시험 663개가 전부 초록불이었다).
 ///
 /// ## 이 파일이 좌표에 대해 하는 약속과 하지 않는 약속
 ///
 /// **하는 약속:** 이 앱의 코드는 기기 좌표를 서버로 보내지 않고 어디에도
-/// 적지 않는다. 그렇게 하려면 **눈에 띄는 의도적 변경**이 필요하다 — 아래
-/// 다섯 겹 중 하나를 걷어내야 한다(`.wellbegun/decisions.md` 2026-09-04 `[L]`).
+/// 적지 않는다. 그렇게 하려면 **눈에 띄는 의도적 변경**이 필요하다
+/// (`.wellbegun/decisions.md` 2026-09-04 `[L]`).
 ///
-/// **겹마다 무엇이 그것을 지키는지, 그리고 무엇은 지키지 않는지 따로 적는다.**
-/// 뭉뚱그려 "다섯 다 검사나 시험이 지킨다"라고 쓰지 말 것 — 4.1 의 fresh 검증
-/// round 3·4 가 REJECT 한 까닭이 정확히 그런 문장이었다. 아래의 "지키는 것"은
-/// 전부 위반을 실제로 만들어 빨간불(시험) 또는 exit 2(훅)를 확인한 것이고,
-/// "지키지 않는 것"은 지키는 척하지 않고 적어 둔 자리다.
+/// ### 그 약속을 지키는 것이 어느 세기의 문장인가 — 겹 목록보다 먼저 읽을 것
+///
+/// 아래에 겹 다섯과 겹마다 "지키는 것"을 적는다. 그 목록을 읽기 전에 그
+/// 목록이 무엇을 약속하고 무엇을 약속하지 않는지부터 못 박는다.
+///
+/// 이 겹들을 지키는 것은 대부분 **소스 텍스트를 보는 검사와 시험**이다.
+/// 텍스트를 보는 검사가 실제로 막는 것은 **실수와 무심코**다: 이 계층에
+/// import 를 하나 더 들이는 것, 값을 담아 둘 필드를 하나 두는 것, 결과 타입에
+/// 좌표 필드를 하나 더하는 것, 후보 타입에 팀 id 를 하나 더하는 것. 전부
+/// 사람이 나쁜 뜻 없이 하는 변경이고, 그때 커밋이 막히는 것이 이 검사들의
+/// 목적이다.
+///
+/// **작정하고 그 검사를 피하려는 코드는 막지 못한다.** 텍스트를 보는 검사에는
+/// 언제나 같은 일을 하면서 패턴을 비켜 가는 표기가 남고, 그것은 정규식을 더
+/// 촘촘히 해서 없앨 수 있는 성질이 아니다. 4.1 의 fresh 검증이 그것을 세 번
+/// 보여 주었다 — round 3·4·5 가 매번 검사를 하나 더 두껍게 했고, 매번 다음
+/// 검증자가 그 검사를 비켜 가는 표기를 찾았다. round 5 가 찾은 넷은 별칭과
+/// 점 사이의 줄바꿈, 네 칸 들여쓴 클래스 필드, 한 줄로 쓴 클래스, 그리고
+/// 허용된 파일(`../content/kst.dart`)에 공개 함수 하나 더하기다. 이번에 그 넷을
+/// 전부 막았지만 **다섯 번째가 없다고는 적지 않는다** — 이 라운드의 구현자도
+/// 스스로 공격해서 하나를 더 찾았고, 아래 겹 1 의 "지키지 않는 것"에 그대로
+/// 적어 두었다.
+///
+/// 그런 우회를 실제로 막는 것은 검사가 아니라 **코드 리뷰**다. 그리고 그런
+/// 코드는 눈에 띈다 — 별칭과 점 사이에 줄바꿈을 넣거나, 이 저장소의 포매팅
+/// 관례를 벗어나 네 칸을 들여쓰거나, 열 0 을 블록 주석으로 여는 선언은
+/// 리뷰에서 그냥 지나가지 않는다. 그것이 위 "하는 약속"의 문장이 **"불가능
+/// 하다"가 아니라 "눈에 띄는 의도적 변경이 필요하다"인 까닭**이다.
+///
+/// 그래서 아래 "지키는 것" 목록이 약속하는 것은 **"이 갈래는 실수로 지나갈 수
+/// 없다"**이지 **"이 갈래는 누구도 지날 수 없다"**가 아니다. 두 문장의 세기를
+/// 섞지 말 것 — round 3·4·5 의 REJECT 는 전부 그 섞임이었다.
+///
+/// **다음에 이 문단을 고치는 사람에게.** 새 표기 우회를 하나 찾았다고 해서
+/// 이 문단이 거짓이 되는 것은 아니다: 그런 우회는 이 문단이 이미 인정한 범위
+/// 안이고, 그것을 막으려고 정규식을 한 겹 더 씌우는 것은 지난 세 라운드가
+/// 이미 해 본 일이다. 값어치가 있는 것은 다른 쪽이다 — **실수로 지나갈 수
+/// 있는 갈래**(사람이 나쁜 뜻 없이 쓸 법한 모양인데 검사가 놓치는 자리)를
+/// 찾았다면 그것은 고칠 값어치가 있다. 보고할 때 그 둘을 구분해서 적을 것.
+///
+/// ### 겹 다섯
+///
+/// 아래의 "지키는 것"은 전부 위반을 실제로 만들어 빨간불(시험) 또는 exit
+/// 2(훅)를 확인한 것이고, "지키지 않는 것"은 실제로 우회를 써 보고 초록불인
+/// 것을 확인한 자리다.
 ///
 /// 1. **좌표를 얻는 통로가 이 라이브러리 안에서만 보인다.** 기기의 좌표를
 ///    실제로 읽는 자리는 아래 [_readDeviceFix] 하나이고 이름이 `_` 로 시작해
@@ -30,48 +73,91 @@
 ///    소스로 대조하는 `test/features/badges/visit_check_test.dart` 의 겹 1
 ///    파수꾼 여섯 — (a) 이 폴더에 `part`·`part of` 가 없다(그래야 "파일 하나가
 ///    라이브러리 하나"라는 전제가 선다), (b) **폴더 전체**에서, geolocator 를
-///    들이는 **모든 별칭**을 소스에서 읽어 그 별칭을 만지는 줄이 전부 `_` 로
-///    시작하는 최상위 선언 안에 있다(별칭 없는 import 자체가 빨간불이다 —
-///    접두어가 없으면 표지가 지워진다), (c) [_readDeviceFix] 를 이름으로 부르는
-///    최상위 선언은 그 함수 자신과 `stadiumVisitCheckerProvider` 둘뿐이다,
-///    (d) `_readFix` 를 이름으로 쓰는 줄은 정확히 셋이다(필드 선언·생성자
-///    초기화·[StadiumVisitChecker.check] 안의 호출), (e) 밖에서 값을 건네받는
-///    두 서명([StadiumVisitChecker.check] 와 [judgeStadiumVisit])이 소스 텍스트
+///    들이는 **모든 별칭**을 만지는 최상위 선언이 [_readDeviceFix]
+///    **하나뿐이다**(별칭 없는 import 자체가 빨간불이다 — 접두어가 없으면
+///    표지가 지워진다), (c) [_readDeviceFix] 를 이름으로 부르는 최상위 선언은
+///    그 함수 자신과 `stadiumVisitCheckerProvider` 둘뿐이다, (d) `_readFix` 를
+///    이름으로 쓰는 줄은 정확히 셋이다(필드 선언·생성자 초기화·
+///    [StadiumVisitChecker.check] 안의 호출), (e) 밖에서 값을 건네받는 두
+///    서명([StadiumVisitChecker.check] 와 [judgeStadiumVisit])이 소스 텍스트
 ///    그대로다, (f) [StadiumVisitChecker] 가 값을 두는 자리는 `readPermission`
 ///    과 `_readFix` 둘뿐이다.
 ///
-///    실측 빨간불(round 3 의 넷과 round 4 의 여덟): `_readDeviceFix` 를 공개
-///    이름으로 개명 · 공개 래퍼(`Future<DeviceFix?> readFixNow() =>
-///    _readDeviceFix();`) 추가 · 새 공개 함수에서 플러그인 직접 호출 ·
-///    `_readFix` 를 public 필드로 되돌리기 · 기존 import 를 둔 채
+///    **round 5 가 (b) 를 두 곳 고쳤다.** 앞엣것이 검증자가 찾은 우회이고,
+///    뒤엣것은 그것을 고치면서 함께 보인 두 걸음짜리 갈래다.
+///
+///    · 옛 파수꾼은 별칭과 점이 **한 줄 안에 붙어** 있을 때만 표지가 섰다
+///      (`line.contains('$prefix.')`). 그래서 아래 표기가 훅 4종과 시험
+///      663개를 전부 통과했고, 검증자가 이것을 끝까지 이어 `lib/features/
+///      badges/` 에서 실 좌표를 외부 서버로 보내면서 `flutter analyze`·훅
+///      4종·시험 663개가 전부 초록불인 것을 확인했다:
+///
+///      ```dart
+///      final p = await geo
+///          .Geolocator
+///          .getCurrentPosition();
+///      ```
+///
+///      이제 파수꾼은 한 선언이 차지하는 줄을 전부 이어 붙인 뒤 **점 둘레의
+///      공백과 줄바꿈만 지우고** 표지를 찾는다. 위 표기도, 별칭과 점 사이에
+///      공백을 넣는 변종도, 이름을 다음 줄로 내린 표기도 빨간불이다(실측).
+///
+///    · 옛 파수꾼의 조건은 "표지를 만지는 선언이 `_` 로 시작하면 된다"였다.
+///      그러면 private 헬퍼를 하나 더 두고(`_wrap`) 그것을 공개 함수가 부르는
+///      두 걸음짜리 갈래가 통째로 열린다. 이제 그 선언이 [_readDeviceFix]
+///      **하나여야** 하므로 첫 걸음에서 걸리고, 둘째 걸음은 (c) 가 받는다.
+///
+///    실측 빨간불(round 3 의 넷, round 4 의 여덟, round 5 의 다섯):
+///    `_readDeviceFix` 를 공개 이름으로 개명 · 공개 래퍼(`Future<DeviceFix?>
+///    readFixNow() => _readDeviceFix();`) 추가 · 새 공개 함수에서 플러그인
+///    직접 호출 · `_readFix` 를 public 필드로 되돌리기 · 기존 import 를 둔 채
 ///    `as gps;` 별칭을 하나 더 들여 공개 함수에서 부르기 · 별칭 없는
 ///    geolocator import 를 하나 더 · **이 폴더의 새 파일**에서 별칭으로 직접
 ///    호출 · `part` 파일로 통로를 공개 이름으로 다시 내보내기 ·
 ///    `Provider<DeviceFixReader>` 의 클로저가 통로를 실어 내보내기 ·
 ///    `check` 에 `void Function(String)? spy` 인자를 더해 실 좌표를 부르는
 ///    쪽에 넘기기 · 판정기에 공개 메서드(`peek() => _readFix();`)를 더하기 ·
-///    [judgeStadiumVisit] 에 같은 sink 인자를 더하기.
+///    [judgeStadiumVisit] 에 같은 sink 인자를 더하기 · 별칭과 점 사이의
+///    줄바꿈 · 별칭과 점 사이의 공백 · 이름을 다음 줄로 내린 공개 함수 ·
+///    private 헬퍼 + 공개 래퍼의 두 걸음 · **이 폴더의 새 파일**에서 줄바꿈
+///    별칭으로 호출.
 ///
 ///    (round 3 이전에는 이 겹을 재는 것이 **하나도 없었고**, round 4 이전에는
-///    파수꾼이 **파일 하나와 별칭 하나**만 보고 있어서 위 여덟 중 여섯이
-///    초록불이었다.)
+///    파수꾼이 **파일 하나와 별칭 하나**만 보고 있었다.)
 ///
 ///    *지키지 않는 것:* 새 private 통로를 하나 더 두는 것 자체는 이 겹이
-///    막지 않는다(그 값이 밖으로 나가려면 겹 3·4·5 를 지나야 한다). 그리고
-///    (e) 가 재는 것은 **그 두 서명의 소스 텍스트**라, 서명을 그대로 둔 채
-///    private 헬퍼끼리 좌표를 주고받는 것은 보지 않는다 — 그쪽은 보낼 수단도
-///    (겹 3) 담아 둘 자리도(겹 4) 없다는 쪽이 받는다.
+///    막지 않는다 — 다만 그 통로가 geolocator 를 만지면 (b) 가 잡으므로,
+///    남는 것은 이미 손에 있는 좌표를 private 끼리 주고받는 경우다. (e) 가
+///    재는 것은 **그 두 서명의 소스 텍스트**라, 서명을 그대로 둔 채 private
+///    헬퍼끼리 좌표를 주고받는 것은 보지 않는다(그쪽은 보낼 수단도 겹 3,
+///    담아 둘 자리도 겹 4 없다는 쪽이 받는다).
+///
+///    그리고 **이 파수꾼은 선언을 열 0 의 머리 줄로 알아본다.** 열 0 이 블록
+///    주석으로 시작하는 선언은 머리로 읽히지 않아 **바로 앞 선언의 이름을
+///    물려받으므로**, 그것을 [_readDeviceFix] 바로 뒤에 두면 이 파수꾼을
+///    지난다. 이 라운드의 구현자가 스스로 공격해 확인했다 — 아래가 시험
+///    665개와 훅 4종을 전부 통과한다:
+///
+///    ```dart
+///    /*x*/Future<DeviceFix?> readSneaky() async { ... geo.Geolocator ... }
+///    ```
+///
+///    정규식을 한 겹 더 씌우지 않고 여기에 적어 두는 쪽을 골랐다: 열 0 을
+///    블록 주석으로 여는 선언은 실수로 나오는 모양이 아니라 위 문단이 말한
+///    "리뷰에서 눈에 띄는" 코드의 전형이고, 그것을 잡으려고 머리 줄 판정을
+///    넓히면 다음 표기가 또 나온다.
 /// 2. **플러그인을 직접 부르는 길이 이 파일 하나로 못 박혀 있다.** 위 통로
 ///    밖에서 좌표를 얻으려면 `package:geolocator` 를 직접 부르는 수밖에
 ///    없는데, 그 import 를 `lib/` 안에서 이 **파일**로 좁혀 둔다.
 ///
 ///    *지키는 것:* `scripts/hooks/check-firebase-import-boundary.sh`
-///    (PostToolUse + pre-commit). 실측: 그 import 를 다른 파일에 두면 exit 2.
-///    같은 훅이 `export 'package:geolocator/geolocator.dart';` 도 잡는다 —
-///    round 4 가 확인한 갈래다: 그 한 줄이 `location.dart` 에 있으면 폴더
-///    밖의 파일이 `lib/location/location.dart` 만 import 하고 `Geolocator` 를
-///    접두어 없이 부를 수 있고, `flutter analyze` 는 초록불이다. 같은 자리를
-///    `check-no-location-upload.sh` 의 검사 3) 도 함께 받는다.
+///    (PostToolUse + pre-commit + **CI**). 실측: 그 import 를 다른 파일에
+///    두면 exit 2. 같은 훅이 `export 'package:geolocator/geolocator.dart';`
+///    도 잡는다 — round 4 가 확인한 갈래다: 그 한 줄이 `location.dart` 에
+///    있으면 폴더 밖의 파일이 `lib/location/location.dart` 만 import 하고
+///    `Geolocator` 를 접두어 없이 부를 수 있고, `flutter analyze` 는
+///    초록불이다. 같은 자리를 `check-no-location-upload.sh` 의 검사 3) 도
+///    함께 받는다.
 /// 3. **이 계층은 값을 밖으로 내보낼 수단을 갖지 않는다.** `lib/location/` 이
 ///    import 할 수 있는 것은 **허용 목록 여섯**뿐이고(`dart:math` ·
 ///    `package:flutter_riverpod` · `package:geolocator` ·
@@ -91,23 +177,28 @@
 ///    다섯 번째 계층이 생길 때 또 새므로, 거부 목록을 버렸다.
 ///
 ///    *지키는 것:* `scripts/hooks/check-no-location-upload.sh` 의 검사
-///    2)·3)·5). 실측 정탐 22종이 exit 2 다 — `../content/content_providers.dart`
+///    2)·3)·5). 실측 정탐 24종이 exit 2 다 — `../content/content_providers.dart`
 ///    (상대 경로·패키지 경로 둘 다) · `../weather/weather.dart` ·
 ///    `lib/analytics/`(상대·패키지·겹따옴표) · `lib/backend/` ·
 ///    `package:http` · `dart:io` · `dart:async` · `dart:developer` ·
 ///    `package:flutter/foundation` · `package:flutter/material` ·
-///    `package:share_plus` · `show` 절이 붙은 금지 import · 조건부 import 의
-///    둘째 URI · **이 폴더의 새 파일**이 하는 금지 import · `export` 지시자 ·
-///    `part` 지시자 · `lib/content/kst.dart` 의 `export` · 그리고
+///    `package:share_plus` · `package:geolocator_platform_interface` ·
+///    `show` 절이 붙은 금지 import · 조건부 import 의 둘째 URI ·
+///    **이 폴더의 새 파일**이 하는 금지 import · `export` 지시자 ·
+///    `part` 지시자 · `lib/content/kst.dart` 의 `export`·`part`·허용 목록 밖
+///    import·공개 이름 하나 더하기, 그리고
 ///    `print(...)`·`debugPrint(...)`·`Zone.current.print(...)`·
 ///    `debugPrintSynchronously(...)`·`debugPrintThrottled(...)`.
 ///
-///    허용 목록의 **유일한 폴더 밖 문**인 `../content/kst.dart` 에는 짝 검사가
-///    붙는다: 그 파일에 `export` 가 없어야 한다. Dart 의 import 는 전이되지
-///    않지만 `export` 는 전이되므로, 그 한 줄이면 이 폴더의 import 을 하나도
-///    건드리지 않고 새 이름이 이 계층에 선다(round 4 의 구현자가 재현했다 —
-///    `export 'package:http/http.dart';` 한 줄과 `await Client().post(...)`
-///    한 줄로 실 좌표가 나가는데 훅 2종이 exit 0 이었다).
+///    **허용 목록의 유일한 폴더 밖 문**인 `../content/kst.dart` 에는 짝 검사가
+///    셋 붙는다. round 4 는 그 문에 `export` 가 없다는 것만 보고 있었는데,
+///    round 5 의 검증자가 그 옆으로 지나갔다: 그 파일에 **공개 함수를 하나
+///    더하고** 그 안에서 `package:http` 로 실 좌표를 외부 서버에 보내는 것이
+///    훅 4종과 시험 663개를 전부 통과했다. 이제 셋을 함께 본다 —
+///    (a) `export`·`part` 가 없다, (b) 그 파일 자신의 import 도 허용
+///    목록(`models.dart`) 안에만 있다, (c) 그 파일이 내미는 **최상위 공개
+///    이름 집합**이 넷 그대로다(`kstOffset`·`kstDateOf`·`gameDateOf`·
+///    `gameStartsAt`). 셋 다 실측으로 exit 2 를 확인했다.
 ///
 ///    허용 목록이 함께 닫은 것이 round 4 가 찾은 콘솔 우회 둘이다:
 ///    `Zone.current.print(...)` 와 `debugPrintSynchronously(...)` 는 각각
@@ -121,9 +212,10 @@
 ///    라이브러리이고 거기 `print` 가 있다. 검사 5) 는 그것을 **이름을 그대로
 ///    부르는 줄**로만 잡으므로, 함수를 변수에 담아 부르는 우회
 ///    (`final logger = print; logger('...');`)는 잡지 못한다 — 실측으로
-///    확인했다(훅 4종이 전부 exit 0). 그리고 kst.dart 의 짝 검사는 그 파일의
-///    `export` 만 보므로, 허용 목록의 패키지 다섯이 새 버전에서 무언가를 더
-///    재수출하면 이 검사는 그것을 보지 못한다.
+///    확인했다(훅 4종이 전부 exit 0). 그리고 kst.dart 짝 검사 셋은 **그 파일
+///    자신의 텍스트**만 보므로, 그 파일이 부르는 `lib/content/models.dart`
+///    안쪽까지는 보지 않는다. 허용 목록의 패키지 다섯이 새 버전에서 무언가를
+///    더 재수출하는 것도 이 검사들의 시야 밖이다.
 /// 4. **이 계층에는 값을 남겨 둘 자리가 없다.** 이 폴더에는 최상위 변수도,
 ///    클래스 안의 `static` 저장소도, **좌표를 쌓을 수 있는 인스턴스 필드도**
 ///    둘 수 없다.
@@ -134,58 +226,115 @@
 ///    이음매가 그 모양이다), 그리고 그런 타입 인자를 받는 읽기 전용 provider.
 ///    "담을 수 없는 타입"은 값이 변하지 않는 dart:core 기본형
 ///    (`bool`·`double`·`int`·`num`·`String`·`Duration`·`DateTime`)과 **이
-///    폴더가 스스로 선언한 타입 이름들**의 합이다 — 뒤엣것을 허용해도 고리가
-///    닫히는 까닭은 그 타입의 필드가 다시 이 검사를 지나기 때문이고, 폴더
-///    밖의 이름을 막으므로 `Provider<StringBuffer>`·`Provider<List>` 같은
-///    "홑 식별자인데 변경 가능한 통"이 함께 닫힌다.
+///    폴더가 스스로 선언한 class·enum·mixin 이름들**(그리고 함수 타입
+///    typedef 하나)의 합이다 — 그 셋을 허용해도 고리가 닫히는 까닭은 그
+///    타입의 필드가 다시 이 검사를 지나기 때문이고, 폴더 밖의 이름을
+///    막으므로 `Provider<StringBuffer>`·`Provider<List>` 같은 "홑 식별자인데
+///    변경 가능한 통"이 함께 닫힌다.
 ///
-///    실측 정탐 18종이 exit 2 다: 최상위 `DeviceFix? lastSpot;`·
+///    **round 5 가 이 검사를 줄에서 문장으로 옮겼다.** 옛 검사는 "열 0 의
+///    선언 · 어느 깊이든 `static` · **두 칸** 들여쓴 클래스 몸통의 선언"만
+///    보았고, 그래서 아래 둘이 그냥 지나갔다(지휘자 재현, 둘 다 exit 0 이고
+///    검증자가 라이브러리 밖에서 실 좌표 `37.5121, 127.0719` 를 읽어 냈다):
+///
+///    ```dart
+///    class SpotLog {
+///        final List<DeviceFix> seen = <DeviceFix>[];
+///    }
+///    class SpotLog2 { static final List<DeviceFix> seen = <DeviceFix>[]; }
+///    ```
+///
+///    뒤엣것은 "어느 깊이든 `static` 을 잡는다"는 문장까지 함께 깼다 — 그
+///    줄의 첫 토막이 `class` 라서 검사가 아예 닿지 않았다. `dart format` 을
+///    게이트로 세워 들여쓰기를 강제하는 길은 이 저장소에 없다(pre-commit 에도
+///    CI 에도 없고, 지금 트리는 포매터 버전 차이로
+///    `dart format --set-exit-if-changed` 에 74개 파일이 걸린다). 그래서
+///    검사가 파일을 한 번 훑으며 주석과 문자열을 걷어 내고, 괄호 밖의
+///    중괄호로 깊이를 세고, 괄호 밖의 `;` 와 `{` 에서 문장을 끊어 공백을
+///    하나로 접은 뒤 본다. "클래스 몸통 안"이 들여쓰기가 아니라 **중괄호
+///    깊이**로 정해져서, 네 칸을 들여쓰든 여덟 칸을 들여쓰든 탭을 쓰든 한
+///    줄로 쓰든 같은 자리로 온다(넷 다 실측으로 exit 2).
+///
+///    같은 라운드에서 **이 라운드의 구현자가 스스로 공격해 찾은 구멍 둘**도
+///    막았다: `extension type Box(List<DeviceFix> v) {}` 의 표현 필드는
+///    헤더의 괄호 안에 있어 문장 분해가 닿지 않고, `typedef Bag =
+///    List<DeviceFix>;` 는 몸통이 아예 없다. 둘 다 "그 타입의 필드가 다시 이
+///    검사를 지난다"는 고리를 끊으므로, 허용 타입 집합에서 `extension type`
+///    과 함수 타입이 아닌 `typedef` 를 뺐다(실측: 뺀 뒤 `final Box b;`·
+///    `final Bag b;` 가 exit 2, 함수 타입 typedef 필드는 그대로 통과).
+///
+///    실측 정탐 25종이 exit 2 다: 최상위 `DeviceFix? lastSpot;`·
 ///    `var lastSpot = 0.0;`·`final _spots = <DeviceFix>[];`·`StateProvider`·
 ///    `FutureProvider`·`NotifierProvider`·`Provider<List<DeviceFix>>`·
 ///    `Provider<Map<String, DeviceFix>>`·`Provider<StringBuffer>`·
 ///    `Provider<List>`, 두 칸 들여쓴 `static DeviceFix? lastSpot;`·
-///    `static final List<DeviceFix> spots = [];`, 그리고 인스턴스 필드
+///    `static final List<DeviceFix> spots = [];`, 인스턴스 필드
 ///    `final List<DeviceFix> seen = [];`·`DeviceFix? last;`·
 ///    `late DeviceFix last;`·`var count = 0;`·
-///    `final StringBuffer log = StringBuffer();`, 마지막으로 round 4 의
-///    검증자가 라이브러리 밖에서 실 좌표를 읽어 낸 조합 그대로
+///    `final StringBuffer log = StringBuffer();`, round 4 의 검증자가
+///    라이브러리 밖에서 실 좌표를 읽어 낸 조합 그대로
 ///    (`class SpotLog { final List<DeviceFix> seen = []; ... }` +
-///    `Provider<SpotLog>`).
+///    `Provider<SpotLog>`), 그리고 round 5 의 표기 갈래 여덟 — 네 칸·여덟
+///    칸·탭 들여쓰기 · 한 줄 클래스(인스턴스·static 둘 다) · 토막 사이
+///    블록 주석 · `mixin` 몸통 · `abstract class` 안의 static ·
+///    `extension` 안의 static · 선언을 세 줄로 쪼갠 필드 ·
+///    `extension type` 표현 필드 · `typedef` 별칭 필드.
 ///
-///    round 4 는 여기서 **오탐 하나도 풀었다**: 이름이 `Provider` 로 끝나지
-///    않는 읽기 전용 provider(`final gateRef = Provider<int>((ref) => 1);`)가
-///    exit 2 였다. 안전을 만드는 것은 변수 이름이 아니라 오른쪽에 오는
-///    생성자라, 이름 조건을 지우고 생성자와 타입 인자만 본다. 선언이 80칸을
-///    넘겨 `dart format` 이 `=` 뒤에서 자른 모양은 그대로 통과한다.
+///    round 4 는 여기서 오탐 하나를 풀었고(이름이 `Provider` 로 끝나지 않는
+///    읽기 전용 provider), **round 5 가 하나 더 풀었다**: 문서가 "게터도 보지
+///    않는다"라고 적는데 **최상위 게터**(`String get placeLabel => _base;`)가
+///    exit 2 였다. 이제 검사가 `=>` 를 선언의 끝으로 보지 않으므로 최상위
+///    게터·클래스 게터·표현식 본문 함수가 전부 통과한다(실측).
 ///
 ///    *지키지 않는 것:* **함수 몸통 안의 지역 변수와 클로저 캡처**는 보지
 ///    않는다(그 자리를 보게 하면 이 파일의 정당한 지역 변수가 전부 걸린다).
 ///    실측으로 `Provider<DeviceFixReader>` 의 클로저가 좌표를 붙잡는 변이를
 ///    만들어 보았는데, 그것을 빨간불로 잡은 것은 이 검사가 아니라 겹 1 의
-///    파수꾼이었다(통로를 이름으로 부르는 자리가 늘기 때문이다). 게터도 보지
-///    않는다 — 게터는 값을 담지 못하고, 읽을 저장소 쪽이 이 검사에 먼저
-///    걸린다.
+///    파수꾼이었다. 그리고 `final String spot;` 같은 **문자열 필드**는
+///    통과한다 — String 은 변하지 않아 쌓을 수 없지만 좌표 하나를 글자로
+///    담을 수는 있다(그 값이 밖으로 나가려면 겹 1·5 를 지나야 한다).
+///
+///    **이 검사가 일부러 거절하는 정당한 모양**도 적어 둔다(5.2 가 여기
+///    걸리면 까닭을 여기서 찾으라고). 아래 둘은 좌표를 담지 못하는데도
+///    exit 2 다: 최상위 `final RegExp kStadiumIdPattern = RegExp(...);`
+///    (RegExp 는 `const` 가 될 수 없고 폴더 밖의 이름이다)와 값 타입의
+///    `final List<String> ids;` 필드(List 는 담을 수 있는 통이라
+///    `final StringBuffer log = StringBuffer();` 와 같은 규칙에 걸린다).
+///    둘 다 우회하지 말고 허용 목록을 의도적으로 넓히고 ADR 을 남길 것.
 /// 5. **경계를 넘는 값에 좌표가 없다.** 이 파일이 밖으로 내보내는 판정 결과
 ///    [StadiumVisitResult] 는 이유·구장 id·경기 id 와 [StadiumVisitResult.isVisit]
 ///    뿐이다. [DeviceFix] 는 타입 자체는 공개(시험이 판정 함수에 좌표를 넣어야
 ///    한다)지만, 위 1번 때문에 **실제 기기 좌표가 담긴 값**은 이 라이브러리
 ///    밖으로 나가지 않는다.
 ///
-///    *지키는 것:* `test/features/badges/visit_check_test.dart` 의 결과 타입
-///    파수꾼 둘 — 그 타입이 **값을 두는 자리 집합 자체**를 이 파일의 소스에서
-///    읽어 표와 대조하고(`test/cross_layer_seams_test.dart` 가 `firestore.rules`
-///    를 읽어 대조하는 것과 같은 방식이다), 짝으로 그 몸통에 좌표 어휘가
-///    없음을 잰다. 실측: 좌표 필드·`static` 필드·좌표 게터를 하나씩 더하면
-///    각각 빨간불이다. round 3 이전에는 표가 두 칸 들여쓴 `final` 줄만 봐서
-///    `static DeviceFix? lastSpot;` 을 놓쳤고, 그 필드는 라이브러리 밖에서
-///    `StadiumVisitResult.lastSpot!.lat` 으로 읽혔다.
+///    *지키는 것:* `test/features/badges/visit_check_test.dart` 의 타입
+///    파수꾼 셋 — [StadiumVisitResult] 가 **값을 두는 자리 집합 자체**를 이
+///    파일의 소스에서 읽어 표와 대조하고, 짝으로 그 몸통에 좌표 어휘가
+///    없음을 재고, round 5 부터 [StadiumVisitCandidate] 의 필드 집합도 같은
+///    방식으로 못 박는다. 실측: 결과 타입에 좌표 필드·`static` 필드·좌표
+///    게터를 하나씩 더하면 각각 빨간불이고, 후보 타입에
+///    `final String? homeTeamId = null;` 한 줄을 더해도 빨간불이다.
 ///
-/// **하지 않는 약속: "기기 좌표를 알아내는 것이 구조적으로 불가능하다"고
-/// 말하지 않는다.** [StadiumVisitChecker.check] 는 후보 지점을 **부르는 쪽이
-/// 지어서** 넣고 결과에 어느 후보가 맞았는지를 담아 돌려주므로, "이 지점
-/// 반경 안에 기기가 있는가"를 묻는 신탁(oracle)이다. 자오선·위선 위에 후보를
-/// 늘어놓고 정순·역순으로 물으면 원판의 양 끝이 나오고 그 중점이 곧 기기
-/// 좌표라, **측위 5회로 오차 0.03m 까지 좁혀진다**
+/// ### 이 검사들이 도는 자리
+///
+/// PostToolUse 훅(`check-hardcoded-values.sh`·`check-no-location-upload.sh`) ·
+/// `pre-commit`(검사 4종 전부) · **CI 의 `conventions` job**. 마지막 것이
+/// round 5 에서 배선됐다 — 그 전까지 `check-no-location-upload.sh` 와
+/// `check-firebase-import-boundary.sh` 는 로컬 훅에만 걸려 있어서, 훅을
+/// 설정하지 않은 클론과 `--no-verify` 커밋과 크론 워크플로의 봇 커밋이 전부
+/// 지나갔다. 겹 2·3·4 가 통째로 그 두 검사에 얹혀 있으므로, 그동안 이 문서가
+/// "지킨다"라고 적은 것의 실제 강제 범위는 **훅을 설정한 사람의 컴퓨터**뿐
+/// 이었다. `.github/workflows/ci.yml` 자신의 3행이 그 까닭을 이미 적어 두고
+/// 있었다.
+///
+/// ### 하지 않는 약속
+///
+/// **"기기 좌표를 알아내는 것이 구조적으로 불가능하다"고 말하지 않는다.**
+/// [StadiumVisitChecker.check] 는 후보 지점을 **부르는 쪽이 지어서** 넣고
+/// 결과에 어느 후보가 맞았는지를 담아 돌려주므로, "이 지점 반경 안에 기기가
+/// 있는가"를 묻는 신탁(oracle)이다. 자오선·위선 위에 후보를 늘어놓고
+/// 정순·역순으로 물으면 원판의 양 끝이 나오고 그 중점이 곧 기기 좌표라,
+/// **측위 5회로 오차 0.03m 까지 좁혀진다**
 /// (`test/probe/coord_oracle_probe_test.dart` 가 그것을 실행하며, 그 시험이
 /// 초록불인 것은 결함이 아니라 기록된 성질이다).
 ///

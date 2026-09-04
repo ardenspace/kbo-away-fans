@@ -41,21 +41,27 @@ git hook은 클론으로 전파되지 않으므로 위처럼 저장소 내 훅 �
   필드)를 두지 않았는지, (4) 좌표를 콘솔에 찍지 않는지(`print`·`debugPrint*` ·
   `Zone.current.print` 같은 점 뒤 호출).
   (1) 의 허용 목록은 그 폴더가 **오늘 실제로 쓰는 것** 여섯뿐이다(`dart:math` ·
-  `package:flutter_riverpod` · `package:geolocator` · `package:permission_handler` ·
+  `package:flutter_riverpod` · 좌표·권한 플러그인 둘 ·
   `../content/kst.dart` · 같은 폴더의 파일). 거부 목록이 아니라 허용 목록인 것은
   거부 목록이 세 번 샜기 때문이다 — `lib/backend/` 만 막던 검사가 `lib/analytics/`
   를 놓쳤고, 그 둘을 막은 검사가 `lib/content/content_providers.dart` 의
   `httpClientProvider` 와 `lib/weather/weather.dart` 의 `effectAt(lat:, lng:)` 를
-  놓쳤다. 짝으로, 허용 목록의 유일한 폴더 밖 문인 `lib/content/kst.dart` 에
-  `export` 가 없는지도 함께 본다(Dart 의 import 는 전이되지 않지만 `export` 는
-  전이되므로, 그 한 줄이면 허용 목록에 이름을 몰래 더하는 것이 된다).
+  놓쳤다. 짝으로, 허용 목록의 유일한 폴더 밖 문인 `lib/content/kst.dart` 에는
+  검사가 셋 붙는다: 그 파일에 `export`·`part` 가 없는지, 그 파일 자신의 import 도
+  허용 목록(`models.dart`) 안에만 있는지, 그리고 그 파일이 내미는 **최상위 공개
+  이름 집합**이 넷 그대로인지. 셋째가 사이클 2 의 4.1 round 5 에서 생겼다 — 그
+  전에는 `export` 만 보고 있어서, 그 파일에 공개 함수를 하나 더하고 그 안에서
+  좌표를 외부 서버로 보내는 것이 훅 4종과 시험 663개를 전부 통과했다.
   (3) 이 허용하는 것은 `const`·`static const`, "담을 수 없는 타입"(변하지 않는
-  dart:core 기본형과 그 폴더가 스스로 선언한 타입)의 `final` 필드, 함수 타입의
-  `final` 필드, 그리고 그런 타입 인자를 받는 읽기 전용 provider 뿐이다 —
-  `Provider<LocationPermissionGateway>`·`Provider<int>` 는 통과하고
-  `Provider<List<DeviceFix>>`·`Provider<StringBuffer>` 는 통과하지 못한다(변경
-  가능한 통이 곧 좌표를 담아 둘 자리다). 선언이 80칸을 넘겨 `dart format` 이
-  `=` 뒤에서 자른 모양은 통과한다.
+  dart:core 기본형과 그 폴더가 스스로 선언한 class·enum·mixin 이름, 그리고 함수
+  타입 typedef)의 `final` 필드, 함수 타입의 `final` 필드, 그리고 그런 타입 인자를
+  받는 읽기 전용 provider 뿐이다 — `Provider<LocationPermissionGateway>`·
+  `Provider<int>` 는 통과하고 `Provider<List<DeviceFix>>`·`Provider<StringBuffer>`
+  는 통과하지 못한다(변경 가능한 통이 곧 좌표를 담아 둘 자리다). 이 검사는 줄이
+  아니라 **문장**을 본다 — 파일을 훑으며 주석과 문자열을 걷어 내고 괄호 밖의
+  중괄호로 깊이를 세므로, 들여쓰기를 네 칸으로 바꾸거나 클래스를 한 줄로 쓰거나
+  선언을 여러 줄로 쪼개도 같은 자리로 온다(round 5 이전에는 그 셋이 전부 검사를
+  지나갔다).
 - `check-firebase-import-boundary.sh` — SDK import 가 전용 계층 밖으로 새지 않는지.
   백엔드 SDK(`firebase_*` · `cloud_firestore` · `cloud_functions` ·
   `google_sign_in` · 카카오)는 `lib/backend/`·`lib/analytics/` 안에만, 위치 권한
@@ -68,21 +74,46 @@ git hook은 클론으로 전파되지 않으므로 위처럼 저장소 내 훅 �
 이 검사 둘과 `lib/location/` 의 구조와 경계 시험의 파수꾼들이 함께 지키는
 약속은 **"앱의 코드가 기기 좌표를 서버로 보내지 않으며, 그렇게 하려면 눈에
 띄는 의도적 변경이 필요하다"** 이다(`.wellbegun/decisions.md` 2026-09-04
-`[L]`). 그 약속은 다섯 겹으로 서 있는데 **겹마다 지키는 것이 다르고, 겹마다
-지키지 못하는 것도 있다** — 겹 1(좌표 통로가 private)은 Dart 의 가시성과
+`[L]`).
+
+**그 문장이 왜 "불가능하다"가 아닌지부터 읽을 것.** 위 약속을 지키는 것은
+대부분 **소스 텍스트를 보는 검사와 시험**이다. 텍스트를 보는 검사가 실제로
+막는 것은 **실수와 무심코**이고, **작정하고 그 검사를 피하려는 코드는 막지
+못한다** — 텍스트를 보는 검사에는 언제나 같은 일을 하면서 패턴을 비켜 가는
+표기가 남고, 그것은 정규식을 더 촘촘히 해서 없앨 수 있는 성질이 아니다.
+4.1 의 fresh 검증 round 3·4·5 가 매번 검사를 하나 더 두껍게 했고 매번 다음
+표기가 나왔다(별칭과 점 사이의 줄바꿈 · 네 칸 들여쓴 클래스 필드 · 한 줄로
+쓴 클래스 · 허용된 파일에 공개 함수 하나 더하기). round 5 가 그 넷을 막았지만
+다섯 번째가 없다고 적지 않는다.
+
+그런 우회를 실제로 막는 것은 검사가 아니라 **코드 리뷰**이고, 그런 코드는
+눈에 띈다. 그래서 아래 겹별 목록이 약속하는 것은 **"이 갈래는 실수로 지나갈
+수 없다"**이지 **"이 갈래는 누구도 지날 수 없다"**가 아니다.
+
+그 약속은 다섯 겹으로 서 있는데 **겹마다 지키는 것이 다르고, 겹마다 지키지
+못하는 것도 있다** — 겹 1(좌표 통로가 private)은 Dart 의 가시성과
 `test/features/badges/visit_check_test.dart` 의 소스 대조 파수꾼 여섯이(폴더
-전체 · geolocator 의 모든 별칭 · `part` 금지 · 통로를 부르는 줄 · 밖에서 값을
-건네받는 두 서명 · 판정기의 필드 집합), 겹 2(플러그인 import 를 파일 하나로)는
+전체 · geolocator 의 모든 별칭을 만지는 최상위 선언이 `_readDeviceFix`
+하나인가 · `part` 금지 · 통로를 부르는 줄 · 밖에서 값을 건네받는 두 서명 ·
+판정기의 필드 집합), 겹 2(플러그인 import 를 파일 하나로)는
 `check-firebase-import-boundary.sh` 가, 겹 3(내보낼 수단 없음)과 겹 4(담아 둘
 자리 없음)는 `check-no-location-upload.sh` 가, 겹 5(경계를 넘는 타입에 좌표
-없음)는 결과 타입 파수꾼이 지킨다.
+없음, 후보 타입에 팀 id 없음)는 타입 파수꾼 셋이 지킨다.
 
 **지키지 못하는 것도 그 자리에 적혀 있다.** `dart:core` 는 import 없이 서므로
 막을 수 없고, 거기 있는 `print` 는 이름을 그대로 부르는 줄로만 잡히므로
 `final logger = print;` 로 우회된다(실측 확인). 겹 4 는 함수 몸통 안의 지역
-변수와 클로저 캡처를 보지 않는다. 겹별로 무엇이 지키고 무엇은 지키지 않는지는
+변수와 클로저 캡처를 보지 않는다. 겹 1 의 파수꾼은 선언을 열 0 의 머리 줄로
+알아보므로, 열 0 을 블록 주석으로 여는 선언은 앞 선언의 이름을 물려받아
+지나간다(이 라운드의 구현자가 스스로 공격해 확인했고, 정규식을 한 겹 더
+씌우는 대신 적어 두었다). 겹별로 무엇이 지키고 무엇은 지키지 않는지는
 `lib/location/visit_check.dart` 첫 문단에 실측과 함께 적혀 있다 — 뭉뚱그려
 "다섯 다 검사가 지킨다"라고 쓰지 말 것.
+
+**다음에 이 문단을 고치는 사람에게.** 새 표기 우회를 하나 찾았다고 해서 이
+문단이 거짓이 되는 것은 아니다: 그런 우회는 이 문단이 이미 인정한 범위 안이다.
+값어치가 있는 것은 **실수로 지나갈 수 있는 갈래**(사람이 나쁜 뜻 없이 쓸 법한
+모양인데 검사가 놓치는 자리)를 찾는 쪽이다.
 
 그보다 강한 문장 — 좌표를 알아내는 것이 구조적으로 불가능하다 — 은 이 앱이
 하지 않는 약속이다: 구장 방문 판정 API 는 "이 지점 반경 안에 있는가"를 묻는
@@ -94,7 +125,9 @@ git hook은 클론으로 전파되지 않으므로 위처럼 저장소 내 훅 �
 Claude Code 세션에서는 `.claude/settings.json`의 PostToolUse 훅이 편집 직후에도 검사를
 돌리지만 범위가 다르다 — `check-hardcoded-values.sh`와 `check-no-location-upload.sh`
 2종뿐이고, `check-registry-sync.sh`·`check-firebase-import-boundary.sh`는 커밋 시점
-(pre-commit)에서만 돈다.
+(pre-commit)에서만 돈다. **CI(`conventions` job)는 4종을 전부 돈다** — 위치 검사
+둘은 4.1 round 5 에서 배선했고, 그 전까지는 로컬 훅에만 걸려 있어서 훅을 설정하지
+않은 클론과 `--no-verify` 커밋과 크론 워크플로의 봇 커밋이 전부 지나갔다.
 
 ## 개발
 
