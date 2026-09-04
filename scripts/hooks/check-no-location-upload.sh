@@ -44,12 +44,15 @@ fi
 # 2) 좌표를 다루는 계층이 업로드 계층에 닿지 않는다 (lib/location/CLAUDE.md
 # 의 같은 규칙). 백엔드로 넘길 판정 결과가 있으면 두 계층을 잇는 자리는
 # 부르는 쪽(feature)이지 이 폴더가 아니다. 상대 경로('../backend/...')와
-# 패키지 경로('package:kbo_away_fans/backend/...') 를 한 패턴으로 잡는다.
+# 패키지 경로('package:kbo_away_fans/backend/...') 를 한 패턴으로 잡는다 —
+# 여는 따옴표는 홑([']) 과 겹(["]) 을 모두 받는다(Dart 는 둘 다 유효한 문자열
+# 구분자라 `prefer_single_quotes` 가 없다면 이 grep 만으로는 겹따옴표 import 가
+# 새 나간다).
 LOC_DIR="lib/location"
 
 if [ -d "$LOC_DIR" ]; then
   loc_hits=$(grep -rnE --include='*.dart' \
-    "^[[:space:]]*(import|export)[[:space:]]+'[^']*backend/" "$LOC_DIR" 2>/dev/null)
+    "^[[:space:]]*(import|export)[[:space:]]+[\"'][^\"']*backend/" "$LOC_DIR" 2>/dev/null)
   if [ -n "$loc_hits" ]; then
     {
       echo "$LOC_DIR 이 업로드 계층(lib/backend/)을 import 합니다 (좌표가 서버로 나갈 길을 만들지 않는다):"
