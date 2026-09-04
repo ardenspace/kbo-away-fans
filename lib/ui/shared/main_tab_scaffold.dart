@@ -76,21 +76,33 @@ class _MainTabScaffoldState extends State<MainTabScaffold> {
   }
 
   Widget _tabNavigator(int index) {
-    return NavigatorPopHandler(
+    return TickerMode(
+      // [IndexedStack] 이 다섯 탭을 전부 동시에 지어 두는 만큼, 보고 있지
+      // 않은 탭의 화면이 스피너 같은 끝없는 애니메이션을 하나라도 띄우면 그
+      // 애니메이션은 아무도 보지 않는 동안에도 매 프레임 다시 그려 달라고
+      // 계속 요청한다 — 탭을 한 번도 열어 보지 않아도 프레임이 영원히
+      // 끝나지 않는다(`WidgetTester.pumpAndSettle` 이 그 자리에서 그대로
+      // 멈춘다는 사실로 처음 드러났다 — `main_tab_scaffold_regression_test.dart`
+      // 참조). [TickerMode] 는 위젯의 상태는 그대로 살려 둔 채 그 안의
+      // `Ticker`(애니메이션이 프레임을 요청하는 실제 통로)만 죽여, 보이는
+      // 탭으로 돌아왔을 때 애니메이션이 멈춘 그 값에서 다시 움직이게 한다.
       enabled: index == _index,
-      // `enabled` 는 이 route 의 PopScope.canPop 만 정한다 — pop 콜백 자체는
-      // IndexedStack 이 살려 둔 5개 핸들러 전부에 전달된다(Flutter
-      // navigator_pop_handler.dart, "onPop will still be called" 는 enabled
-      // 와 무관). 이 가드가 없으면 뒤로가기 한 번에 꺼진 탭까지 함께 pop 된다.
-      onPopWithResult: (_) {
-        if (index != _index) return;
-        _navigatorKeys[index].currentState?.pop();
-      },
-      child: Navigator(
-        key: _navigatorKeys[index],
-        onGenerateRoute: (settings) => MaterialPageRoute<void>(
-          settings: settings,
-          builder: widget.tabs[index].builder,
+      child: NavigatorPopHandler(
+        enabled: index == _index,
+        // `enabled` 는 이 route 의 PopScope.canPop 만 정한다 — pop 콜백 자체는
+        // IndexedStack 이 살려 둔 5개 핸들러 전부에 전달된다(Flutter
+        // navigator_pop_handler.dart, "onPop will still be called" 는 enabled
+        // 와 무관). 이 가드가 없으면 뒤로가기 한 번에 꺼진 탭까지 함께 pop 된다.
+        onPopWithResult: (_) {
+          if (index != _index) return;
+          _navigatorKeys[index].currentState?.pop();
+        },
+        child: Navigator(
+          key: _navigatorKeys[index],
+          onGenerateRoute: (settings) => MaterialPageRoute<void>(
+            settings: settings,
+            builder: widget.tabs[index].builder,
+          ),
         ),
       ),
     );
