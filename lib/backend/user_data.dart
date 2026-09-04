@@ -29,6 +29,7 @@ import '../content/content_ids.dart';
 import '../content/models.dart' show PlaceCategory;
 import '../design/tokens.dart';
 import 'auth.dart';
+import 'errors.dart';
 import 'user_data_firestore.dart';
 
 // ---------------------------------------------------------------------------
@@ -190,10 +191,7 @@ const Set<String> kBoardCellIds = {
 };
 
 /// 구장과 그날 홈팀으로 칸 id 를 만든다. 판에 없는 짝이면 [ArgumentError].
-String boardCellIdOf({
-  required String stadiumId,
-  required String homeTeamId,
-}) {
+String boardCellIdOf({required String stadiumId, required String homeTeamId}) {
   final id = '${stadiumId}_$homeTeamId';
   if (!kBoardCellIds.contains(id)) {
     throw ArgumentError.value(id, 'cellId', '배지 판에 없는 구장×홈팀 짝');
@@ -429,10 +427,10 @@ class BoardCell {
 
   /// 사용자 문서의 `board.{cellId}` 자리에 실리는 모습.
   Map<String, Object?> toData() => {
-        BoardCellFields.count: count,
-        BoardCellFields.tier: tier.name,
-        if (lastStampedOn != null) BoardCellFields.lastStampedOn: lastStampedOn,
-      };
+    BoardCellFields.count: count,
+    BoardCellFields.tier: tier.name,
+    if (lastStampedOn != null) BoardCellFields.lastStampedOn: lastStampedOn,
+  };
 
   @override
   bool operator ==(Object other) =>
@@ -537,14 +535,18 @@ class NewUserProfile {
 
   /// 문서 생성 payload. 계약을 어기면 여기서 [ArgumentError] 로 막힌다.
   Map<String, Object?> toData() => {
-        UserFields.nickname: _checkNickname(nickname),
-        UserFields.favoriteTeamId:
-            _checkTeamId(favoriteTeamId, UserFields.favoriteTeamId),
-        UserFields.profileThemeKey:
-            _checkTeamId(profileThemeKey, UserFields.profileThemeKey),
-        UserFields.joinedAt: const ServerTimestamp(),
-        UserFields.board: const <String, Object?>{},
-      };
+    UserFields.nickname: _checkNickname(nickname),
+    UserFields.favoriteTeamId: _checkTeamId(
+      favoriteTeamId,
+      UserFields.favoriteTeamId,
+    ),
+    UserFields.profileThemeKey: _checkTeamId(
+      profileThemeKey,
+      UserFields.profileThemeKey,
+    ),
+    UserFields.joinedAt: const ServerTimestamp(),
+    UserFields.board: const <String, Object?>{},
+  };
 }
 
 /// 사용자 문서의 부분 수정 — 준 필드와 `updatedAt` 만 나간다.
@@ -574,11 +576,15 @@ class UserProfilePatch {
     final data = <String, Object?>{
       if (nickname != null) UserFields.nickname: _checkNickname(nickname!),
       if (favoriteTeamId != null)
-        UserFields.favoriteTeamId:
-            _checkTeamId(favoriteTeamId!, UserFields.favoriteTeamId),
+        UserFields.favoriteTeamId: _checkTeamId(
+          favoriteTeamId!,
+          UserFields.favoriteTeamId,
+        ),
       if (profileThemeKey != null)
-        UserFields.profileThemeKey:
-            _checkTeamId(profileThemeKey!, UserFields.profileThemeKey),
+        UserFields.profileThemeKey: _checkTeamId(
+          profileThemeKey!,
+          UserFields.profileThemeKey,
+        ),
     };
     if (data.isEmpty) {
       throw ArgumentError('바꿀 필드가 없는 수정 — 쓰기를 내보내지 않는다');
@@ -607,15 +613,14 @@ class StampRecord {
   factory StampRecord.fromData({
     required String id,
     required Map<String, Object?> data,
-  }) =>
-      StampRecord(
-        documentId: id,
-        stadiumId: _stringOf(data, StampFields.stadiumId),
-        gameId: _stringOf(data, StampFields.gameId),
-        homeTeamId: _stringOf(data, StampFields.homeTeamId),
-        gameDate: _stringOf(data, StampFields.gameDate),
-        stampedAt: _timeOf(data, StampFields.stampedAt),
-      );
+  }) => StampRecord(
+    documentId: id,
+    stadiumId: _stringOf(data, StampFields.stadiumId),
+    gameId: _stringOf(data, StampFields.gameId),
+    homeTeamId: _stringOf(data, StampFields.homeTeamId),
+    gameDate: _stringOf(data, StampFields.gameDate),
+    stampedAt: _timeOf(data, StampFields.stampedAt),
+  );
 
   /// `{stadiumId}_{gameId}`.
   final String documentId;
@@ -706,16 +711,15 @@ class LikeRecord {
   factory LikeRecord.fromData({
     required String id,
     required Map<String, Object?> data,
-  }) =>
-      LikeRecord(
-        placeId: _stringOf(data, LikeFields.placeId),
-        stadiumId: _stringOf(data, LikeFields.stadiumId),
-        category: PlaceCategory.parse(
-          _stringOf(data, LikeFields.category),
-          'like($id)',
-        ),
-        likedAt: _timeOf(data, LikeFields.likedAt),
-      );
+  }) => LikeRecord(
+    placeId: _stringOf(data, LikeFields.placeId),
+    stadiumId: _stringOf(data, LikeFields.stadiumId),
+    category: PlaceCategory.parse(
+      _stringOf(data, LikeFields.category),
+      'like($id)',
+    ),
+    likedAt: _timeOf(data, LikeFields.likedAt),
+  );
 
   /// 장소 slug — 문서 id 와 같다.
   final String placeId;
@@ -753,11 +757,11 @@ class LikeWrite {
 
   /// 쓰기 payload. 계약을 어기면 여기서 [ArgumentError] 로 막힌다.
   Map<String, Object?> toData() => {
-        LikeFields.placeId: _checkPlaceId(placeId),
-        LikeFields.stadiumId: _checkStadiumId(stadiumId, LikeFields.stadiumId),
-        LikeFields.category: category.contractValue,
-        LikeFields.likedAt: const ServerTimestamp(),
-      };
+    LikeFields.placeId: _checkPlaceId(placeId),
+    LikeFields.stadiumId: _checkStadiumId(stadiumId, LikeFields.stadiumId),
+    LikeFields.category: category.contractValue,
+    LikeFields.likedAt: const ServerTimestamp(),
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -846,23 +850,92 @@ final Provider<UserDataStore> userDataStoreProvider = Provider<UserDataStore>(
 /// 더 있다: 설정이 없는 실행에서는 저장소가 언제나 같은 오류로 던지므로
 /// 재시도가 타이머만 남긴다.
 final StreamProvider<UserProfile?> userProfileProvider =
-    StreamProvider<UserProfile?>(
-  (ref) {
-    final session = ref.watch(authStateProvider);
-    if (session.hasError) {
-      throw session.error!;
+    StreamProvider<UserProfile?>((ref) {
+      final session = ref.watch(authStateProvider);
+      if (session.hasError) {
+        throw session.error!;
+      }
+      if (!session.hasValue) {
+        return const Stream<UserProfile?>.empty();
+      }
+      final user = session.value;
+      if (user == null) {
+        return Stream<UserProfile?>.value(null);
+      }
+      return ref.watch(userDataStoreProvider).watchProfile(user.uid);
+    }, retry: (retryCount, error) => null);
+
+// ---------------------------------------------------------------------------
+// 좋아요 — 화면이 구독·토글하는 자리
+// ---------------------------------------------------------------------------
+
+/// 지금 로그인한 사람이 누른 좋아요 장소 id 집합.
+///
+/// [readLikes] 를 로그인 세션당 **한 번만** 읽어 공유한다 — 장소 카드가 화면
+/// 하나에 여러 장 뜨는데 카드마다 문서를 하나씩 읽거나 카드마다 좋아요
+/// 컬렉션을 다시 조회하면, 목록이 늘 때마다 읽기 수가 그만큼 늘어난다(비용이
+/// 이 프로젝트의 판단 기준이라는 결정과 같은 방향). [toggle] 이 성공하면
+/// 서버를 다시 읽지 않고 이 집합만 고쳐 반영한다 — 실패는 이 집합을 건드리지
+/// 않고 그대로 던진다([LikeButton] 이 자기 모습을 되돌리고
+/// [LikeButton.onFailed] 로 알리는 자리다).
+///
+/// 세션이 없으면(로그아웃) 빈 집합이다 — 좋아요는 로그인한 사람의 것이라
+/// 쓸 자리가 없다. 읽기가 실패해도 빈 집합으로 본다 — 좋아요 여부를 못 읽은
+/// 것을 "전부 안 눌렀다"로 보이는 것은 되돌릴 수 있는 실수이고(다시 읽으면
+/// 바로잡힌다), 추천 목록 전체를 좋아요 하나 때문에 못 열게 막는 것이
+/// 더 나쁘다.
+class LikedPlaceIds extends AsyncNotifier<Set<String>> {
+  @override
+  Future<Set<String>> build() async {
+    // `authStateProvider` 를 직접 `.value` 로 읽는다 — `CachedTeamId`
+    // (`selected_team.dart`) 와 같은 판단이다: 이 화면은 로그인 게이트를
+    // 지나야 닿는 자리라 실사용에서는 세션이 이미 확정돼 있다. 세션을 아직
+    // 모르는 구간(콜드 스타트의 복원 대기)에 이 provider 가 먼저 서면 잠깐
+    // 빈 집합으로 보이지만, `ref.watch` 라서 세션이 확정되는 순간 다시
+    // 지어져 그 값으로 따라간다 — `userProfileProvider` 처럼 "문서 없음"을
+    // 확정된 답으로만 흘리는 것과 달리, 좋아요는 최선-노력 정보라 그 잠깐의
+    // 어긋남을 감내한다.
+    final user = ref.watch(authStateProvider).value;
+    if (user == null) return const {};
+    try {
+      final likes = await ref.watch(userDataStoreProvider).readLikes(user.uid);
+      return {for (final like in likes) like.placeId};
+    } on BackendError {
+      return const {};
     }
-    if (!session.hasValue) {
-      return const Stream<UserProfile?>.empty();
-    }
-    final user = session.value;
+  }
+
+  /// 좋아요를 누르거나(true) 취소한다(false).
+  ///
+  /// 세션이 눌린 순간 사라졌으면(로그인이 끊긴 사이의 탭) 안내할 사람이 없는
+  /// 실패가 아니라 진짜 실패다 — 2.4 가 같은 자리에서 세운 관례대로
+  /// [BackendPermissionError] 를 던진다.
+  Future<void> toggle(String placeId, LikeWrite write, bool liked) async {
+    final user = ref.read(authStateProvider).value;
     if (user == null) {
-      return Stream<UserProfile?>.value(null);
+      throw const BackendPermissionError(code: 'unauthenticated');
     }
-    return ref.watch(userDataStoreProvider).watchProfile(user.uid);
-  },
-  retry: (retryCount, error) => null,
-);
+    final store = ref.read(userDataStoreProvider);
+    if (liked) {
+      await store.addLike(user.uid, write);
+    } else {
+      await store.removeLike(user.uid, placeId);
+    }
+    // 쓰기가 성공한 뒤에만 반영한다 — 실패하면 이 집합은 그대로 남고, 화면
+    // 쪽 [LikeButton] 이 자기 모습을 되돌린다.
+    final current = state.value ?? const <String>{};
+    state = AsyncData(
+      liked
+          ? {...current, placeId}
+          : (Set<String>.from(current)..remove(placeId)),
+    );
+  }
+}
+
+/// [LikedPlaceIds] 의 주입 지점 — 장소 카드·상세 시트가 좋아요 상태를 읽고
+/// 바꾸는 유일한 자리다.
+final AsyncNotifierProvider<LikedPlaceIds, Set<String>> likedPlaceIdsProvider =
+    AsyncNotifierProvider<LikedPlaceIds, Set<String>>(LikedPlaceIds.new);
 
 // ---------------------------------------------------------------------------
 // 읽기 도우미

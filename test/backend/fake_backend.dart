@@ -55,6 +55,9 @@ class FakeUserDataStore implements UserDataStore {
   /// 도장 조회 호출 횟수.
   int stampReads = 0;
 
+  /// 좋아요 목록 조회 호출 횟수 — 3.2 가 "카드마다 읽지 않는다"를 잴 때 쓴다.
+  int likeReads = 0;
+
   /// **문서가 실제로 만들어진** 횟수 — 2.4 의 "첫 로그인에 한 번"을 재는 자리.
   /// 이미 있는 문서에 대고 부른 [createProfile] 은 이 수를 올리지 않는다.
   int profileCreates = 0;
@@ -71,6 +74,10 @@ class FakeUserDataStore implements UserDataStore {
   /// 없다: 서버 쓰기가 언제나 성공하는 대역에서는 두 쓰기의 순서를 뒤집어도
   /// 결과가 같기 때문이다.
   Object? profileWriteFailure;
+
+  /// null 이 아니면 [addLike]·[removeLike] 가 이것을 던진다 — 좋아요 쓰기가
+  /// 실패한 실행의 대역(3.2 낙관적 반영의 롤백을 잰다).
+  Object? likeWriteFailure;
 
   /// uid → 사용자 문서 스냅샷 스트림. 실 Firestore 처럼 **쓰기가 곧바로 자기
   /// 스냅샷으로 돌아온다** (로컬 반영이 먼저고 서버 확인이 나중인 그 동작).
@@ -191,6 +198,7 @@ class FakeUserDataStore implements UserDataStore {
 
   @override
   Future<List<LikeRecord>> readLikes(String uid) async {
+    likeReads++;
     final byId = likes[uid] ?? const {};
     return byId.entries
         .map((entry) => LikeRecord.fromData(id: entry.key, data: entry.value))
@@ -199,12 +207,17 @@ class FakeUserDataStore implements UserDataStore {
 
   @override
   Future<void> addLike(String uid, LikeWrite like) async {
+    final data = _accept(like.toData(), LikeFields.all);
+    final failure = likeWriteFailure;
+    if (failure != null) throw failure;
     final byId = likes.putIfAbsent(uid, () => {});
-    byId[like.documentId] = _accept(like.toData(), LikeFields.all);
+    byId[like.documentId] = data;
   }
 
   @override
   Future<void> removeLike(String uid, String placeId) async {
+    final failure = likeWriteFailure;
+    if (failure != null) throw failure;
     likes[uid]?.remove(placeId);
   }
 
@@ -222,10 +235,8 @@ class FakeUserDataStore implements UserDataStore {
       );
     }
     return data.map(
-      (key, value) => MapEntry(
-        key,
-        value is ServerTimestamp ? kFakeServerNow : value,
-      ),
+      (key, value) =>
+          MapEntry(key, value is ServerTimestamp ? kFakeServerNow : value),
     );
   }
 }

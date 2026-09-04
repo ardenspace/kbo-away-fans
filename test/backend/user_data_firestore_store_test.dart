@@ -32,6 +32,7 @@ import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kbo_away_fans/backend/user_data.dart';
 import 'package:kbo_away_fans/backend/user_data_firestore.dart';
+import 'package:kbo_away_fans/content/models.dart' show PlaceCategory;
 import 'package:kbo_away_fans/design/tokens.dart';
 
 void main() {
@@ -49,15 +50,17 @@ void main() {
   Future<void> seedDocument(String teamId) => db
       .collection(kUsersCollection)
       .doc(uid)
-      .set(encodeBackendValues(<String, Object?>{
-        UserFields.nickname: '먼저있던닉',
-        UserFields.favoriteTeamId: teamId,
-        UserFields.profileThemeKey: teamId,
-        UserFields.joinedAt: ExactTimestamp(joinedAt),
-        UserFields.board: <String, Object?>{
-          'jamsil_lg': BoardCell.forCount(count: 2).toData(),
-        },
-      }));
+      .set(
+        encodeBackendValues(<String, Object?>{
+          UserFields.nickname: '먼저있던닉',
+          UserFields.favoriteTeamId: teamId,
+          UserFields.profileThemeKey: teamId,
+          UserFields.joinedAt: ExactTimestamp(joinedAt),
+          UserFields.board: <String, Object?>{
+            'jamsil_lg': BoardCell.forCount(count: 2).toData(),
+          },
+        }),
+      );
 
   Future<Map<String, Object?>> rawDocument() async {
     final snapshot = await db.collection(kUsersCollection).doc(uid).get();
@@ -175,7 +178,137 @@ void main() {
     });
   });
 
+  group('좋아요 쓰기 경로 — 오프라인 큐잉의 전제', () {
+    // 2.4 구현자가 남긴 사실: `runTransaction`·`update` 는 서버에 닿아야
+    // 끝나므로 통신이 없는 실행에서 완료되지 않는다. 반면 평범한 `set`·
+    // `delete` 는 SDK 가 로컬에 큐잉했다가 복구 후 내보낸다. 오프라인에서
+    // 누른 좋아요가 복구 후 반영되려면 이 경로가 그 둘을 타지 않아야 한다.
+    //
+    // `fake_cloud_firestore` 는 그 큐잉 자체를 흉내 내지 못하므로(동기 대역),
+    // 여기서는 `FirebaseFirestore`/`DocumentReference` 자리에 직접 스파이를
+    // 끼워 "무엇이 불렸는가"를 재고, [_WriteSpyFirestore.gate] 로 "아직 서버에
+    // 닿지 못한 구간"을 만들어 그 구간에서 오류 없이 기다리다가 복구되면
+    // 끝난다는 것을 잰다.
+    const like = LikeWrite(
+      placeId: 'jamsil-noodle-house',
+      stadiumId: 'jamsil',
+      category: PlaceCategory.food,
+    );
+
+    test('addLike·removeLike 는 set·delete 로 가고 트랜잭션·update 를 타지 않는다', () async {
+      final db = _WriteSpyFirestore();
+      final store = FirestoreUserDataStore(db);
+
+      await store.addLike('u1', like);
+      await store.removeLike('u1', like.documentId);
+
+      // update 나 runTransaction 을 타는 변이는 db 에 구현되지 않은 메서드를
+      // 불러 noSuchMethod 가 던지고, guardBackend 가 그것을 감싸 던지므로 이
+      // 시험이 그 자리에서 빨간불이 된다.
+      expect(db.calls, [
+        'set:jamsil-noodle-house',
+        'delete:jamsil-noodle-house',
+      ]);
+    });
+
+    test('쓰기가 아직 서버에 닿지 못해도(오프라인 큐 대역) 오류 없이 기다리다가 복구되면 끝난다', () async {
+      final gate = Completer<void>();
+      final db = _WriteSpyFirestore(gate: gate);
+      final store = FirestoreUserDataStore(db);
+
+      var settled = false;
+      final write = store.addLike('u1', like).then((_) => settled = true);
+      await pumpEventQueue();
+      expect(settled, isFalse, reason: '서버 왕복 전이라 아직 끝나지 않아야 재현이 된다');
+
+      gate.complete(); // "복구" — 큐에 있던 쓰기가 이제 나간다.
+      await write;
+      expect(settled, isTrue);
+    });
+  });
+
   _snapshotSourceTests();
+}
+
+/// Firestore 스파이 — 좋아요 쓰기가 실제로 어떤 메서드를 부르는지 기록한다.
+///
+/// [DocumentReference.update] 와 [FirebaseFirestore.runTransaction] 은 일부러
+/// 구현하지 않는다 — 좋아요 경로가 그 쪽으로 새면 `noSuchMethod` 가 곧바로
+/// 던져서 위 시험이 그 자리에서 드러낸다.
+class _WriteSpyFirestore implements FirebaseFirestore {
+  _WriteSpyFirestore({this.gate});
+
+  /// null 이 아니면 [_SpyLikeDoc.set]/[_SpyLikeDoc.delete] 가 이 완료를
+  /// 기다린 뒤에야 끝난다 — "쓰기가 아직 서버에 닿지 못한 구간"의 대역이다.
+  final Completer<void>? gate;
+
+  /// 불린 순서 — `'set:<id>'` / `'delete:<id>'`.
+  final List<String> calls = [];
+
+  @override
+  CollectionReference<Map<String, dynamic>> collection(String collectionPath) =>
+      _SpyCollection(this, collectionPath);
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+// ignore: subtype_of_sealed_class
+class _SpyCollection implements CollectionReference<Map<String, dynamic>> {
+  _SpyCollection(this._db, this._path);
+
+  final _WriteSpyFirestore _db;
+  final String _path;
+
+  @override
+  DocumentReference<Map<String, dynamic>> doc([String? path]) {
+    if (_path == kUsersCollection) return _SpyUserDoc(_db);
+    return _SpyLikeDoc(_db, path!);
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+// ignore: subtype_of_sealed_class
+class _SpyUserDoc implements DocumentReference<Map<String, dynamic>> {
+  _SpyUserDoc(this._db);
+
+  final _WriteSpyFirestore _db;
+
+  @override
+  CollectionReference<Map<String, dynamic>> collection(String collectionPath) =>
+      _SpyCollection(_db, collectionPath);
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+// ignore: subtype_of_sealed_class
+class _SpyLikeDoc implements DocumentReference<Map<String, dynamic>> {
+  _SpyLikeDoc(this._db, this.id);
+
+  final _WriteSpyFirestore _db;
+
+  @override
+  final String id;
+
+  @override
+  Future<void> set(Map<String, dynamic> data, [SetOptions? options]) async {
+    _db.calls.add('set:$id');
+    final gate = _db.gate;
+    if (gate != null) await gate.future;
+  }
+
+  @override
+  Future<void> delete() async {
+    _db.calls.add('delete:$id');
+    final gate = _db.gate;
+    if (gate != null) await gate.future;
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 /// 오프라인 지속성이 켜진 실 SDK 는 스냅샷을 **로컬 캐시에서 먼저** 흘린다.
@@ -200,15 +333,15 @@ void _snapshotSourceTests() {
     Future<DocumentSnapshot<Map<String, dynamic>>> snapshot(
       String id, {
       required bool fromCache,
-    }) =>
-        db.collection(kUsersCollection).doc(id).get(
-              fromCache ? const GetOptions(source: Source.cache) : null,
-            );
+    }) => db
+        .collection(kUsersCollection)
+        .doc(id)
+        .get(fromCache ? const GetOptions(source: Source.cache) : null);
 
     test('출처와 존재의 네 조합', () async {
-      await db.collection(kUsersCollection).doc('있는사람').set(
-        <String, Object?>{UserFields.favoriteTeamId: 'lg'},
-      );
+      await db.collection(kUsersCollection).doc('있는사람').set(<String, Object?>{
+        UserFields.favoriteTeamId: 'lg',
+      });
 
       // 있는 문서는 어디서 왔든 답이다 — 로컬 캐시에 있다는 것은 이 기기가
       // 전에 그 문서를 받았다는 뜻이라 이 계정 자신의 데이터다.
@@ -312,11 +445,7 @@ void _snapshotSourceTests() {
       source.add('모름');
       await Future<void>.delayed(const Duration(milliseconds: 60));
 
-      expect(
-        seen,
-        ['모름'],
-        reason: '오류 뒤로는 상한을 다시 세우지 않아 값이 영영 나오지 않는다',
-      );
+      expect(seen, ['모름'], reason: '오류 뒤로는 상한을 다시 세우지 않아 값이 영영 나오지 않는다');
     });
 
     test('오류 뒤에 스트림이 닫혀도 붙잡아 둔 값은 답이 되지 않는다', () async {
