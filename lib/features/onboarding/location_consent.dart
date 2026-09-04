@@ -45,10 +45,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../design/tokens.dart';
 import '../../location/location.dart';
 import '../../ui/shared/content_fallback.dart';
-import '../home/home_screen.dart';
+import '../home/main_tabs_root.dart';
 import '../team_select/selected_team.dart';
 
-/// 팀이 정해진 뒤의 위치 권한 안내 게이트 — 대부분의 렌더는 곧장 [HomeScreen].
+/// 팀이 정해진 뒤의 위치 권한 안내 게이트 — 대부분의 렌더는 곧장 [MainTabsRoot]
+/// (step 3.1 이전에는 홈 화면 하나였다).
 class OnboardingLocationGate extends ConsumerStatefulWidget {
   const OnboardingLocationGate({super.key, required this.teamId});
 
@@ -98,7 +99,7 @@ class _OnboardingLocationGateState
     }
 
     return switch (_stage) {
-      _Stage.home => HomeScreen(teamId: widget.teamId),
+      _Stage.home => const MainTabsRoot(),
       // OS 에 상태를 물어보는 짧은 구간 — 로스터에 있는 단일 로딩 모습을
       // 재사용한다.
       _Stage.checking => const Scaffold(body: ContentFallback(loading: true)),
