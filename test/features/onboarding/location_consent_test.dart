@@ -21,6 +21,7 @@ import 'package:kbo_away_fans/content/content_providers.dart';
 import 'package:kbo_away_fans/content/models.dart';
 import 'package:kbo_away_fans/features/home/home_screen.dart';
 import 'package:kbo_away_fans/features/onboarding/location_consent.dart';
+import 'package:kbo_away_fans/features/team_select/selected_team.dart';
 import 'package:kbo_away_fans/features/team_select/team_select_screen.dart';
 import 'package:kbo_away_fans/location/location.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -278,6 +279,60 @@ void main() {
       find.byType(LocationConsentScreen),
       findsNothing,
       reason: '이 사람은 처음 고르는 중이 아니라 이미 lg 를 응원하던 사람이다',
+    );
+    expect(find.byType(HomeScreen), findsOneWidget);
+    expect(location.statusCalls, 0);
+    expect(location.requestCalls, 0);
+  });
+  testWidgets('팀 변경 모드에서 문서가 실제로 만들어지는 드문 경로에서도 위치 설명이 뜨지 않는다', (
+    tester,
+  ) async {
+    // 지휘자가 변이 주입으로 잡은 자리 — `_writeProfile` 의 create 성공 갈래는
+    // `isChange` 와 무관하게 지나갈 수 있다(서버에 문서가 아예 없으면 변경
+    // 모드에서도 `createProfile` 이 새로 만든다). 앞의 "팀 변경 모드" 시험은
+    // 서버에 문서가 **이미 있어** 수정 경로(patch)만 지나므로 이 갈래를 재지
+    // 못한다 — 이 시험은 서버에 문서가 없고 캐시만 있는(스냅샷을 못 본) 세션이
+    // "응원 팀 바꾸기"를 눌러 `createProfile` 이 실제로 문서를 만드는 자리를
+    // 딛는다.
+    location = FakeLocationPermissionGateway(
+      initial: LocationPermissionStatus.denied,
+    );
+    SharedPreferences.setMockInitialValues({});
+    // 캐시에만 팀이 있고 서버 문서는 아예 없다 — 이 계정은 이미 lg 를
+    // 응원하던 사람으로 홈에 머무르지만, 이 세션은 그 문서를 본 적이 없다.
+    await const SelectedTeamStore().write(uid, 'lg');
+    store.holdProfiles = true;
+    await tester.pumpWidget(app());
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pump(const Duration(seconds: 1));
+
+    store.emitProfileError(const BackendNetworkError(code: 'unavailable'));
+    await tester.pumpAndSettle();
+    expect(
+      find.byType(HomeScreen),
+      findsOneWidget,
+      reason: '서버를 읽지 못해도 캐시 값(lg)으로 홈에 머무른다',
+    );
+
+    await tester.tap(find.byTooltip('응원 팀 바꾸기'));
+    await tester.pumpAndSettle();
+    final kt = find.text('kt wiz', skipOffstage: false);
+    await tester.ensureVisible(kt);
+    await tester.pumpAndSettle();
+    await tester.tap(kt);
+    await tester.pumpAndSettle();
+
+    expect(
+      store.profileCreates,
+      1,
+      reason: '서버에 문서가 없었으니 이 선택이 실제로 새로 만든다',
+    );
+    expect(store.documents[uid]![UserFields.favoriteTeamId], 'kt');
+    expect(
+      find.byType(LocationConsentScreen),
+      findsNothing,
+      reason: '변경 모드에서 고른 선택이므로 문서를 새로 만들어도 위치를 묻지 않는다',
     );
     expect(find.byType(HomeScreen), findsOneWidget);
     expect(location.statusCalls, 0);
