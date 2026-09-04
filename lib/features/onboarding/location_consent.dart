@@ -25,6 +25,12 @@
 /// 선택, 이미 있는 문서로 물러선 선택, 변경 모드)는 검사를 시작하지 않고
 /// 홈에 그대로 머무른다 — 위치를 다시 묻거나 새로 묻는 일이 없다.
 ///
+/// **알아내지 못한 실행도 사람을 붙잡지 않는다.** 위치 권한 조회가 던지거나
+/// 끝나지 않으면 `resolveLocationPermission` 이 `kLocationPermissionTimeout`
+/// 에서 잘라 [LocationPermissionStatus.denied] 로 답한다 — 대기 화면은 그
+/// 상한을 넘겨 남지 않고, 설명 화면의 두 버튼은 요청이 실패한 실행에서도
+/// 홈으로 이어진다.
+///
 /// **이미 결정된 상태에서는 이 화면조차 뜨지 않는다.**
 /// [LocationPermissionGateway.status] 가 이미 결정된 값(허용·영구 거절)을
 /// 돌려주면 검사만 하고 곧장 홈으로 간다 — 다시 물어도 OS 가 다이얼로그를
@@ -109,7 +115,14 @@ class _OnboardingLocationGateState
   }
 
   Future<void> _checkStatus() async {
-    final status = await ref.read(locationPermissionGatewayProvider).status();
+    // 게이트웨이는 **갈아 끼우는 이음매**다 — 이 화면은 자기가 받은 구현이
+    // 던지지 않는지, 답하기는 하는지 확인할 방법이 없다. 그래서 이 계층의
+    // 실패 계약(`resolveLocationPermission`)을 화면 쪽에서도 한 번 통과시킨다:
+    // 알아내지 못한 실행은 `denied` 로 흘러가고, 사람은 대기 화면에 갇히는
+    // 대신 설명 화면에서 두 버튼 중 하나로 나간다.
+    final status = await resolveLocationPermission(
+      () => ref.read(locationPermissionGatewayProvider).status(),
+    );
     if (!mounted) return;
     if (status == LocationPermissionStatus.denied) {
       // 아직 결정되지 않았거나 다시 물어볼 수 있는 상태 — 설명을 먼저 보여준다.
@@ -121,9 +134,12 @@ class _OnboardingLocationGateState
   }
 
   Future<void> _requestAndFinish() async {
-    await ref.read(locationPermissionGatewayProvider).request();
-    // 허용이든 거절이든 결과와 무관하게 홈으로 넘어간다 — 위치 권한은 이
-    // 앱의 어떤 화면도 막지 않는다.
+    await resolveLocationPermission(
+      () => ref.read(locationPermissionGatewayProvider).request(),
+    );
+    // 허용이든 거절이든, 아예 알아내지 못했든 결과와 무관하게 홈으로 넘어간다 —
+    // 위치 권한은 이 앱의 어떤 화면도 막지 않고, 요청이 실패한 실행에서 버튼이
+    // 침묵한 채 남는 일도 없다.
     _finish();
   }
 

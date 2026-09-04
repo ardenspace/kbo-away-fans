@@ -9,6 +9,7 @@ library;
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/services.dart' show PlatformException;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -100,7 +101,14 @@ void main() {
   }
 
   /// 온보딩에서 한화를 골라 새 문서를 만드는 자리까지 공통으로 민다.
-  Future<void> pickHanwhaOnboarding(WidgetTester tester) async {
+  ///
+  /// [settle] 을 끄면 선택 뒤에 프레임 몇 장만 밀고 멈춘다 — 게이트웨이가
+  /// 끝나지 않는 실행을 재는 시험은 `pumpAndSettle` 로 시간을 통째로 밀어
+  /// 버리면 "상한 전에는 기다리고 상한에서 빠져나온다"를 가를 수 없다.
+  Future<void> pickHanwhaOnboarding(
+    WidgetTester tester, {
+    bool settle = true,
+  }) async {
     SharedPreferences.setMockInitialValues({});
     await tester.pumpWidget(app());
     await tester.pumpAndSettle();
@@ -108,7 +116,14 @@ void main() {
     await tester.ensureVisible(hanwha);
     await tester.pumpAndSettle();
     await tester.tap(hanwha);
-    await tester.pumpAndSettle();
+    if (settle) {
+      await tester.pumpAndSettle();
+      return;
+    }
+    // 낙관적 반영 → 홈 → (프레임 끝) 신호 소비 → 검사 시작까지 밀어 준다.
+    for (var i = 0; i < 6; i++) {
+      await tester.pump();
+    }
   }
 
   testWidgets('허용: 상태가 미결정이면 설명이 뜨고, 허용하면 홈으로 넘어간다', (
@@ -337,5 +352,126 @@ void main() {
     expect(find.byType(HomeScreen), findsOneWidget);
     expect(location.statusCalls, 0);
     expect(location.requestCalls, 0);
+  });
+
+  group('위치 권한을 알아내지 못하는 실행 — 사람이 빠져나갈 길', () {
+    // 이 세 갈래(던짐·멎음·요청이 던짐)에서 앞 라운드의 화면은 사람을
+    // 붙잡았다: `status()` 가 던지면 그 예외를 아무도 받지 않은 채 전면
+    // 스피너가 남았고(60초를 밀어도 그대로), 끝나지 않으면 120초를 밀어도
+    // 스피너였으며, `request()` 가 던지면 허용 버튼이 영영 아무 일도 하지
+    // 않았다. 상한과 실패 계약(`lib/location/location.dart`)이 그 자리를
+    // 닫는다 — 알아내지 못한 실행은 `denied` 와 같이 다루므로 설명 화면이
+    // 뜨고, 어느 버튼을 눌러도 홈으로 나간다.
+
+    testWidgets('status() 가 던져도 스피너에 갇히지 않는다', (tester) async {
+      location = FakeLocationPermissionGateway(
+        statusError: PlatformException(code: 'channel-error'),
+      );
+      await pickHanwhaOnboarding(tester);
+
+      expect(
+        tester.takeException(),
+        isNull,
+        reason: '아무도 받지 않는 예외가 남지 않는다',
+      );
+      expect(
+        find.byType(LocationConsentScreen),
+        findsOneWidget,
+        reason: '알아내지 못한 상태는 아직 물어볼 수 있는 상태와 같이 다룬다',
+      );
+
+      await tester.tap(find.text('나중에 할게요'));
+      await tester.pumpAndSettle();
+      expect(find.byType(HomeScreen), findsOneWidget);
+    });
+
+    testWidgets('status() 가 끝나지 않아도 상한에서 빠져나온다', (tester) async {
+      location = FakeLocationPermissionGateway(statusNeverAnswers: true);
+      await pickHanwhaOnboarding(tester, settle: false);
+
+      expect(location.statusCalls, 1, reason: '검사는 시작됐다');
+      expect(
+        find.byType(LocationConsentScreen),
+        findsNothing,
+        reason: '상한 전에는 답을 기다린다',
+      );
+
+      await tester.pump(kLocationPermissionTimeout - const Duration(seconds: 1));
+      expect(find.byType(LocationConsentScreen), findsNothing);
+
+      await tester.pump(const Duration(seconds: 2));
+      expect(
+        find.byType(LocationConsentScreen),
+        findsOneWidget,
+        reason: '상한을 넘기면 답을 못 받은 채로 갈래를 정한다',
+      );
+      expect(tester.takeException(), isNull);
+
+      await tester.tap(find.text('나중에 할게요'));
+      await tester.pumpAndSettle();
+      expect(find.byType(HomeScreen), findsOneWidget);
+    });
+
+    testWidgets('request() 가 던져도 허용 버튼이 침묵하지 않는다', (tester) async {
+      location = FakeLocationPermissionGateway(
+        requestError: PlatformException(
+          code: 'ERROR_ALREADY_REQUESTING_PERMISSIONS',
+        ),
+      );
+      await pickHanwhaOnboarding(tester);
+      expect(find.byType(LocationConsentScreen), findsOneWidget);
+
+      await tester.tap(find.text('위치 권한 허용하기'));
+      await tester.pumpAndSettle();
+
+      expect(location.requestCalls, 1);
+      expect(tester.takeException(), isNull);
+      expect(
+        find.byType(HomeScreen),
+        findsOneWidget,
+        reason: '요청이 실패해도 거절과 같은 자리로 끝난다',
+      );
+    });
+
+    testWidgets('request() 가 끝나지 않아도 상한에서 홈으로 나간다', (tester) async {
+      location = FakeLocationPermissionGateway(requestNeverAnswers: true);
+      await pickHanwhaOnboarding(tester);
+      expect(find.byType(LocationConsentScreen), findsOneWidget);
+
+      await tester.tap(find.text('위치 권한 허용하기'));
+      await tester.pump();
+      expect(
+        find.byType(LocationConsentScreen),
+        findsOneWidget,
+        reason: '상한 전에는 OS 의 답을 기다린다',
+      );
+
+      await tester.pump(kLocationPermissionTimeout + const Duration(seconds: 1));
+      await tester.pumpAndSettle();
+      expect(find.byType(HomeScreen), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  });
+
+  testWidgets('위치 게이트를 지나면 온보딩 신호가 꺼져 있다', (tester) async {
+    // 신호를 끄는 자리가 사라져도 이 세션의 게이트는 안쪽 표시(`_handling`)로
+    // 두 번 뜨지 않아 화면만 봐서는 드러나지 않는다. 드러나는 자리는 게이트가
+    // **새로 만들어지는** 실행(로그아웃 뒤 다른 계정의 로그인처럼)이고, 그때
+    // 남은 신호는 온보딩하지 않은 사람에게 위치를 묻는다. 그래서 화면이 아니라
+    // 신호 자체를 잰다.
+    await pickHanwhaOnboarding(tester);
+    await tester.tap(find.text('나중에 할게요'));
+    await tester.pumpAndSettle();
+    expect(find.byType(HomeScreen), findsOneWidget);
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(HomeScreen)),
+      listen: false,
+    );
+    expect(
+      container.read(onboardingJustOnboardedProvider),
+      isFalse,
+      reason: '본 신호는 그 자리에서 꺼진다',
+    );
   });
 }

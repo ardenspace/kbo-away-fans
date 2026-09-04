@@ -15,6 +15,47 @@ library;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:permission_handler/permission_handler.dart' as ph;
 
+/// 위치 권한을 알아내는 기다림의 상한.
+///
+/// `kAppCheckActivationTimeout`·`kProfileServerConfirmGrace`·
+/// `kCachedTeamReadTimeout` 과 같은 판단이고 같은 길이다: **사람이 보는 화면을
+/// 붙잡는 기다림에는 상한이 있다.** 이 기다림을 붙잡고 있는 것은 팀 선택 직후의
+/// 대기 화면이라, 끝나지 않는 조회는 곧 앱을 다시 켜는 것 말고 나갈 길이 없는
+/// 상태가 된다. 상한을 두는 까닭은 확률이 아니라 그 성질이다
+/// (`selected_team.dart` 의 `kCachedTeamReadTimeout` 주석과 같은 논거).
+///
+/// 넘어도 던지지 않는다 — 넘은 실행은 [resolveLocationPermission] 이 정한
+/// 답으로 흘러간다.
+const Duration kLocationPermissionTimeout = Duration(seconds: 5);
+
+/// 이 계층의 실패 계약을 실행하는 한 자리.
+///
+/// [ask] 가 던지거나 [kLocationPermissionTimeout] 안에 답하지 않으면
+/// [LocationPermissionStatus.denied] 로 답한다 — **알아내지 못한 것은 아직
+/// 물어볼 수 있는 상태와 같이 다룬다.** 그렇게 정한 까닭은
+/// `.wellbegun/decisions.md` 2026-09-04 [S] 에 있다: 이 신호는 계정당 한 번만
+/// 서므로, 일시적인 실패를 "이미 결정됨"으로 접으면 그 사람에게는 설명과 요청이
+/// 영영 오지 않는다. `denied` 로 접으면 설명이 뜨고, 어느 버튼을 눌러도 홈으로
+/// 나가므로 사람이 갇히지 않는다.
+///
+/// 두 자리가 이 함수를 통과한다 — 실 구현([DevicePermissionHandlerGateway])과
+/// 이 계층을 쓰는 화면(`lib/features/onboarding/location_consent.dart`)이다.
+/// 화면 쪽에도 두는 것은, 게이트웨이가 **갈아 끼우는 이음매**라 화면이 자기가
+/// 받는 구현이 이 계약을 지키는지 확인할 방법이 없기 때문이다. 정상 실행에서는
+/// 안쪽 상한이 먼저 걸리므로 바깥 상한은 아무 일도 하지 않는다.
+Future<LocationPermissionStatus> resolveLocationPermission(
+  Future<LocationPermissionStatus> Function() ask,
+) async {
+  try {
+    return await ask().timeout(kLocationPermissionTimeout);
+  } catch (_) {
+    // 무엇이 왔든(플랫폼 예외·타임아웃·그 밖의 오류) 이 계층 밖으로는 상태
+    // 하나만 나간다 — `lib/backend/CLAUDE.md` 의 "SDK 예외를 밖으로 내보내지
+    // 않는다"와 같은 규칙이고, 이 폴더의 짝은 `lib/location/CLAUDE.md` 다.
+    return LocationPermissionStatus.denied;
+  }
+}
+
 /// 위치 권한 상태 — 화면이 아는 것은 이 세 갈래뿐이다.
 enum LocationPermissionStatus {
   /// 허용됨. iOS 의 "정확한 위치"·"대략적 위치"·"이번만 허용"을 구분하지
@@ -43,6 +84,13 @@ enum LocationPermissionStatus {
 /// [status] 이고, 그 판정을 이 계층이 아니라 화면 쪽에 둔 것은 "언제 물을지"가
 /// 이 단계의 제품 결정(`decisions.md` 2026-09-01 [M])이지 SDK 배선이 아니기
 /// 때문이다.
+///
+/// **실패 계약: 이 두 메서드는 던지지 않고, 상한 안에 반드시 답한다.** 알아내지
+/// 못한 실행([kLocationPermissionTimeout] 을 넘겼거나 플랫폼이 예외를 던진
+/// 실행)은 [LocationPermissionStatus.denied] 로 답한다. 구현이 그 계약을 지키는
+/// 자리는 [resolveLocationPermission] 이고, 부르는 쪽은 그것을 믿되 자기
+/// 화면을 붙잡는 기다림에는 같은 상한을 한 번 더 두어도 된다(그 까닭은
+/// [resolveLocationPermission] 문서 참조).
 abstract class LocationPermissionGateway {
   const LocationPermissionGateway();
 
@@ -64,12 +112,14 @@ class DevicePermissionHandlerGateway extends LocationPermissionGateway {
   const DevicePermissionHandlerGateway();
 
   @override
-  Future<LocationPermissionStatus> status() async =>
-      _fromPlatform(await ph.Permission.locationWhenInUse.status);
+  Future<LocationPermissionStatus> status() => resolveLocationPermission(
+    () async => _fromPlatform(await ph.Permission.locationWhenInUse.status),
+  );
 
   @override
-  Future<LocationPermissionStatus> request() async =>
-      _fromPlatform(await ph.Permission.locationWhenInUse.request());
+  Future<LocationPermissionStatus> request() => resolveLocationPermission(
+    () async => _fromPlatform(await ph.Permission.locationWhenInUse.request()),
+  );
 
   static LocationPermissionStatus _fromPlatform(ph.PermissionStatus status) =>
       switch (status) {
