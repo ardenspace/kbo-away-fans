@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../analytics/analytics.dart';
+import '../../backend/user_data.dart';
 import '../../content/content_providers.dart';
 import '../../content/models.dart';
 import '../../design/tokens.dart';
@@ -33,6 +34,9 @@ import 'scratch_pick.dart';
 ///   (홈에서 진입 시 그 경기 홈팀 테마를 이어받는 근거).
 /// - [initialIndoorOnly] 가 true 면 실내 필터가 켜진 채로 열린다
 ///   (우천 취소 플랜B 유도, step 4.2).
+/// - 카드·상세 시트의 좋아요 버튼(step 3.2)은 [likedPlaceIdsProvider] 하나로
+///   상태를 읽고 바꾼다 — 카드마다 따로 읽지 않는다. 경기와 묶이지 않으므로
+///   구장·날짜와 무관하게 언제나 누를 수 있다.
 class StadiumPlacesScreen extends ConsumerStatefulWidget {
   const StadiumPlacesScreen({
     super.key,
@@ -40,6 +44,9 @@ class StadiumPlacesScreen extends ConsumerStatefulWidget {
     this.themeKey,
     this.initialIndoorOnly = false,
   });
+
+  /// 좋아요 쓰기에 실패했을 때의 안내.
+  static const String likeFailureNotice = '좋아요를 반영하지 못했어요. 잠시 뒤 다시 시도해 주세요.';
 
   /// 대상 구장 id (common.defs stadiumId).
   final String stadiumId;
@@ -77,6 +84,9 @@ class _StadiumPlacesScreenState extends ConsumerState<StadiumPlacesScreen> {
     final placesDoc = contentDataOf(placesAsync);
     final stadiumsDoc = contentDataOf(ref.watch(stadiumsProvider));
     final stadium = stadiumsDoc?.byId(widget.stadiumId);
+    // 세션당 한 번 읽은 값을 공유한다 — 카드마다 따로 읽지 않는다
+    // (`likedPlaceIdsProvider` 의 문서 참조).
+    final likedIds = ref.watch(likedPlaceIdsProvider).value ?? const <String>{};
 
     // 이 구장 좌표의 날씨 → 배경 비 연출 (step 4.1).
     // 날씨 실패는 래퍼가 "연출 없음"으로 흡수하므로 여정에 영향이 없다.
@@ -93,7 +103,7 @@ class _StadiumPlacesScreenState extends ConsumerState<StadiumPlacesScreen> {
       raining: raining,
       child: placesDoc == null
           ? _placesFallback(loading: placesAsync is AsyncLoading)
-          : _placesBody(placesDoc),
+          : _placesBody(placesDoc, likedIds),
     );
 
     final themeKey = widget.themeKey;
@@ -148,7 +158,7 @@ class _StadiumPlacesScreenState extends ConsumerState<StadiumPlacesScreen> {
     );
   }
 
-  Widget _placesBody(PlacesDocument doc) {
+  Widget _placesBody(PlacesDocument doc, Set<String> likedIds) {
     final filtered = filterPlaces(
       doc.places,
       stadiumId: widget.stadiumId,
@@ -191,7 +201,10 @@ class _StadiumPlacesScreenState extends ConsumerState<StadiumPlacesScreen> {
                       name: place.name,
                       categoryLabel: categoryLabelOf(place.category),
                       shoutoutSource: place.shoutout,
-                      onTap: () => _showDetailSheet(place),
+                      onTap: () => _showDetailSheet(place, likedIds),
+                      liked: likedIds.contains(place.id),
+                      onLikeChanged: (liked) => _toggleLike(place, liked),
+                      onLikeFailed: _handleLikeFailed,
                     );
                   },
                 ),
@@ -203,7 +216,7 @@ class _StadiumPlacesScreenState extends ConsumerState<StadiumPlacesScreen> {
   /// 장소 상세 시트 — 지도 진입·길안내 딥링크·OS 공유의 진입점 (step 3.3).
   ///
   /// 성공 지표 계측: 카드 탭이 곧 `place_tap` (step 3.4).
-  void _showDetailSheet(Place place) {
+  void _showDetailSheet(Place place, Set<String> likedIds) {
     ref
         .read(analyticsProvider)
         .logPlaceTap(
@@ -220,6 +233,33 @@ class _StadiumPlacesScreenState extends ConsumerState<StadiumPlacesScreen> {
       onDirections: () =>
           launchNaverMapRoute(name: place.name, lat: place.lat, lng: place.lng),
       onShare: () => _share(place),
+      liked: likedIds.contains(place.id),
+      onLikeChanged: (liked) => _toggleLike(place, liked),
+      onLikeFailed: _handleLikeFailed,
+    );
+  }
+
+  /// 좋아요를 누르거나(true) 취소한다 — 경기·날짜와 무관하게 언제나 부를 수
+  /// 있다([LikedPlaceIds] 는 장소 slug 만 알고 경기를 모른다).
+  Future<void> _toggleLike(Place place, bool liked) {
+    return ref
+        .read(likedPlaceIdsProvider.notifier)
+        .toggle(
+          place.id,
+          LikeWrite(
+            placeId: place.id,
+            stadiumId: place.stadiumId,
+            category: place.category,
+          ),
+          liked,
+        );
+  }
+
+  /// 좋아요 쓰기 실패 안내 — [LikeButton] 이 되돌린 뒤에 부른다.
+  void _handleLikeFailed(Object error) {
+    if (!mounted) return;
+    ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+      const SnackBar(content: Text(StadiumPlacesScreen.likeFailureNotice)),
     );
   }
 

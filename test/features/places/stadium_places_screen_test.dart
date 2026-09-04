@@ -9,6 +9,9 @@
 /// 정확히 1회, 지도 진입 → map_open 정확히 1회, 파라미터는
 /// 구장 id·카테고리뿐.
 ///
+/// Step 3.2 — 카드·상세 시트의 좋아요 버튼: 눌러서 즉시 반영, 카드가 여러
+/// 장이어도 좋아요 목록은 한 번만 읽는다, 쓰기 실패는 되돌리고 안내한다.
+///
 /// stadiums 픽스처는 `content-pipeline/data/stadiums.json` 실물을 파싱해
 /// 주입하고(계약 드리프트 방지), places 는 필터 시나리오가 결정적이도록
 /// 직접 구성한다.
@@ -21,6 +24,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kbo_away_fans/analytics/analytics.dart';
+import 'package:kbo_away_fans/backend/auth.dart';
+import 'package:kbo_away_fans/backend/errors.dart';
+import 'package:kbo_away_fans/backend/user_data.dart';
 import 'package:kbo_away_fans/content/content_loader.dart';
 import 'package:kbo_away_fans/content/content_providers.dart';
 import 'package:kbo_away_fans/content/models.dart';
@@ -29,6 +35,7 @@ import 'package:kbo_away_fans/design/tokens.dart';
 import 'package:kbo_away_fans/features/places/place_map_screen.dart';
 import 'package:kbo_away_fans/features/places/stadium_places_screen.dart';
 import 'package:kbo_away_fans/ui/shared/category_chip.dart';
+import 'package:kbo_away_fans/ui/shared/like_button.dart';
 import 'package:kbo_away_fans/ui/shared/place_card.dart';
 import 'package:kbo_away_fans/ui/shared/place_detail_sheet.dart';
 import 'package:kbo_away_fans/ui/shared/scratch_card.dart';
@@ -37,6 +44,7 @@ import 'package:kbo_away_fans/ui/shared/weather_backdrop.dart';
 import 'package:kbo_away_fans/weather/weather.dart';
 
 import '../../analytics/recording_analytics.dart';
+import '../../backend/fake_backend.dart';
 
 Place place({
   required String id,
@@ -105,6 +113,8 @@ void main() {
     String? themeKey,
     WeatherEffect weather = WeatherEffect.none,
     bool initialIndoorOnly = false,
+    AuthService? auth,
+    UserDataStore? backend,
   }) {
     return ProviderScope(
       overrides: [
@@ -118,6 +128,10 @@ void main() {
         ),
         // 계측이 실 백엔드로 새지 않게 항상 기록용 mock 래퍼로 갈아끼운다.
         analyticsProvider.overrideWithValue(analytics ?? RecordingAnalytics()),
+        // 좋아요(3.2) 시나리오만 인증·백엔드 대역을 준다 — 나머지 시험은
+        // 로그인 안 된 실행 그대로(좋아요 버튼은 뜨되 전부 꺼진 모습)다.
+        if (auth != null) authServiceProvider.overrideWithValue(auth),
+        if (backend != null) userDataStoreProvider.overrideWithValue(backend),
       ],
       child: MaterialApp(
         home: StadiumPlacesScreen(
@@ -152,8 +166,7 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('구장 장소만 뜨고, 샤라웃 장소의 PlaceCard 에 출처 뱃지가 렌더된다',
-      (tester) async {
+  testWidgets('구장 장소만 뜨고, 샤라웃 장소의 PlaceCard 에 출처 뱃지가 렌더된다', (tester) async {
     await tester.pumpWidget(screen());
     await tester.pumpAndSettle();
 
@@ -201,8 +214,9 @@ void main() {
     expect(find.byType(PlaceCard), findsNWidgets(3));
   });
 
-  testWidgets('initialIndoorOnly 진입 → 실내 필터가 켜진 채 열린다 (플랜B 경로)',
-      (tester) async {
+  testWidgets('initialIndoorOnly 진입 → 실내 필터가 켜진 채 열린다 (플랜B 경로)', (
+    tester,
+  ) async {
     await tester.pumpWidget(screen(initialIndoorOnly: true));
     await tester.pumpAndSettle();
 
@@ -236,8 +250,7 @@ void main() {
     expect(find.byType(PlaceCard), findsOneWidget);
   });
 
-  testWidgets('목록 마지막 ScratchCard 를 긁으면 현재 필터 풀 안의 장소가 드러난다',
-      (tester) async {
+  testWidgets('목록 마지막 ScratchCard 를 긁으면 현재 필터 풀 안의 장소가 드러난다', (tester) async {
     await tester.pumpWidget(screen());
     await tester.pumpAndSettle();
 
@@ -247,9 +260,9 @@ void main() {
 
     // 긁기 전에는 카드 안에 장소 정보가 없다 (목록의 PlaceCard 와 별개).
     Finder inScratchCard(String text) => find.descendant(
-          of: find.byType(ScratchCard),
-          matching: find.text(text),
-        );
+      of: find.byType(ScratchCard),
+      matching: find.text(text),
+    );
     expect(inScratchCard('잠실 카페'), findsNothing);
     expect(inScratchCard('오늘 뭐하지? 긁어 보기'), findsOneWidget);
 
@@ -259,8 +272,7 @@ void main() {
     expect(inScratchCard('카페'), findsOneWidget);
   });
 
-  testWidgets('카드 탭 → 상세 시트 노출 → 지도 진입 시 구장·장소 마커(mock 래퍼)',
-      (tester) async {
+  testWidgets('카드 탭 → 상세 시트 노출 → 지도 진입 시 구장·장소 마커(mock 래퍼)', (tester) async {
     await tester.pumpWidget(screen());
     await tester.pumpAndSettle();
 
@@ -292,8 +304,9 @@ void main() {
     );
   });
 
-  testWidgets('카드 탭 → place_tap 1회, 지도 진입 → map_open 1회 (mock 래퍼)',
-      (tester) async {
+  testWidgets('카드 탭 → place_tap 1회, 지도 진입 → map_open 1회 (mock 래퍼)', (
+    tester,
+  ) async {
     final analytics = RecordingAnalytics();
     await tester.pumpWidget(screen(analytics: analytics));
     await tester.pumpAndSettle();
@@ -304,10 +317,10 @@ void main() {
     await tester.pumpAndSettle();
     expect(analytics.countOf('place_tap'), 1);
     expect(analytics.countOf('map_open'), 0);
-    expect(
-      analytics.events.single.params,
-      {'stadium_id': 'jamsil', 'category': 'food'},
-    );
+    expect(analytics.events.single.params, {
+      'stadium_id': 'jamsil',
+      'category': 'food',
+    });
 
     // 지도 진입 → map_open 정확히 1회 (place_tap 은 그대로 1회).
     await tester.tap(find.text('지도에서 보기'));
@@ -315,10 +328,10 @@ void main() {
     expect(find.byType(PlaceMapScreen), findsOneWidget);
     expect(analytics.countOf('place_tap'), 1);
     expect(analytics.countOf('map_open'), 1);
-    expect(
-      analytics.events.last.params,
-      {'stadium_id': 'jamsil', 'category': 'food'},
-    );
+    expect(analytics.events.last.params, {
+      'stadium_id': 'jamsil',
+      'category': 'food',
+    });
     expect(analytics.events, hasLength(2));
   });
 
@@ -332,8 +345,7 @@ void main() {
     expect(appBar.foregroundColor, theme.onPrimary);
   });
 
-  testWidgets('themeKey 가 없으면 앱바는 기본 토큰(surface)으로 렌더된다',
-      (tester) async {
+  testWidgets('themeKey 가 없으면 앱바는 기본 토큰(surface)으로 렌더된다', (tester) async {
     await tester.pumpWidget(screen());
     await tester.pumpAndSettle();
 
@@ -378,5 +390,91 @@ void main() {
     // 풀이 돌아오면 카드도 돌아온다.
     await tapChip(tester, '전체');
     expect(find.byType(ScratchCard), findsOneWidget);
+  });
+
+  group('좋아요 토글 (step 3.2)', () {
+    const uid = 'kakao:1234567890';
+
+    late FakeUserDataStore store;
+    late FakeAuthService auth;
+
+    setUp(() {
+      store = FakeUserDataStore();
+      auth = FakeAuthService(signedIn: const AuthUser(uid: uid));
+    });
+
+    tearDown(() async {
+      await auth.dispose();
+      await store.dispose();
+    });
+
+    /// 카드 안의 좋아요 버튼 (카드 탭 자체와 겹치지 않게 카드 안에서 찾는다).
+    Finder likeButtonIn(Finder ancestor) =>
+        find.descendant(of: ancestor, matching: find.byType(LikeButton));
+
+    testWidgets('카드마다 좋아요 버튼이 뜨고, 눌러서 즉시 반영되며 서버 문서로 남는다', (tester) async {
+      await tester.pumpWidget(screen(auth: auth, backend: store));
+      await tester.pumpAndSettle();
+
+      final card = find.widgetWithText(PlaceCard, '잠실 국밥집');
+      expect(likeButtonIn(card), findsOneWidget);
+      expect(
+        find.descendant(of: card, matching: find.byIcon(LikeButton.likedIcon)),
+        findsNothing,
+        reason: '처음엔 아무도 안 눌렀다',
+      );
+
+      await tester.tap(likeButtonIn(card));
+      await tester.pump(); // 응답 전 — 낙관적 반영만 보인다.
+      expect(
+        find.descendant(of: card, matching: find.byIcon(LikeButton.likedIcon)),
+        findsOneWidget,
+      );
+
+      await tester.pumpAndSettle();
+      expect(await store.readLikes(uid), hasLength(1));
+      expect((await store.readLikes(uid)).single.placeId, 'jamsil-gukbap');
+    });
+
+    testWidgets('카드가 여러 장이어도 좋아요 목록은 한 번만 읽는다', (tester) async {
+      await tester.pumpWidget(screen(auth: auth, backend: store));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(PlaceCard), findsNWidgets(3), reason: '카드 세 장의 전제');
+      expect(store.likeReads, 1);
+    });
+
+    testWidgets('상세 시트에도 좋아요 버튼이 뜨고 그 자리에서 눌러도 반영된다', (tester) async {
+      await tester.pumpWidget(screen(auth: auth, backend: store));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.widgetWithText(PlaceCard, '잠실 국밥집'));
+      await tester.pumpAndSettle();
+      final sheet = find.byType(PlaceDetailSheet);
+      expect(likeButtonIn(sheet), findsOneWidget);
+
+      await tester.tap(likeButtonIn(sheet));
+      await tester.pumpAndSettle();
+
+      expect(await store.readLikes(uid), hasLength(1));
+    });
+
+    testWidgets('좋아요 쓰기가 실패하면 되돌리고 안내를 띄운다', (tester) async {
+      store.likeWriteFailure = const BackendNetworkError(code: 'unavailable');
+      await tester.pumpWidget(screen(auth: auth, backend: store));
+      await tester.pumpAndSettle();
+
+      final card = find.widgetWithText(PlaceCard, '잠실 국밥집');
+      await tester.tap(likeButtonIn(card));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.descendant(of: card, matching: find.byIcon(LikeButton.likedIcon)),
+        findsNothing,
+        reason: '실패했으므로 눌리기 전 모습으로 되돌아간다',
+      );
+      expect(find.text(StadiumPlacesScreen.likeFailureNotice), findsOneWidget);
+      expect(await store.readLikes(uid), isEmpty);
+    });
   });
 }
