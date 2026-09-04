@@ -13,6 +13,7 @@
 /// 그리는지가 이 단계의 계약이다.
 library;
 
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -71,7 +72,7 @@ void main() {
     addTearDown(store.dispose);
   });
 
-  Widget app({SelectedTeamStore? cache}) {
+  Widget app({SelectedTeamStore? cache, FakeUserDataStore? backend}) {
     // 홈이 소비하는 콘텐츠 provider 4종을 모두 override 한다 — 실제
     // 파일/네트워크 IO 는 widget test 의 fake async 안에서 완료되지 않아
     // pumpAndSettle 이 멈춘다. schedule 은 빈 일정(시즌 종료 빈 상태)으로
@@ -86,7 +87,7 @@ void main() {
     return ProviderScope(
       overrides: [
         authServiceProvider.overrideWithValue(auth),
-        userDataStoreProvider.overrideWithValue(store),
+        userDataStoreProvider.overrideWithValue(backend ?? store),
         if (cache != null) selectedTeamStoreProvider.overrideWithValue(cache),
         teamsProvider.overrideWith(
           (ref) async => ContentFresh<TeamsDocument>(teamsDoc),
@@ -219,6 +220,12 @@ void main() {
     // 스플래시 연출을 지나갈 만큼만 시간을 밀고 프레임을 본다.
     await tester.pump();
     await tester.pump(const Duration(seconds: 5));
+    // **여기서 한 프레임을 더 민다.** 앞 프레임의 위젯 트리는 아직
+    // `authStateProvider` 가 로딩이던 것이라 루트 게이트가 대기 화면을 그렸고,
+    // 세션이 확인되는 자리(`_SignedInGate`)는 그 프레임에 지어지지 않았다 —
+    // 그 트리에 대고 단언하면 이 시험이 재려는 갈래를 아예 지나치지 않는다
+    // (그 갈래를 온보딩으로 바꿔도 초록불이었다).
+    await tester.pump(const Duration(milliseconds: 500));
 
     expect(find.byType(TeamSelectScreen), findsNothing);
     expect(find.byType(HomeScreen), findsNothing);
@@ -227,6 +234,49 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(HomeScreen), findsOneWidget);
+  });
+
+  testWidgets('서버가 상한 안에 아무 답도 주지 않으면 대기 화면이 끝난다', (tester) async {
+    // 위 시험이 재는 구간의 **바닥**이다. 온라인에서 문서 리스너는 로컬 캐시에
+    // 문서가 없으면 초기 스냅샷을 아예 올리지 않으므로(SDK 의
+    // `shouldRaiseInitialEvent`), 기기를 바꿔 처음 로그인한 사람은 값이 하나도
+    // 오지 않는 실행에 든다 — 그 구간이 상한에서 끝나지 않으면 앱을 다시
+    // 띄우는 것 말고 나갈 길이 없다.
+    const grace = Duration(seconds: 5);
+    SharedPreferences.setMockInitialValues({});
+    final graced = FakeUserDataStore(profileConfirmGrace: grace);
+    addTearDown(graced.dispose);
+    graced.documents[uid] = serverDocument('lotte');
+    graced.holdProfiles = true;
+    await tester.pumpWidget(app(backend: graced));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pump(const Duration(milliseconds: 500));
+
+    // 상한 안에서는 아직 대기 화면이다.
+    expect(find.byType(TeamSelectScreen), findsNothing);
+    expect(find.byType(HomeScreen), findsNothing);
+
+    await tester.pump(grace * 2);
+    await tester.pump(const Duration(milliseconds: 500));
+
+    expect(
+      find.byType(TeamSelectScreen),
+      findsOneWidget,
+      reason: '상한이 지났는데 대기 화면이 그대로다 — 사람이 스피너에 갇혔다',
+    );
+
+    // 상한이 지난 뒤에 진짜 답이 오면 그 답으로 수렴한다 — 상한은 갈래를
+    // 정하는 바닥이지 사람을 옛 판단에 가두는 자물쇠가 아니다.
+    graced.releaseProfiles();
+    await tester.pumpAndSettle();
+
+    expect(find.byType(HomeScreen), findsOneWidget);
+    final scope = tester.widget<TeamThemeScope>(find.byType(TeamThemeScope));
+    expect(
+      scope.theme.primary,
+      TeamThemes.byId[teamsDoc.byId('lotte')!.themeKey]!.primary,
+    );
   });
 
   testWidgets('물러선 선택은 그 자리에서 서버 값으로 수렴한다', (tester) async {
@@ -313,6 +363,120 @@ void main() {
     expect(store.documents[uid]![UserFields.joinedAt], DateTime.utc(2026, 3, 1));
     expect(await const SelectedTeamStore().read(uid), 'samsung');
   });
+
+  testWidgets('스냅샷이 오류로 끝난 세션에서도 팀 바꾸기가 원본을 갱신한다', (tester) async {
+    // 사람은 "응원 팀 바꾸기"에서 팀을 골랐다. 그 선택까지 물러서면 화면이
+    // 잠깐 새 팀으로 바뀌었다가 옛 팀으로 되돌아오고, 안내도 뜨지 않아 왜
+    // 그런지 알 방법이 없다 — 물러서기는 **온보딩** 갈래의 장치다.
+    SharedPreferences.setMockInitialValues({});
+    await const SelectedTeamStore().write(uid, 'lg');
+    store.documents[uid] = serverDocument('lg');
+    store.holdProfiles = true;
+    await tester.pumpWidget(app());
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pump(const Duration(seconds: 1));
+
+    // 이 세션은 사용자 문서를 끝내 보지 못한다 — 캐시가 홈을 그린다.
+    store.emitProfileError(const BackendNetworkError(code: 'unavailable'));
+    await tester.pumpAndSettle();
+    expect(find.byType(HomeScreen), findsOneWidget);
+
+    await tester.tap(find.byTooltip('응원 팀 바꾸기'));
+    await tester.pumpAndSettle();
+    final kt = find.text('kt wiz', skipOffstage: false);
+    await tester.ensureVisible(kt);
+    await tester.pumpAndSettle();
+    await tester.tap(kt);
+    await tester.pumpAndSettle();
+
+    expect(
+      store.documents[uid]![UserFields.favoriteTeamId],
+      'kt',
+      reason: '변경 모드의 선택이 물러서서 원본이 그대로다',
+    );
+    expect(store.documents[uid]![UserFields.profileThemeKey], 'kt');
+    expect(store.profileCreates, 0);
+    expect(await const SelectedTeamStore().read(uid), 'kt');
+    expect(find.text(TeamSelectScreen.saveFailureNotice), findsNothing);
+    final scope = tester.widget<TeamThemeScope>(find.byType(TeamThemeScope));
+    expect(
+      scope.theme.primary,
+      TeamThemes.byId[teamsDoc.byId('kt')!.themeKey]!.primary,
+      reason: '화면이 옛 팀으로 되돌아왔다',
+    );
+  });
+
+  testWidgets('서버에 남기지 못한 선택은 저장 실패 안내로 드러난다', (tester) async {
+    // 사람이 보는 유일한 실패 안내다. 이 안내가 통째로 빠져도 다른 시험은
+    // 전부 초록불이었다 — 그러면 선택이 서버에 닿지 못한 실행이 아무 말 없이
+    // 지나가고, 다음 콜드 스타트에서 옛 팀이 돌아온다.
+    SharedPreferences.setMockInitialValues({});
+    await tester.pumpWidget(app());
+    await tester.pumpAndSettle();
+
+    store.profileWriteFailure = const BackendNetworkError(code: 'unavailable');
+    final hanwha = find.text('한화 이글스', skipOffstage: false);
+    await tester.ensureVisible(hanwha);
+    await tester.pumpAndSettle();
+    await tester.tap(hanwha);
+    await tester.pumpAndSettle();
+
+    expect(find.text(TeamSelectScreen.saveFailureNotice), findsOneWidget);
+    expect(store.documents, isEmpty);
+  });
+
+  testWidgets('팀 변경은 서버 왕복을 기다리지 않고 화면을 닫는다', (tester) async {
+    // Firestore 쓰기의 Future 는 서버에 닿아야 끝난다. 그것을 기다렸다가 화면을
+    // 닫으면 통신이 나쁜 자리에서 팀을 눌러도 변경 화면이 그대로 남아 선택이
+    // 먹히지 않은 것처럼 보인다 — 그래서 `select` 을 부르고 **곧바로** 닫는다.
+    SharedPreferences.setMockInitialValues({});
+    final slow = _GatedPatchStore();
+    addTearDown(slow.dispose);
+    slow.documents[uid] = serverDocument('lg');
+    await tester.pumpWidget(app(backend: slow));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('응원 팀 바꾸기'));
+    await tester.pumpAndSettle();
+    final samsung = find.text('삼성 라이온즈', skipOffstage: false);
+    await tester.ensureVisible(samsung);
+    await tester.pumpAndSettle();
+    await tester.tap(samsung);
+    await tester.pumpAndSettle();
+
+    expect(
+      slow.gate.isCompleted,
+      isFalse,
+      reason: '서버 쓰기가 아직 끝나지 않은 채로 재야 순서가 드러난다',
+    );
+    expect(
+      find.byType(TeamSelectScreen),
+      findsNothing,
+      reason: '서버 왕복을 기다리느라 변경 화면이 남았다',
+    );
+    expect(find.byType(HomeScreen), findsOneWidget);
+    final scope = tester.widget<TeamThemeScope>(find.byType(TeamThemeScope));
+    expect(
+      scope.theme.primary,
+      TeamThemes.byId[teamsDoc.byId('samsung')!.themeKey]!.primary,
+    );
+
+    slow.gate.complete();
+    await tester.pumpAndSettle();
+    expect(slow.documents[uid]![UserFields.favoriteTeamId], 'samsung');
+  });
+}
+
+/// 문서 고치기를 붙잡아 두는 대역 — 서버 왕복이 끝나지 않은 구간이다.
+class _GatedPatchStore extends FakeUserDataStore {
+  final Completer<void> gate = Completer<void>();
+
+  @override
+  Future<void> patchProfile(String uid, UserProfilePatch patch) async {
+    await gate.future;
+    return super.patchProfile(uid, patch);
+  }
 }
 
 /// 기기 저장을 **읽지 못하는** 캐시 — 저장 공간이 망가졌거나 플랫폼 채널이

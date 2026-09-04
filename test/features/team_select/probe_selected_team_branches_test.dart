@@ -1,5 +1,5 @@
-/// 적대적 탐침 (step 2.4) — 선택 팀 상태 계층에서 **변이 주입이 살아남은** 세
-/// 자리를 잰다. 셋 다 그 줄을 지워도 `flutter test` 가 전부 초록불이었다.
+/// 적대적 탐침 (step 2.4) — 선택 팀 상태 계층에서 **변이 주입이 살아남은**
+/// 자리들을 잰다. 전부 그 줄을 지워도 `flutter test` 가 초록불이었던 곳이다.
 ///
 ///  1) **아는 값이 하나도 없는데 서버까지 읽지 못한 실행**이 어디로 가는가.
 ///     캐시가 비어 있고 스냅샷이 오류로 끝난 갈래인데, 그 조합을 지나는 시험이
@@ -14,6 +14,19 @@
 ///     초록불이었다 — 대역의 기기 저장 읽기가 언제나 먼저 끝나기 때문이다.
 ///     읽기가 늦게 끝나면 캐시 provider 가 "없다"로 돌아가고, 그 자리는 곧
 ///     스냅샷 오류에 팀을 잃는 자리다(위 1 과 같은 갈래).
+///
+/// 두 번째 무리는 **물러서기가 스스로 열어 둔 자리**들이다.
+///  4) 물러서다 발견한 문서로 "이 계정의 문서를 안다"를 세우면 줄에 서 있던
+///     두 번째 선택이 수정 경로로 들어가 원본을 덮는다 — 물러서기가 막으려던
+///     바로 그 해악이다.
+///  5) 물러선 자리의 수렴은 길이 둘로 보이지만 하나(캐시)는 실패할 수 있고,
+///     그때 화면을 옮기는 것은 남은 한 줄뿐이다.
+///  6) 수렴시킬 문서가 사라진 경우, 그리고 수렴하는 사이에 계정이 바뀐 경우.
+///  7) 앞 선택이 실패해도 줄에 선 다음 선택이 이어지는가 — 그 갈래는 앞
+///     선택의 실패를 삼키던 동안 **닿을 수 없는 코드**였다.
+///
+/// 세 번째 무리는 기기 캐시를 읽고 쓰는 규칙이다: 로스터 밖 값 걸러내기,
+/// 가르는 글자가 든 uid, 같은 값 재쓰기 방지.
 library;
 
 import 'dart:async';
@@ -142,6 +155,221 @@ void main() {
       reason: '늦게 끝난 읽기가 방금 적은 값을 덮었다',
     );
   });
+
+  test('물러선 뒤의 두 번째 선택도 물러선다', () async {
+    // 물러서는 보증이 무너지는 자리다. 첫 선택이 물러서면서 "이 계정의 문서를
+    // 안다"를 세워 버리면, 줄에 서 있던 **두 번째** 선택은 수정 경로로 들어가
+    // 원본을 덮는다 — 물러서기가 막으려던 바로 그 해악이 한 번 더 누른 사람에게
+    // 그대로 일어난다. 온보딩 갈래에서는 둘째·셋째 선택도 물러서야 한다.
+    // ("문서를 만들었거나 고쳐서 안다"와 "물러서다가 발견해서 안다"는 다르다.)
+    store.documents[uid] = _serverDocument('lg');
+    store.holdProfiles = true;
+    final container = makeContainer();
+    await pumpEventQueue();
+    store.emitProfileError(const BackendNetworkError(code: 'unavailable'));
+    await pumpEventQueue();
+    expect(container.read(selectedTeamIdProvider).value, isNull, reason: '온보딩이다');
+
+    final notifier = container.read(selectedTeamIdProvider.notifier);
+    final first = notifier.select('kt');
+    final second = notifier.select('kia');
+    await first;
+    await second;
+    await pumpEventQueue();
+
+    expect(store.profileCreates, 0);
+    expect(
+      store.documents[uid]![UserFields.favoriteTeamId],
+      'lg',
+      reason: '줄에 서 있던 두 번째 선택이 원본을 덮었다',
+    );
+    expect(store.documents[uid]![UserFields.profileThemeKey], 'lg');
+    expect(container.read(selectedTeamIdProvider).value, 'lg');
+    expect(await const SelectedTeamStore().read(uid), 'lg');
+  });
+
+  test('같은 팀을 두 번 눌러도 원본은 그대로다', () async {
+    // 위와 같은 자리인데 사람이 한 번 더 누른 모양이다 — "안 먹혔나" 싶어
+    // 같은 카드를 다시 누르는 것이 온보딩에서 가장 흔하다.
+    store.documents[uid] = _serverDocument('lg');
+    store.holdProfiles = true;
+    final container = makeContainer();
+    await pumpEventQueue();
+    store.emitProfileError(const BackendNetworkError(code: 'unavailable'));
+    await pumpEventQueue();
+
+    final notifier = container.read(selectedTeamIdProvider.notifier);
+    final first = notifier.select('kt');
+    final second = notifier.select('kt');
+    await first;
+    await second;
+
+    expect(store.documents[uid]![UserFields.favoriteTeamId], 'lg');
+  });
+
+  test('캐시를 적지 못한 실행에서도 물러선 화면이 서버 값으로 수렴한다', () async {
+    // 수렴시키는 길이 둘로 보이지만 하나는 캐시를 지나간다 — 기기 저장이
+    // 던지는 실행에서는 `_convergeToServer` 가 상태를 직접 옮기는 한 줄만
+    // 남는다. 그 줄을 지워도 초록불이었던 것은 대역의 캐시 쓰기가 언제나
+    // 성공해서다.
+    store.documents[uid] = _serverDocument('lg');
+    store.holdProfiles = true;
+    final container = makeContainer(cache: const _UnwritableCacheStore());
+    await pumpEventQueue();
+    store.emitProfileError(const BackendNetworkError(code: 'unavailable'));
+    await pumpEventQueue();
+    expect(container.read(selectedTeamIdProvider).value, isNull);
+
+    await container.read(selectedTeamIdProvider.notifier).select('kt');
+    await pumpEventQueue();
+
+    expect(
+      container.read(selectedTeamIdProvider).value,
+      'lg',
+      reason: '화면이 고른 팀에 남았다 — 사람은 자기 선택이 남았다고 믿는다',
+    );
+  });
+
+  test('수렴시킬 문서가 사라진 실행은 조용히 끝나지 않는다', () async {
+    // "이미 있다"고 답한 문서가 읽을 때는 없다. 실제로 오기 어려운 자리이지만,
+    // 수렴시킬 값이 없는 것은 읽기 실패와 같으므로 같이 다룬다 — 조용히 끝나면
+    // 화면이 고른 팀에 남은 채 사람은 아무것도 듣지 못한다.
+    final vanishing = _VanishedDocumentStore();
+    addTearDown(vanishing.dispose);
+    vanishing.holdProfiles = true;
+    final container = ProviderContainer(
+      overrides: [
+        authServiceProvider.overrideWithValue(auth),
+        userDataStoreProvider.overrideWithValue(vanishing),
+      ],
+    );
+    addTearDown(container.dispose);
+    container.listen(selectedTeamIdProvider, (_, _) {});
+    await pumpEventQueue();
+    vanishing.emitProfileError(const BackendNetworkError(code: 'unavailable'));
+    await pumpEventQueue();
+
+    await expectLater(
+      container.read(selectedTeamIdProvider.notifier).select('kt'),
+      throwsA(
+        isA<BackendUnknownError>()
+            .having((error) => error.code, 'code', 'profile-missing'),
+      ),
+    );
+  });
+
+  test('수렴하는 사이에 계정이 바뀌면 그 값은 새 사람에게 붙지 않는다', () async {
+    // 물러선 자리의 읽기도 서버 왕복이라 그 사이에 계정이 바뀔 수 있다.
+    // 그때 읽어 온 값을 그대로 화면과 캐시에 세우면, 새 계정이 앞사람의 팀으로
+    // 홈에 들어간다.
+    final gated = _GatedReadStore();
+    addTearDown(gated.dispose);
+    gated.documents[uid] = _serverDocument('lg');
+    gated.holdProfiles = true;
+    final container = ProviderContainer(
+      overrides: [
+        authServiceProvider.overrideWithValue(auth),
+        userDataStoreProvider.overrideWithValue(gated),
+      ],
+    );
+    addTearDown(container.dispose);
+    container.listen(selectedTeamIdProvider, (_, _) {});
+    await pumpEventQueue();
+    gated.emitProfileError(const BackendNetworkError(code: 'unavailable'));
+    await pumpEventQueue();
+
+    final pending = container.read(selectedTeamIdProvider.notifier).select('kt');
+    await pumpEventQueue();
+
+    await auth.signOut();
+    await pumpEventQueue();
+    final next = await auth.signIn(AuthProviderId.google);
+    await pumpEventQueue();
+    expect(next.uid, isNot(uid));
+
+    gated.readGate.complete();
+    await pending;
+    await pumpEventQueue();
+
+    expect(
+      container.read(selectedTeamIdProvider).value,
+      isNot('lg'),
+      reason: '앞 계정의 팀이 새 계정의 화면에 섰다',
+    );
+    expect(await const SelectedTeamStore().read(next.uid), isNull);
+  });
+
+  test('앞 선택이 실패해도 줄에 선 다음 선택이 이어진다', () async {
+    // 통신이 한 번 실패했다고 그 뒤의 선택까지 통째로 버려지면, 사람은 두 번째
+    // 선택이 어디로 갔는지 알 길이 없다 — 실패 안내는 첫 선택 것 하나뿐이다.
+    final failing = _FailFirstWriteStore();
+    addTearDown(failing.dispose);
+    final container = ProviderContainer(
+      overrides: [
+        authServiceProvider.overrideWithValue(auth),
+        userDataStoreProvider.overrideWithValue(failing),
+      ],
+    );
+    addTearDown(container.dispose);
+    container.listen(selectedTeamIdProvider, (_, _) {});
+    await pumpEventQueue();
+
+    final notifier = container.read(selectedTeamIdProvider.notifier);
+    final first = notifier.select('lg');
+    final second = notifier.select('kia');
+
+    await expectLater(first, throwsA(isA<BackendNetworkError>()));
+    await second;
+
+    expect(
+      failing.documents[uid]?[UserFields.favoriteTeamId],
+      'kia',
+      reason: '앞 선택의 실패가 뒤 선택까지 삼켰다',
+    );
+  });
+
+  test('같은 계정의 같은 값은 기기 저장에 다시 적지 않는다', () async {
+    // 선택이 캐시에 적고, 곧바로 돌아온 스냅샷이 같은 값을 한 번 더 적는
+    // 모양이다. 기기 저장 쓰기는 플랫폼 채널 왕복이라 값이 같으면 하지 않는다.
+    final cache = _CountingCacheStore();
+    final container = makeContainer(cache: cache);
+    await pumpEventQueue();
+
+    await container.read(selectedTeamIdProvider.notifier).select('lg');
+    await pumpEventQueue();
+
+    expect(cache.writes, ['$uid|lg'], reason: '같은 값을 두 번 적었다');
+  });
+
+  group('기기 캐시의 값을 읽는 규칙', () {
+    test('로스터 밖 팀 id 는 없는 것으로 본다', () async {
+      // 파일 머리말이 "미지·오염 값은 null 로 취급해 온보딩으로 복귀한다"고
+      // 적어 둔 자리다. 이 검사가 빠지면 그 값이 홈까지 올라가 팀 테마를 찾는
+      // 자리에서 터진다.
+      SharedPreferences.setMockInitialValues({
+        kSelectedTeamPrefsKey: '$uid|없는팀',
+      });
+
+      expect(await const SelectedTeamStore().read(uid), isNull);
+
+      store.holdProfiles = true;
+      final container = makeContainer();
+      await pumpEventQueue();
+      expect(container.read(cachedTeamIdProvider).value, isNull);
+    });
+
+    test('가르는 글자가 든 uid 도 제 캐시를 읽는다', () async {
+      // 팀 로스터에는 이 글자가 없지만 uid 에 없다는 보장은 우리 것이 아니다 —
+      // 그래서 가르는 자리를 **마지막** 것으로 잡았다. 첫 것으로 잡으면 그런
+      // 계정은 자기 캐시를 영영 읽지 못하고 콜드 스타트마다 첫 프레임을 잃는다.
+      const weird = 'kakao|1234567890';
+      SharedPreferences.setMockInitialValues({});
+      await const SelectedTeamStore().write(weird, 'lg');
+
+      expect(await const SelectedTeamStore().read(weird), 'lg');
+      expect(await const SelectedTeamStore().read('kakao'), isNull);
+    });
+  });
 }
 
 /// 첫 문서 만들기를 붙잡아 두는 대역 — 서버 왕복이 끝나지 않은 구간이다.
@@ -168,5 +396,58 @@ class _SlowReadCacheStore extends SelectedTeamStore {
     final atStart = await super.read(uid);
     await readGate.future;
     return atStart;
+  }
+}
+
+/// 기기 저장에 **적지 못하는** 캐시 — 읽기는 부모 구현 그대로다.
+class _UnwritableCacheStore extends SelectedTeamStore {
+  const _UnwritableCacheStore();
+
+  @override
+  Future<void> write(String uid, String teamId) async {
+    throw StateError('기기 저장에 적을 수 없다');
+  }
+}
+
+/// 기기 저장 쓰기를 세는 캐시.
+class _CountingCacheStore extends SelectedTeamStore {
+  _CountingCacheStore();
+
+  final List<String> writes = [];
+
+  @override
+  Future<void> write(String uid, String teamId) async {
+    writes.add('$uid|$teamId');
+    await super.write(uid, teamId);
+  }
+}
+
+/// "이미 있다"고 답하지만 읽으면 없는 저장소 — 수렴시킬 값이 사라진 실행.
+class _VanishedDocumentStore extends FakeUserDataStore {
+  @override
+  Future<bool> createProfile(String uid, NewUserProfile profile) async => false;
+}
+
+/// 사용자 문서 **읽기**가 늦게 끝나는 저장소 — 물러선 자리의 서버 왕복이
+/// 끝나기 전에 계정이 바뀌는 실행의 대역이다.
+class _GatedReadStore extends FakeUserDataStore {
+  final Completer<void> readGate = Completer<void>();
+
+  @override
+  Future<UserProfile?> readProfile(String uid) async {
+    await readGate.future;
+    return super.readProfile(uid);
+  }
+}
+
+/// 첫 쓰기만 실패하는 저장소 — 통신이 한 번 끊겼다 이어진 실행의 대역이다.
+class _FailFirstWriteStore extends FakeUserDataStore {
+  int _creates = 0;
+
+  @override
+  Future<bool> createProfile(String uid, NewUserProfile profile) async {
+    _creates++;
+    if (_creates == 1) throw const BackendNetworkError(code: 'unavailable');
+    return super.createProfile(uid, profile);
   }
 }

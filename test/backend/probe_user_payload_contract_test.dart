@@ -92,4 +92,37 @@ void main() {
       expect(container.read(userProfileProvider).value, isNull);
     });
   });
+
+  group('세션을 읽지 못한 실행은 "문서가 없는 사람"이 되지 않는다', () {
+    test('세션 스트림의 오류를 사용자 문서가 물려받는다', () async {
+      // 세션 스트림은 값을 흘린 뒤에 실패할 수 있고, 그때 `AsyncValue` 는
+      // 마지막 값을 그대로 들고 있다. 오류를 먼저 보지 않으면 끊긴 세션의
+      // uid 로 문서를 계속 구독하게 되고, 그 실행은 "읽을 수 없었다"가 아니라
+      // "이 사람의 문서는 이렇다"로 보인다.
+      final auth = FakeAuthService(signedIn: const AuthUser(uid: 'kakao:1'));
+      addTearDown(auth.dispose);
+      final store = FakeUserDataStore();
+      addTearDown(store.dispose);
+
+      final container = ProviderContainer(
+        overrides: [
+          authServiceProvider.overrideWithValue(auth),
+          userDataStoreProvider.overrideWithValue(store),
+        ],
+      );
+      addTearDown(container.dispose);
+      container.listen(userProfileProvider, (_, _) {});
+      await pumpEventQueue();
+      expect(container.read(userProfileProvider).hasValue, isTrue);
+
+      auth.emitError(StateError('세션 스트림이 끊겼다'));
+      await pumpEventQueue();
+
+      expect(
+        container.read(userProfileProvider).hasError,
+        isTrue,
+        reason: '세션을 읽지 못한 실행이 문서 유무를 답하는 실행으로 보였다',
+      );
+    });
+  });
 }
