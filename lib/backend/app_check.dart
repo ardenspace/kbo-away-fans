@@ -33,7 +33,17 @@ import 'package:flutter/foundation.dart';
 /// 5초인 것은 이 값이 "얼마면 켜지는가"가 아니라 "얼마부터 사람이 앱이 죽었다고
 /// 읽는가"의 값이기 때문이다. `activate` 는 증명 토큰을 받아 오는 호출이 아니라
 /// 제공자를 등록하는 호출이라 정상 실행에서는 한참 못 미치고, 넘어간 실행은
-/// 이미 정상이 아니다.
+/// 이미 정상이 아니다. 그 **길이 자체**를 `app_check_activation_test.dart` 가
+/// 잰다 — 상한이 있는지만 재면 값을 120초로 바꿔도 전체가 초록불이다.
+///
+/// **다만 이 상한 하나로는 스플래시가 걷히지 않는다.** `main` 에서 이 호출
+/// 앞뒤에 선 초기화들(분석·인증)이 **같은** `Firebase.initializeApp()` 을 다시
+/// 기다리므로, 채널이 답하지 않는 실행에서는 여기서 잘라도 그 다음 줄이 그대로
+/// 멈춘다. 그래서 스플래시를 지키는 상한은 부팅 **전체**에 하나로 따로 서 있고
+/// (`lib/main.dart` 의 `kBootInitTimeout`), 이 상수가 실제로 사는 것은 두 번째
+/// 호출자 — 카카오 로그인의 잠긴 버튼 — 쪽이다. 잰 자리도 그렇게 갈린다:
+/// 버튼은 `test/features/auth/kakao_app_check_stall_probe_test.dart` 가,
+/// 스플래시는 `test/boot_stall_probe_test.dart` 가 잰다.
 const Duration kAppCheckActivationTimeout = Duration(seconds: 5);
 
 /// App Check 배선 — `main` 이 1회 호출하고, 카카오 로그인 경로가 교환 직전에 한
