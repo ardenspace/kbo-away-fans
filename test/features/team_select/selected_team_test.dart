@@ -547,6 +547,143 @@ void main() {
     expect(await cachedTeamId(), isNull);
   });
 
+  group('서버가 상한 안에 아무 답도 주지 않은 실행', () {
+    // 온라인에서 문서 리스너는 로컬 캐시에 문서가 없으면 초기 스냅샷을 아예
+    // 올리지 않는다(SDK 의 `shouldRaiseInitialEvent`). 기기를 바꿔 처음
+    // 로그인한 사람이 정확히 그 실행이라, **값이 하나도 오지 않는 구간**이
+    // 이 단계의 주 대상 시나리오와 겹친다. 상한은 그 구간을 끝내야 한다.
+    const grace = Duration(milliseconds: 50);
+    late FakeUserDataStore graced;
+
+    setUp(() {
+      graced = FakeUserDataStore(profileConfirmGrace: grace);
+      addTearDown(graced.dispose);
+    });
+
+    ProviderContainer container() {
+      final container = ProviderContainer(
+        overrides: [
+          authServiceProvider.overrideWithValue(auth),
+          userDataStoreProvider.overrideWithValue(graced),
+        ],
+      );
+      addTearDown(container.dispose);
+      container.listen(selectedTeamIdProvider, (_, _) {});
+      return container;
+    }
+
+    /// 상한이 넉넉히 지날 만큼 기다린다.
+    Future<void> passGrace() async {
+      await Future<void>.delayed(grace * 4);
+      await pumpEventQueue();
+    }
+
+    test('캐시도 비어 있으면 대기 화면이 상한에서 끝나고 온보딩이 뜬다', () async {
+      SharedPreferences.setMockInitialValues({});
+      graced.documents[uid] = _serverDocument('lotte');
+      graced.holdProfiles = true;
+      final c = container();
+      await pumpEventQueue();
+      expect(c.read(selectedTeamIdProvider).isLoading, isTrue, reason: '아직 상한 안이다');
+
+      await passGrace();
+
+      final state = c.read(selectedTeamIdProvider);
+      expect(
+        state.isLoading,
+        isFalse,
+        reason: '상한이 지났는데도 로딩이면 게이트가 끝나지 않는 대기 화면을 그린다',
+      );
+      expect(state.hasValue, isTrue);
+      expect(state.value, isNull);
+    });
+
+    test('상한이 지난 뒤에 온 답으로 화면이 수렴한다', () async {
+      // 상한은 갈래를 정하는 바닥이지 사람을 옛 판단에 가두는 자물쇠가 아니다.
+      SharedPreferences.setMockInitialValues({});
+      graced.documents[uid] = _serverDocument('lotte');
+      graced.holdProfiles = true;
+      final c = container();
+      await passGrace();
+      expect(c.read(selectedTeamIdProvider).value, isNull);
+
+      graced.releaseProfiles();
+
+      expect(await settledTeamId(c), 'lotte');
+      expect(await cachedTeamId(), 'lotte');
+    });
+
+    test('캐시에 값이 있으면 상한을 넘겨도 홈에 머무른다', () async {
+      // "답이 없다"를 **문서 없음**으로 확정하면 이미 팀을 고른 사람이 통신이
+      // 느렸다는 이유만으로 온보딩에 서고, 거기서 팀을 누르면 물러서기가
+      // 받아 내야 한다 — 오프라인에서는 그 읽기도 실패해 안내로 끝난다.
+      // **서버를 읽지 못했다**로 확정하면 이 계층에 이미 서 있는 규칙(서버를
+      // 읽지 못하면 캐시가 정한다)이 그대로 적용된다
+      // (decisions.md 2026-09-04 [M]).
+      await seedCache('lg');
+      graced.documents[uid] = _serverDocument('lg');
+      graced.holdProfiles = true;
+      final c = container();
+      await passGrace();
+
+      final state = c.read(selectedTeamIdProvider);
+      expect(state.hasValue, isTrue);
+      expect(
+        state.value,
+        'lg',
+        reason: '상한이 이 사람을 온보딩으로 내려보냈다 — 캐시를 남긴 이유와 어긋난다',
+      );
+    });
+  });
+
+  group('팀 변경 모드의 선택은 물러서지 않는다', () {
+    test('스냅샷이 오류로 끝난 세션에서도 바꾼 팀이 원본에 남는다', () async {
+      // 물러서기는 **온보딩** 갈래의 장치다. 변경 모드에서 고른 팀까지 물러서면
+      // 사람은 "응원 팀 바꾸기"에서 팀을 골랐는데 화면이 잠깐 바뀌었다가 옛
+      // 팀으로 되돌아오고, 안내도 없어 까닭을 알 길이 없다.
+      await seedCache('lg');
+      store.documents[uid] = _serverDocument('lg');
+      store.holdProfiles = true;
+      final container = makeContainer();
+      expect(await settledTeamId(container), 'lg');
+
+      // 스냅샷이 오류로 끝난다 — 이 세션은 사용자 문서를 끝내 보지 못한다.
+      store.emitProfileError(const BackendNetworkError(code: 'unavailable'));
+      await pumpEventQueue();
+      expect(container.read(selectedTeamIdProvider).value, 'lg');
+
+      await container
+          .read(selectedTeamIdProvider.notifier)
+          .select('kt', isChange: true);
+      await pumpEventQueue();
+
+      final document = store.documents[uid]!;
+      expect(document[UserFields.favoriteTeamId], 'kt');
+      expect(document[UserFields.profileThemeKey], 'kt');
+      expect(store.profileCreates, 0);
+      expect(document[UserFields.joinedAt], DateTime.utc(2026, 3, 1));
+      expect(await cachedTeamId(), 'kt');
+      expect(container.read(selectedTeamIdProvider).value, 'kt');
+    });
+
+    test('문서가 아직 없는 계정의 변경도 첫 문서를 만든다', () async {
+      // 캐시가 홈을 그린 채 서버에는 이 계정의 문서가 없는 실행이다 — 변경
+      // 모드가 곧바로 수정으로 가면 없는 문서를 고치려다 실패한다.
+      await seedCache('lg');
+      store.holdProfiles = true;
+      final container = makeContainer();
+      expect(await settledTeamId(container), 'lg');
+
+      await container
+          .read(selectedTeamIdProvider.notifier)
+          .select('kt', isChange: true);
+
+      expect(store.profileCreates, 1);
+      expect(store.documents[uid]![UserFields.favoriteTeamId], 'kt');
+      expect(await cachedTeamId(), 'kt');
+    });
+  });
+
   test('로그인하지 않은 실행의 선택은 권한 오류로 드러난다', () async {
     SharedPreferences.setMockInitialValues({});
     auth = FakeAuthService();

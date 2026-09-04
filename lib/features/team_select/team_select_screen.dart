@@ -21,14 +21,19 @@ import 'selected_team.dart';
 /// 띄운다.
 ///
 /// 실패가 아닌데도 선택이 서버에 남지 않는 갈래가 하나 있다: 이 화면이
-/// 온보딩으로 떴는데 서버에는 이미 그 계정의 문서가 있던 경우다
-/// ([SelectedTeamNotifier.select] 참조 — 그 원본을 덮지 않는다). 안내를 띄우지
-/// 않는 것은 실패한 것이 아니기 때문이고, 그 자리에서 원본을 한 번 읽어 화면이
-/// 그 계정의 진짜 팀으로 수렴한다(스냅샷에 맡기지 않는다 — 이 갈래에 이르는
-/// 주된 길이 스냅샷이 오류로 끝난 실행이라 뒤이어 오는 스냅샷이 없다).
-/// 읽기까지 실패해 수렴시키지 못하면 그때는 `BackendError` 로 던져 오고,
-/// 아래 [saveFailureNotice] 가 뜬다 — 화면이 고른 팀에 남은 채 조용히 끝나지
-/// 않게 하는 자리다.
+/// **온보딩으로 떴는데**(= [isChange] 가 false) 서버에는 이미 그 계정의 문서가
+/// 있던 경우다 ([SelectedTeamNotifier.select] 참조 — 그 원본을 덮지 않는다).
+/// 안내를 띄우지 않는 것은 실패한 것이 아니기 때문이고, 그 자리에서 원본을 한
+/// 번 읽어 화면이 그 계정의 진짜 팀으로 수렴한다(스냅샷에 맡기지 않는다 — 이
+/// 갈래에 이르는 주된 길이 스냅샷을 끝내 보지 못한 실행이라 뒤이어 오는
+/// 스냅샷이 없을 수 있다). 읽기까지 실패해 수렴시키지 못하면 그때는
+/// `BackendError` 로 던져 오고, 아래 [saveFailureNotice] 가 뜬다 — 화면이 고른
+/// 팀에 남은 채 조용히 끝나지 않게 하는 자리다.
+///
+/// **변경 모드에서는 그 갈래가 없다.** 이 화면이 [isChange] 를 그대로
+/// 건네므로([_select]), 같은 상태(스냅샷을 보지 못한 세션)에서도 고른 팀이
+/// 원본을 갱신한다 — 바꾸려고 누른 사람의 선택을 물러서게 하면 화면이 잠깐
+/// 새 팀으로 바뀌었다가 옛 팀으로 되돌아오고 까닭도 들리지 않는다.
 class TeamSelectScreen extends ConsumerWidget {
   const TeamSelectScreen({super.key, this.isChange = false});
 
@@ -44,7 +49,12 @@ class TeamSelectScreen extends ConsumerWidget {
     // `select` 는 첫 await 앞에서 상태를 이미 옮겨 놓는다 — 그래서 여기서
     // 곧바로 화면을 넘겨도 홈은 새 팀 테마로 뜬다. 원본(사용자 문서)과
     // 사본(기기 캐시)은 그 뒤에 그 순서로 따라간다.
-    final saved = ref.read(selectedTeamIdProvider.notifier).select(team.id);
+    final saved = ref
+        .read(selectedTeamIdProvider.notifier)
+        .select(team.id, isChange: isChange);
+    // 서버 쓰기를 기다리지 않고 곧바로 닫는다 — `await saved` 뒤로 옮기면
+    // 통신이 나쁜 자리에서 팀을 눌러도 이 화면이 그대로 남아 선택이 먹히지
+    // 않은 것처럼 보인다.
     navigator?.pop();
     try {
       await saved;

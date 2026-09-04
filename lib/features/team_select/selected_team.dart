@@ -18,11 +18,16 @@
 ///    "모름"이다.** 기기를 바꿔 처음 로그인한 사람이 그 구간에 있다: 캐시
 ///    읽기는 몇 ms 만에 끝나고 첫 스냅샷은 네트워크 왕복이라, 캐시의 부재를
 ///    답으로 쓰면 이미 팀을 고른 사람이 첫 왕복 내내 온보딩을 본다. 그 구간은
-///    대기 화면이고, 영영 답하지 않는 실행이 사람을 거기 가두지 않도록 상한을
-///    두는 자리는 `lib/backend/user_data_firestore.dart` 의 `watchProfile`
-///    이다(`kProfileServerConfirmGrace`). 반면 **서버를 읽지 못한 구간(스냅샷
-///    오류)은 기다림이 아니다** — 더 물어볼 길이 없으므로 캐시가 비어 있으면
-///    미선택으로 확정한다.
+///    대기 화면이다.
+///  - **그 기다림에는 상한이 있고, 상한을 넘으면 기다림이 아니게 된다.**
+///    상한을 두는 자리는 `lib/backend/user_data_firestore.dart` 의
+///    `watchProfile` 이고(`kProfileServerConfirmGrace`), 그 안에 아무 답도
+///    오지 않으면 "서버를 읽지 못했다"(오류)가 흐른다. 그래서 이 계층이 보는
+///    **오류**의 출처는 셋인데(스냅샷 오류·상한을 넘긴 기다림·캐시 읽기 실패)
+///    규칙은 하나다: 더 물어볼 길이 없으므로 아는 값으로 갈래를 정하고, 아는
+///    값이 없으면 미선택으로 확정한다. 상한 뒤에 진짜 답이 오면 그때 서버가
+///    다시 이긴다 — 상한은 갈래를 정하는 바닥이지 사람을 옛 판단에 가두는
+///    자물쇠가 아니다.
 ///
 /// 캐시가 **낡지 않는 것**이 위 문장들의 전제다. 그래서 기기 저장에 적는
 /// 자리를 [CachedTeamId] 하나로 모으고, 적는 순간 그 provider 의 상태도 함께
@@ -42,6 +47,14 @@
 /// 팀 선택이 사용자 문서를 만드는 자리이기도 하다 — 문서는 다섯 필수 필드를
 /// 갖춰 한 번에 만들어지고(`docs/firestore-schema.md`), 그중 `favoriteTeamId`
 /// 가 정해지는 시점이 곧 온보딩의 끝이다.
+///
+/// **온보딩과 팀 변경은 같은 화면이지만 다른 갈래다.** 서버 문서를 아직 보지
+/// 못한 채 온보딩에서 고른 팀은 이미 있는 원본을 덮지 않고 물러선다 — 그
+/// 사람은 "처음 고르는 중"이라고 믿고 눌렀기 때문이다. 반면 "응원 팀 바꾸기"
+/// 에서 고른 팀은 물러서지 않는다 — 그 사람은 바꾸려고 눌렀고, 물러서면 화면이
+/// 잠깐 새 팀으로 바뀌었다가 옛 팀으로 돌아오는 것만 보게 된다. 둘을 가르는
+/// 것은 화면이 아는 사실이라 [SelectedTeamNotifier.select] 의 `isChange` 로
+/// 건너온다.
 library;
 
 import 'dart:async';
@@ -195,6 +208,13 @@ class SelectedTeamNotifier extends Notifier<AsyncValue<String?>> {
   /// 서버가 문서를 흘려 주었거나(스냅샷) 이 실행이 직접 만들었을 때 선다.
   /// 문서를 모르는 채 고른 선택은 이미 있는 원본을 덮지 않는다 — 아래
   /// [_writeProfile] 참조.
+  ///
+  /// **물러서다가 발견한 문서는 여기 세우지 않는다.** 그 두 가지는 "안다"의
+  /// 뜻이 다르다: 스냅샷이 흘려 준 문서는 사람이 그 팀의 홈을 보고 있었다는
+  /// 뜻이지만, 물러서다 발견한 문서는 사람이 온보딩을 보고 있었다는 뜻이다.
+  /// 여기서 둘을 같이 다루면 줄에 서 있던 **두 번째** 선택이 수정 경로로 들어가
+  /// 원본을 덮는다 — 물러서기가 막으려던 바로 그 해악이다. 온보딩 갈래에서는
+  /// 둘째·셋째 선택도 물러선다.
   String? _knownDocumentUid;
 
   /// 앞선 선택의 서버 쓰기 — 다음 선택은 그 뒤에 선다.
@@ -266,28 +286,40 @@ class SelectedTeamNotifier extends Notifier<AsyncValue<String?>> {
   /// 문서로 굳는다 — 그리고 "재로그인이 덮지 않는다"는 보장 때문에 새 계정은
   /// 그 잘못된 문서를 그대로 안고 간다. 캐시가 값에 소유 계정을 매다는 것
   /// ([CachedTeamId])과 같은 결속이고, 같은 까닭이다.
-  Future<void> select(String teamId) async {
+  ///
+  /// [isChange] 는 이 선택이 **팀 변경**인지를 말한다(화면이 안다 —
+  /// `TeamSelectScreen.isChange`). 변경 모드에서 고른 팀은 물러서지 않고 원본을
+  /// 갱신한다: 사람이 "응원 팀 바꾸기"에서 고른 이상, 이미 있는 문서는 덮어야
+  /// 할 대상이지 지켜야 할 대상이 아니다. 물러서기는 온보딩 갈래의 장치이고,
+  /// 그것이 지키는 것은 "처음 고르는 중"이라고 믿은 사람의 옛 선택이다.
+  Future<void> select(String teamId, {bool isChange = false}) async {
     assert(kTeamIds.contains(teamId), '알 수 없는 teamId: $teamId');
     final owner = ref.read(authStateProvider).value;
     state = AsyncData(teamId);
     final task = _queue.then(
       // 앞선 선택이 실패했더라도 줄은 이어진다 — 한 번의 통신 실패가 그
       // 뒤의 선택을 통째로 막아서는 안 된다.
-      (_) => _store(teamId, owner),
-      onError: (Object _) => _store(teamId, owner),
+      (_) => _store(teamId, owner, isChange),
+      onError: (Object _) => _store(teamId, owner, isChange),
     );
-    _queue = task.then((_) {}, onError: (Object _) {});
+    // 실패도 그대로 물려준다 — 앞 선택의 실패를 여기서 삼키면 위 `onError`
+    // 갈래가 닿을 수 없는 코드가 되고, "앞이 실패해도 줄은 이어진다"는 문장을
+    // 아무것도 지키지 않게 된다. 이 future 의 오류는 두 자리가 받는다: 바로
+    // 아래 `await task`(부르는 쪽으로 던진다)와, 다음 선택의 `onError` 갈래.
+    _queue = task;
     await task;
   }
 
   /// 한 번의 선택을 원본과 사본에 남긴다 — 줄 안에서 도는 몸통.
-  Future<void> _store(String teamId, AuthUser? owner) async {
+  Future<void> _store(String teamId, AuthUser? owner, bool isChange) async {
     if (owner == null) {
       // 계정 없이 쓰는 경로가 없는 앱이라 여기 오는 것은 게이트를 지나지 않은
       // 실행뿐이다. 조용히 캐시에만 남기면 그 선택은 어느 계정의 것도 아니다.
       throw const BackendPermissionError(code: 'unauthenticated');
     }
-    if (await _writeProfile(teamId, owner)) await _writeCache(teamId, owner.uid);
+    if (await _writeProfile(teamId, owner, isChange)) {
+      await _writeCache(teamId, owner.uid);
+    }
   }
 
   /// 선택을 사용자 문서에 남긴다 — 문서가 없으면 만들고, 있으면 고친다.
@@ -295,7 +327,11 @@ class SelectedTeamNotifier extends Notifier<AsyncValue<String?>> {
   /// 돌려주는 값은 **선택이 원본에 실제로 남았는가**다. false 는 "이 선택을
   /// 원본에 남기지 않았다"는 뜻이고(계정이 바뀌었거나, 이미 있는 문서를 덮지
   /// 않고 물러섰거나), 그때는 사본도 옮기지 않는다.
-  Future<bool> _writeProfile(String teamId, AuthUser owner) async {
+  Future<bool> _writeProfile(
+    String teamId,
+    AuthUser owner,
+    bool isChange,
+  ) async {
     if (ref.read(authStateProvider).value?.uid != owner.uid) {
       // 줄에 서 있는 사이에 계정이 바뀌었다. 이 선택은 지금 사람의 것이
       // 아니므로 버린다 — 고른 사람은 이미 떠났고, 그 선택을 지금 계정에
@@ -325,36 +361,47 @@ class SelectedTeamNotifier extends Notifier<AsyncValue<String?>> {
         _knownDocumentUid = owner.uid;
         return true;
       }
-      // 만들지 못했다 = 이미 문서가 있다. 그런데 이 실행은 그 문서를 본 적이
-      // 없으므로 게이트는 이 사람을 "팀이 없는 사람"으로 다루었고, 사람은
-      // "처음 고르는 중"이라고 믿고 눌렀다. 여기서 수정으로 이어 가면 그
-      // 사람은 자기가 팀을 **바꿨다는 것조차** 모른 채 원본을 잃는다.
-      // 물러서고, 그 자리에서 원본을 읽어 화면을 그 값으로 수렴시킨다.
-      //
-      // 이 갈래에는 정당한 팀 변경 하나가 함께 걸린다: 캐시가 홈을 그린 채
-      // 스냅샷이 오기 전에 곧바로 "팀 바꾸기"까지 간 실행이다. 그 창은 온라인
-      // 에서는 첫 왕복 길이(밀리초)이고, 오프라인에서는 어차피 `patchProfile`
-      // 도 서버 확인을 기다리다 끝나지 않는다 — 그 좁은 창에서 변경이 한 번
-      // 먹히지 않는 쪽이, 기기를 바꾼 사람이 자기 팀을 조용히 잃는 쪽보다
-      // 싸다고 보았다.
-      await _convergeToServer(owner);
-      return false;
+      // 만들지 못했다 = 이미 문서가 있다.
+      if (!isChange) {
+        // 온보딩으로 뜬 화면에서 고른 선택이다. 이 실행은 그 문서를 본 적이
+        // 없으므로 게이트는 이 사람을 "팀이 없는 사람"으로 다루었고, 사람은
+        // "처음 고르는 중"이라고 믿고 눌렀다. 여기서 수정으로 이어 가면 그
+        // 사람은 자기가 팀을 **바꿨다는 것조차** 모른 채 원본을 잃는다.
+        // 물러서고, 그 자리에서 원본을 읽어 화면을 그 값으로 수렴시킨다.
+        await _convergeToServer(owner);
+        return false;
+      }
+      // 변경 모드다 — 사람이 "응원 팀 바꾸기"에서 고른 선택이므로 이 문서는
+      // 지켜야 할 옛 선택이 아니라 바꿔 달라고 요청받은 대상이다. 아래 수정
+      // 경로로 그대로 이어 간다. 여기까지 오는 것은 이 세션이 스냅샷을 끝내
+      // 보지 못한 실행(오류로 끝났거나 상한을 넘긴 실행)이고, 그 세션에서
+      // 물러서면 사람은 고른 팀이 잠깐 떴다가 옛 팀으로 되돌아오는 것만 보고
+      // 까닭을 듣지 못한다.
     }
 
     await store.patchProfile(
       owner.uid,
       UserProfilePatch(favoriteTeamId: teamId, profileThemeKey: teamId),
     );
+    // 고쳤으니 이 문서를 안다 — 변경 모드로 여기 온 실행에서는 이 한 줄이
+    // 다음 선택을 곧바로 수정 경로로 보낸다(문서를 또 만들어 보지 않는다).
+    _knownDocumentUid = owner.uid;
     return true;
   }
 
   /// 물러선 자리에서 원본을 한 번 읽어 화면을 그 값으로 수렴시킨다.
   ///
-  /// 스냅샷에 맡기지 않는 것은, **이 갈래에 뒤이어 오는 스냅샷이 없기**
-  /// 때문이다. 온보딩이 뜬 채 서버에 문서가 이미 있는 상태에 이르는 주된 길이
-  /// "캐시가 비어 있고 스냅샷이 오류로 끝난 실행"이고, 그 스트림은 오류와 함께
-  /// 끝나 자동 재시도도 없다. 물러서기만 하면 사람은 그 세션 내내 고른 팀의
-  /// 홈을 보다가 다음 콜드 스타트에서 아무 설명 없이 옛 팀으로 돌아온다.
+  /// 스냅샷에 맡기지 않는 것은, **이 갈래에 뒤이어 오는 스냅샷이 없을 수
+  /// 있기** 때문이다. 온보딩이 뜬 채 서버에 문서가 이미 있는 상태에 이르는
+  /// 주된 길이 "캐시가 비어 있고 스냅샷이 오류로 끝났거나 상한을 넘긴 실행"
+  /// 이고, 오류로 끝난 스트림은 자동 재시도도 없다. 물러서기만 하면 사람은 그
+  /// 세션 내내 고른 팀의 홈을 보다가 다음 콜드 스타트에서 아무 설명 없이 옛
+  /// 팀으로 돌아온다.
+  ///
+  /// **여기서 [_knownDocumentUid] 를 세우지 않는다.** 세우면 줄에 서 있던 다음
+  /// 선택이 수정 경로로 들어가 원본을 덮는다 — 사람은 여전히 온보딩을 보고
+  /// 있었고, 두 번째 선택도 첫 번째와 똑같이 물러서야 한다. 그 대가는 두 번째
+  /// 선택이 문서 읽기를 한 번 더 하는 것뿐이다.
   ///
   /// 읽기 실패는 그대로 던진다 — 수렴시키지 못한 채 화면이 고른 팀에 남는
   /// 상태를 조용히 두면 사람은 자기 선택이 남았다고 믿는다. 화면 쪽
@@ -369,9 +416,9 @@ class SelectedTeamNotifier extends Notifier<AsyncValue<String?>> {
       // 끝나지 않게 한다.
       throw const BackendUnknownError(code: 'profile-missing');
     }
-    // 읽는 사이에 계정이 바뀌었으면 이 값은 지금 사람의 것이 아니다.
+    // 읽는 사이에 계정이 바뀌었으면 이 값은 지금 사람의 것이 아니다 — 그대로
+    // 세우면 새 계정이 앞사람의 팀으로 홈에 들어간다(캐시까지 함께 옮겨진다).
     if (ref.read(authStateProvider).value?.uid != owner.uid) return;
-    _knownDocumentUid = owner.uid;
     state = AsyncData(profile.favoriteTeamId);
     await _writeCache(profile.favoriteTeamId, owner.uid);
   }
