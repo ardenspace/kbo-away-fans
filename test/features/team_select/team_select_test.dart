@@ -36,10 +36,12 @@ import 'package:kbo_away_fans/design/team_themes.dart';
 import 'package:kbo_away_fans/features/home/home_screen.dart';
 import 'package:kbo_away_fans/features/team_select/selected_team.dart';
 import 'package:kbo_away_fans/features/team_select/team_select_screen.dart';
+import 'package:kbo_away_fans/location/location.dart';
 import 'package:kbo_away_fans/ui/shared/team_theme_scope.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../backend/fake_backend.dart';
+import '../../location/fake_location_permission_gateway.dart';
 
 /// 서버에 이미 남아 있는 사용자 문서.
 Map<String, Object?> serverDocument(String teamId) => <String, Object?>{
@@ -77,7 +79,11 @@ void main() {
     addTearDown(store.dispose);
   });
 
-  Widget app({SelectedTeamStore? cache, FakeUserDataStore? backend}) {
+  Widget app({
+    SelectedTeamStore? cache,
+    FakeUserDataStore? backend,
+    LocationPermissionGateway? location,
+  }) {
     // 홈이 소비하는 콘텐츠 provider 4종을 모두 override 한다 — 실제
     // 파일/네트워크 IO 는 widget test 의 fake async 안에서 완료되지 않아
     // pumpAndSettle 이 멈춘다. schedule 은 빈 일정(시즌 종료 빈 상태)으로
@@ -94,6 +100,16 @@ void main() {
         authServiceProvider.overrideWithValue(auth),
         userDataStoreProvider.overrideWithValue(backend ?? store),
         if (cache != null) selectedTeamStoreProvider.overrideWithValue(cache),
+        // step 2.5 — 기본값은 "이미 허용됨"이라, 이 파일의 기존 시험(위치
+        // 권한과 무관한 온보딩·팀 변경 분기)은 위치 동의 화면을 아예 보지
+        // 않고 곧장 홈으로 간다. 위치 권한 자체를 재는 시험은
+        // `test/features/onboarding/location_consent_test.dart` 에 따로 있다.
+        locationPermissionGatewayProvider.overrideWithValue(
+          location ??
+              FakeLocationPermissionGateway(
+                initial: LocationPermissionStatus.granted,
+              ),
+        ),
         teamsProvider.overrideWith(
           (ref) async => ContentFresh<TeamsDocument>(teamsDoc),
         ),
