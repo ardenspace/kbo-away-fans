@@ -21,6 +21,16 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kbo_away_fans/location/location.dart';
 import 'package:permission_handler_platform_interface/permission_handler_platform_interface.dart';
 
+/// 상한이 **있다면** 그 안에는 끝나야 하는 시간 — 아래 "답하지 않아도 상한에서
+/// 끝난다"가 미는 시간이다. `kLocationPermissionTimeout` 에서 세지 않는 것은,
+/// 그러면 상수를 키우는 변이가 미는 시간까지 함께 키워 그 케이스가 어떤 값도
+/// 지키지 못하기 때문이다. 값 자체는 '사람을 붙잡는 상한이 실제로 사람이 견딜
+/// 길이다'가 따로 잰다.
+const Duration _generousLocationBound = Duration(seconds: 10);
+
+/// 상한 **앞**을 딛는 시간 — 이만큼 밀어도 아직 답이 없어야 "기다린다"가 참이다.
+const Duration _beforeAnyBound = Duration(seconds: 1);
+
 /// `permission_handler` 가 실제로 무엇을 물었는지 기록하는 플랫폼 대역.
 class _RecordingPermissionHandler extends PermissionHandlerPlatform {
   /// [checkPermissionStatus] 로 물어본 권한들 (순서대로).
@@ -148,14 +158,36 @@ void main() {
         LocationPermissionStatus? answered;
         unawaited(gateway.status().then((value) => answered = value));
 
-        async.elapse(kLocationPermissionTimeout - const Duration(seconds: 1));
+        async.elapse(_beforeAnyBound);
         async.flushMicrotasks();
         expect(answered, isNull, reason: '상한 전에는 답을 기다린다');
 
-        async.elapse(const Duration(seconds: 2));
+        async.elapse(_generousLocationBound);
         async.flushMicrotasks();
         expect(answered, LocationPermissionStatus.denied);
       });
+    });
+
+    test('사람을 붙잡는 상한이 실제로 사람이 견딜 길이다', () {
+      // 바로 위 케이스는 상한이 **있는지**만 잰다. 그 시간을 상수에서 세지
+      // 않는 것은(처음에는 `kLocationPermissionTimeout ± 1초` 였다) 상수를
+      // 키우는 변이가 미는 시간까지 함께 키워 아무것도 지키지 못하기 때문이다 —
+      // `kCachedTeamReadTimeout` 이 실제로 그 함정에 걸려 있었다
+      // (`team_select_test.dart` 의 `_generousCacheBound` 주석 참조).
+      //
+      // 이 값은 곧 팀 선택을 막 마친 사람이 문구 하나 없는 대기 화면 앞에
+      // 앉아 있는 최대 시간이고, 설명 화면에서 "허용하기"를 누른 뒤 아무 일도
+      // 일어나지 않는 것처럼 보이는 최대 시간이다. 길이 자체가 계약이므로
+      // 여기서 못 박는다 — 짝인 `kAppCheckActivationTimeout`·
+      // `kProfileServerConfirmGrace`·`kCachedTeamReadTimeout` 에 같은 모양의
+      // 시험이 서 있다.
+      expect(kLocationPermissionTimeout, greaterThan(Duration.zero));
+      expect(
+        kLocationPermissionTimeout,
+        lessThanOrEqualTo(const Duration(seconds: 10)),
+        reason: '늘리면 그만큼 온보딩 직후의 대기 화면이 길어진다 — 그 화면에는 '
+            '문구도 되돌아갈 길도 없다',
+      );
     });
   });
 }

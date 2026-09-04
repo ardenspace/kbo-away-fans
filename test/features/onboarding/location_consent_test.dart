@@ -30,6 +30,17 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../backend/fake_backend.dart';
 import '../../location/fake_location_permission_gateway.dart';
 
+/// 상한이 **있다면** 그 안에는 끝나야 하는 시간 — 상한이 있다는 사실을 재는
+/// 케이스들이 미는 시간이다. `kLocationPermissionTimeout` 을 더하거나 곱해 쓰지
+/// 않는 것은, 그러면 상수를 키우는 변이가 미는 시간까지 함께 키워 그 케이스들이
+/// 어떤 값도 지키지 못하기 때문이다(`team_select_test.dart` 의
+/// `_generousCacheBound` 가 같은 함정에서 나왔다). 값 자체는
+/// `test/location/device_permission_handler_gateway_test.dart` 가 따로 잰다.
+const Duration _generousLocationBound = Duration(seconds: 10);
+
+/// 상한 **앞**을 딛는 시간 — 이만큼 밀어도 아직 답이 없어야 "기다린다"가 참이다.
+const Duration _beforeAnyBound = Duration(seconds: 1);
+
 /// 서버에 이미 남아 있는 사용자 문서 — `team_select_test.dart` 의 것과 같은
 /// 모양이다.
 Map<String, Object?> _serverDocument(String teamId) => <String, Object?>{
@@ -396,10 +407,10 @@ void main() {
         reason: '상한 전에는 답을 기다린다',
       );
 
-      await tester.pump(kLocationPermissionTimeout - const Duration(seconds: 1));
+      await tester.pump(_beforeAnyBound);
       expect(find.byType(LocationConsentScreen), findsNothing);
 
-      await tester.pump(const Duration(seconds: 2));
+      await tester.pump(_generousLocationBound);
       expect(
         find.byType(LocationConsentScreen),
         findsOneWidget,
@@ -446,7 +457,7 @@ void main() {
         reason: '상한 전에는 OS 의 답을 기다린다',
       );
 
-      await tester.pump(kLocationPermissionTimeout + const Duration(seconds: 1));
+      await tester.pump(_generousLocationBound);
       await tester.pumpAndSettle();
       expect(find.byType(HomeScreen), findsOneWidget);
       expect(tester.takeException(), isNull);
