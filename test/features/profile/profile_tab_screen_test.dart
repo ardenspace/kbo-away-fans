@@ -10,6 +10,9 @@
 ///  5) 프로필 색을 바꾸면 서버 문서에 반영되고, 이 화면이 그 값을 실제로
 ///     써서 앱바 색이 바뀐다(`profileThemeKey` 를 읽는 첫 화면).
 ///  6) 로그아웃 버튼이 `AuthService.signOut` 을 실제로 부른다.
+///  7) 프로필 색을 바꾸는 쓰기는 **`profileThemeKey` 만** 내보낸다 —
+///     `favoriteTeamId` 는 건드리지 않는다(둘을 분리해 둔 스키마 취지가
+///     실제 쓰기에서도 지켜지는지 — 5)는 화면의 겉모습만 잰다).
 ///
 /// 로그아웃 뒤 로그인 화면으로 돌아오고 다시 로그인하면 홈까지 들어가는
 /// 전이는 `profile_logout_transition_test.dart` 가 `RootGate` 를 통째로
@@ -184,6 +187,40 @@ void main() {
     expect(checkedSwatch('doosan'), findsOneWidget);
     expect(checkedSwatch('lg'), findsNothing);
   });
+
+  testWidgets(
+    '프로필 색을 바꾸는 쓰기는 profileThemeKey 만 내보내고 favoriteTeamId 는 그대로다',
+    (tester) async {
+      // favoriteTeamId 와 profileThemeKey 를 다르게 심어 둔다 — 둘이 같은 값으로
+      // 시작하면 "어차피 같은 값이니 한 번에 쓰자"는 변이가 문서 값을 보는
+      // 단언까지 우연히 통과시킬 수 있다(이 사이클이 실제로 겪은 함정).
+      await store.createProfile(
+        _uid,
+        const NewUserProfile(
+          nickname: '테스트닉네임',
+          favoriteTeamId: 'lg',
+          profileThemeKey: 'kt',
+        ),
+      );
+
+      await tester.pumpWidget(
+        screen(const AuthUser(uid: _uid, email: 'fan@example.com')),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const ValueKey('profile-color-doosan')));
+      await tester.pumpAndSettle();
+
+      expect(store.documents[_uid]?[UserFields.profileThemeKey], 'doosan');
+      // 응원 팀은 색을 바꾸기 전 값(lg) 그대로다 — 색 스와치는 팀 선택이 아니다.
+      expect(
+        store.documents[_uid]?[UserFields.favoriteTeamId],
+        'lg',
+        reason: '프로필 색 변경이 응원 팀까지 함께 바꾸면 홈 화면·다음 원정 경기 계산이 '
+            '사람이 누르지 않은 이유로 통째로 달라진다',
+      );
+    },
+  );
 
   testWidgets('로그아웃 버튼을 누르면 AuthService.signOut 이 실제로 불린다', (tester) async {
     await seedProfile();
