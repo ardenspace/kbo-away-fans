@@ -7,12 +7,12 @@
 ///   (step 2.5 전에는 저장소에 위치 관련 코드가 하나도 없었다). 서술로만 두지
 ///   않는다 — `scripts/hooks/check-firebase-import-boundary.sh` 가 이 파일 밖의
 ///   `permission_handler` import 를 잡아 커밋을 막는다.
-/// - 이 단계(2.5)가 다루는 것은 **권한 요청**뿐이다. 실제 좌표를 읽는 자리
-///   (구장 근처 판정 — 4.1, 홈 상단 현재 위치 표시 — 5.2)는 이 계층이 내보내는
-///   권한 상태 뒤에서 다음 단계가 짓는다. 그래서 이 파일은 좌표를 들고 있지
-///   않고, 권한 상태 세 갈래만 안다 — 기기 위치를 서버에 올리지 않는다는
-///   저장소의 약속(`lib/backend/CLAUDE.md`·`lib/location/CLAUDE.md`)이 이
-///   계층에서부터 지켜진다.
+/// - **이 파일이 다루는 것은 권한뿐이고, 좌표를 들고 있지 않다.** 실제 좌표를
+///   읽는 자리는 같은 폴더의 `visit_check.dart`(구장 방문 판정 — 4.1)이고,
+///   그 파일이 이 파일의 `LocationPermissionStatus` 를 소비한다. 둘을 나눠
+///   둔 것은 좌표를 얻는 통로를 판정과 같은 라이브러리 안에 가두기
+///   위해서다(그 까닭은 `visit_check.dart` 첫 문단). 홈 상단 현재 위치
+///   표시(5.2)도 그 계층 안에 짓는다.
 library;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';

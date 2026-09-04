@@ -17,6 +17,15 @@ dependencies:
     sdk: flutter
   flutter_naver_map: ^1.4.4
   flutter_riverpod: ^3.4.2
+  # 좌표를 읽는 플러그인 (step 4.1 구장 방문 판정). MIT · 무료이고 pub.dev
+  # 점수 160/160, `permission_handler` 와 같은 Baseflow 계열이라 이미 이
+  # 저장소가 쓰는 플러그인들과 같은 무료·오픈소스 계열이다 (2.5 가 "4.1·5.2 가
+  # 좌표를 쓸 때 별도로 판단"으로 미뤄 둔 자리 — decisions.md 2026-09-04 [S]).
+  # 안드로이드·iOS 의 위치 권한 선언은 2.5 가 이미 넣어 두었으므로 이
+  # 플러그인이 새로 요구하는 플랫폼 설정은 없다. import 는
+  # `lib/location/visit_check.dart` 한 파일에만 두고
+  # `scripts/hooks/check-firebase-import-boundary.sh` 가 그 경계를 지킨다.
+  geolocator: ^14.0.3
   google_sign_in: ^7.2.0
   http: ^1.6.0
   kakao_flutter_sdk_user: ^2.0.1

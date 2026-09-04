@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../design/tokens.dart';
 import '../../ui/shared/content_fallback.dart';
 import '../../ui/shared/main_tab_scaffold.dart';
+import '../badges/stadium_visit.dart';
 import '../likes/likes_tab_screen.dart';
 import '../places/recommend_tab_screen.dart';
 import '../profile/profile_tab_screen.dart';
@@ -32,11 +33,21 @@ import 'home_screen.dart';
 /// - **배지**(4.3)는 아직 화면이 없다. 그 자리 표시([_ComingSoonTab])가
 ///   provider 를 하나도 구독하지 않는 것은 의도다 — 아직 없는 화면이 서버를
 ///   읽는 자리를 만들면 그 비용이 탭을 열어 보지 않아도 항상 켜져 있게 된다.
+///
+/// 골격 전체를 [StadiumVisitTrigger] 가 감싼다(4.1) — 구장 방문 판정은
+/// 배지 탭이 아니라 **앱을 여는 것 자체**에 걸린다. 그 까닭은 그 위젯의
+/// 문서에 적었다. 위 [_ComingSoonTab] 의 "아직 없는 화면이 서버를 읽지
+/// 않는다"와 어긋나지 않는다 — 이 판정은 서버를 읽지 않고, 그날 경기가
+/// 없거나 위치 권한이 없으면 OS 에 좌표도 묻지 않는다.
 class MainTabsRoot extends StatelessWidget {
   const MainTabsRoot({super.key});
 
   @override
   Widget build(BuildContext context) {
+    return StadiumVisitTrigger(child: _tabs());
+  }
+
+  Widget _tabs() {
     return MainTabScaffold(
       tabs: [
         MainTab(

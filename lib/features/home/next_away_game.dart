@@ -8,19 +8,17 @@ library;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../content/kst.dart';
 import '../../content/models.dart';
+
+/// KST 달력 두 함수(`kstDateOf`·`gameDateOf`)는 4.1 이 `lib/content/kst.dart`
+/// 로 옮겼다 — 구장 방문 판정(`lib/location/`)이 같은 달력을 쓰는데 비 UI
+/// 계층이 feature 를 import 하는 방향은 만들지 않기 때문이다. 여기서 그대로
+/// 다시 내보내므로 이 파일을 import 하던 자리는 바뀌지 않는다.
+export '../../content/kst.dart' show gameDateOf, kstDateOf;
 
 /// "현재 시각" 주입 지점 — 테스트는 고정 시각 함수로 override 한다.
 final clockProvider = Provider<DateTime Function()>((_) => DateTime.now);
-
-/// [moment] 의 KST(UTC+9 고정) 달력 날짜. 시각 성분은 0 (UTC 자정 표현).
-DateTime kstDateOf(DateTime moment) {
-  final kst = moment.toUtc().add(const Duration(hours: 9));
-  return DateTime.utc(kst.year, kst.month, kst.day);
-}
-
-/// 경기의 KST 날짜(YYYY-MM-DD)를 [kstDateOf] 와 같은 표현(UTC 자정)으로.
-DateTime gameDateOf(Game game) => DateTime.parse('${game.date}T00:00:00Z');
 
 /// 선택 팀의 다음 원정 경기 상태 — 홈 기본 얼굴의 세 상태와 1:1.
 sealed class NextAwayGame {
