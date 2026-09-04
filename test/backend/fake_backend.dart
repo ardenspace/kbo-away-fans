@@ -281,14 +281,25 @@ class FakeAuthService implements AuthService {
     final user = AuthUser(
       uid: fakeUidOf(provider),
       displayName: '${provider.name} 사용자',
+      // 카카오는 실 구현에서도 이메일을 주지 않는다(`AuthUser` 문서 참조) —
+      // 이 대역이 그 갈래까지 흉내 내야 3.4 의 "이메일 없는 계정" 화면을
+      // `signIn` 경로로도 재현할 수 있다.
+      email: provider == AuthProviderId.kakao
+          ? null
+          : '${provider.name}@example.com',
     );
     _current = user;
     if (!_changes.isClosed) _changes.add(user);
     return user;
   }
 
+  /// `signOut` 호출 횟수 — 3.4 가 로그아웃 버튼이 실제로 이 경로를 부르는지
+  /// 잰다.
+  int signOutCalls = 0;
+
   @override
   Future<void> signOut() async {
+    signOutCalls++;
     _current = null;
     if (!_changes.isClosed) _changes.add(null);
   }

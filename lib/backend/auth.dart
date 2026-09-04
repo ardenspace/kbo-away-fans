@@ -33,12 +33,21 @@ enum AuthProviderId {
 
 /// 로그인한 사용자 — 세션이 들고 있는 값 전부.
 ///
-/// 이메일을 두지 않는다. 카카오에서 이메일을 받으려면 비즈니스 채널이 필요한
-/// 추가 동의 항목이 붙고, 앱이 이메일로 하는 일이 하나도 없다 — 계정을
-/// 가리키는 것은 [uid] 이고 사람에게 보이는 것은 사용자 문서의 닉네임이다.
+/// 계정을 가리키는 것은 [uid] 이고 사람에게 보이는 이름은 사용자 문서의
+/// 닉네임이다 — [displayName] 은 그 닉네임의 씨앗일 뿐이다.
+///
+/// **[email] 은 2.2/2.3 에서는 없었다.** "앱이 이메일로 하는 일이 하나도
+/// 없다"는 그때의 전제가 3.4(마이페이지)에서 깨진다 — 마이페이지가 가입한
+/// 계정의 대표 이메일을 보여줘야 한다. 그래서 여기서 필드를 하나 더 든다.
+/// **카카오는 여전히 이 값을 주지 않는다** — 이메일을 받으려면 비즈니스
+/// 채널이 필요한 추가 동의 항목이 붙기 때문이다(그 갈래는 화면이
+/// [kKakaoUidPrefix] 로 가려 제공자 표시로 대신한다). 구글·애플은 계정이 서는
+/// 순간 Firebase 문서에 이메일이 영구히 남으므로(애플의 "두 번째 로그인부터
+/// 이름을 안 준다"는 [displayName] 이야기이지 이메일이 아니다) null 은 사실상
+/// 카카오 계정에서만 나온다.
 @immutable
 class AuthUser {
-  const AuthUser({required this.uid, this.displayName});
+  const AuthUser({required this.uid, this.displayName, this.email});
 
   /// Firebase Auth uid — 사용자 문서 경로(`users/{uid}`)의 그 값이다.
   final String uid;
@@ -47,18 +56,31 @@ class AuthUser {
   /// (원본은 사용자 문서의 `nickname` — 첫 문서를 만들 때 씨앗으로만 쓴다).
   final String? displayName;
 
+  /// 제공자가 준 대표 이메일. 카카오는 주지 않는다([AuthUser] 문서 참조) —
+  /// 마이페이지(3.4)가 null 을 빈칸이 아니라 제공자 표시로 대신 보여준다.
+  final String? email;
+
   @override
   bool operator ==(Object other) =>
       other is AuthUser &&
       other.uid == uid &&
-      other.displayName == displayName;
+      other.displayName == displayName &&
+      other.email == email;
 
   @override
-  int get hashCode => Object.hash(uid, displayName);
+  int get hashCode => Object.hash(uid, displayName, email);
 
   @override
   String toString() => 'AuthUser($uid)';
 }
+
+/// 카카오 계정 uid 의 접두어 — `functions/kakao.js` 가 `kakao:{카카오 사용자 id}`
+/// 로 uid 를 결정적으로 짓는다(`lib/backend/REGISTRY.md` 참조). 이메일을 주지
+/// 않는 제공자를 가려내는 유일한 신호라 여기 둔다 — [AuthUser] 에 제공자
+/// 종류를 따로 담는 필드를 두지 않는 것은, 지금 이메일 유무를 가르는 문제
+/// 하나를 위해 SDK 안쪽 신호(`providerData`)를 새로 노출할 값이 없기
+/// 때문이다(`.wellbegun/decisions.md` 참조).
+const String kKakaoUidPrefix = 'kakao:';
 
 /// 인증 경계 — 로그인·로그아웃·세션 상태.
 ///

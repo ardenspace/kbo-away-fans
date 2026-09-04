@@ -344,11 +344,13 @@ class FirebaseAuthService implements AuthService {
 AuthUser? _toAuthUser(User? user) {
   if (user == null) return null;
   final displayName = user.displayName;
+  final email = user.email;
   return AuthUser(
     uid: user.uid,
     displayName: (displayName == null || displayName.isEmpty)
         ? null
         : displayName,
+    email: (email == null || email.isEmpty) ? null : email,
   );
 }
 
