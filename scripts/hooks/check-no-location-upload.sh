@@ -41,6 +41,14 @@
 # 지나갈 수 있는 갈래**(사람이 나쁜 뜻 없이 쓸 법한 모양인데 검사가 놓치는
 # 자리)를 찾았다면 그것은 고치십시오. 보고할 때 둘을 구분해서 적으십시오.
 #
+# **그리고 반대 방향이 round 6 의 거부 사유였다: 오탐.** 검사 4) 가 평범한
+# Dart 세 모양(값 나열 뒤에 멤버가 오는 enum · `@override` 가 붙은 필드 ·
+# 몸통 없는 게터 선언)을 잡았는데, 이 헤더가 "일부러 거절하는 정당한 모양은
+# 아래 **둘**"이라고 **닫힌 목록**으로 적어 두어 그 문장이 거짓이었다. 이
+# 검사는 CI 에도 걸려 있으므로 오탐은 로컬 훅뿐 아니라 CI 도 막는다. 그래서
+# 아래 그 목록은 열린 모양으로 다시 썼다 — **무엇을 열거하든 그것이 전부라고
+# 단언하기 전에, 실제로 그것이 전부인지 확인했는지 자문하십시오.**
+#
 # ─────────────────────────────────────────────────────────────────────────
 # 검사는 다섯이고 방향이 다르다.
 # ─────────────────────────────────────────────────────────────────────────
@@ -176,8 +184,24 @@
 #          타입(`... Function(...)`)일 때. 함수 타입을 허용하는 것은
 #          StadiumVisitChecker 의 두 이음매가 그 모양이기 때문이다.
 #        · 메서드·생성자(이름 뒤에 괄호가 오는 선언)와, `=>` 로 몸통을 쓰는
-#          선언 전부(게터가 여기 들어온다 — 게터는 값을 담지 못하고, 읽을
-#          저장소 쪽이 이 검사에 먼저 걸린다).
+#          선언 전부, 그리고 **몸통 없는 게터 선언**(`String get id;`).
+#          게터는 값을 담지 못하고, 읽을 저장소 쪽이 이 검사에 먼저 걸린다.
+#        · 선언 앞의 **애노테이션**(`@override final String name;`)은 걷어 낸
+#          뒤 판정한다 — 애노테이션이 선언의 모양을 바꾸지는 않기 때문이다.
+#          걷어 낸 뒤에 보므로 `@override final List<DeviceFix> seen;` 은
+#          그대로 exit 2 다(실측).
+#        · **enum 몸통의 첫 문장인 값 나열.** Dart 는 값 목록 뒤에 멤버가
+#          하나라도 오면 `;` 를 요구하는데, 그것은 선언이 아니라 값 나열이다.
+#          Dart 문법이 값 나열을 몸통의 첫 자리에 못 박으므로 첫 문장 하나만
+#          건너뛴다 — 그 뒤의 필드는 전부 그대로 이 검사를 지난다(실측:
+#          `enum E { a, b; static DeviceFix? last; }` 는 exit 2).
+#
+#      **round 6 이 푼 오탐 셋이 위 목록의 뒤 세 줄이다.** 셋 다 평범한 Dart
+#      이고 `flutter analyze` 무지적인데 exit 2 였다: 값 나열 뒤에 게터를 하나
+#      둔 enum(round 6 의 거부 사유 — 이 폴더에 이미 enum 이 둘 있다),
+#      `@override` 가 붙은 필드, 그리고 추상 클래스·인터페이스·mixin 의 게터
+#      선언. 앞엣것은 오류 메시지가 안내하는 "허용 타입 목록 넓히기"로는 고칠
+#      수도 없었다 — 걸린 것이 타입이 아니라 값 나열이었기 때문이다.
 #
 #      **"담을 수 없는 타입"** 은 (i) 값이 변하지 않는 dart:core 기본형
 #      (bool·double·int·num·String·Duration·DateTime) 과 (ii) **이 폴더가
@@ -189,13 +213,35 @@
 #      가능한 통"이 함께 닫힌다.
 #
 #      **이 검사가 일부러 거절하는 정당한 모양** (5.2 가 여기 걸리면 여기서
-#      까닭을 찾으라고 적어 둔다). 아래 둘은 좌표를 담지 못하는데도 exit 2 다:
+#      까닭을 찾으라고 적어 둔다). 아래는 **닫힌 목록이 아니다** — round 6 의
+#      구현자가 lib/location/ 에 평범한 Dart 파일 50가지를 지어 넣어 보고
+#      실측한 것들이고, 51번째가 없다고는 적지 않는다. 여기 없는 모양이
+#      걸렸다면 그것이 오탐인지 정탐인지는 아래 "까닭"의 결로 판단하고,
+#      오탐이면 이 목록에 실측과 함께 더하십시오.
+#
+#      까닭은 하나다: **이 검사는 무엇이 담길지 알 수 없는 자리를 거절한다.**
+#      실측으로 확인한 것들:
 #        · 최상위 `final RegExp kStadiumIdPattern = RegExp(...);` — RegExp 는
 #          const 가 될 수 없고 폴더 밖의 이름이다.
+#        · 최상위 `final String probeLabel = ...;` — 이 폴더에 최상위 저장소를
+#          두지 않는다는 것이 이 검사의 본문이다(허용은 읽기 전용 provider 와
+#          `const` 뿐).
 #        · 값 타입의 `final List<String> ids;` 필드 — List 는 담을 수 있는
 #          통이라, `final StringBuffer log = StringBuffer();`(실측 정탐)와
 #          같은 규칙에 걸린다.
-#      둘 다 우회하지 말고 위 허용 목록을 의도적으로 넓히고 ADR 을 남기십시오.
+#        · **타입을 적지 않은 `final` 필드**(`final separator = ' / ';`) —
+#          추론 타입이라 이 검사가 무엇이 담기는지 알 수 없다. 이것을 허용하면
+#          `final spots = <DeviceFix>[];` 가 함께 열린다(그 최상위 판이 실측
+#          정탐이다). 이 폴더에서는 타입을 적으십시오.
+#        · `late final String name;` 과 `late` 가 붙은 모든 필드 — 값이
+#          생성자 밖의 어느 시점에 들어오는 자리다. 허용 목록이 `const`·
+#          `static const`·`final` 셋으로 닫혀 있다.
+#        · 타입 매개변수 필드(`final T value;`) — `Box<DeviceFix>` 로 세우면
+#          그대로 좌표를 담는 통이라, "홑 식별자인데 변경 가능한 통"과 같은
+#          규칙에 걸린다.
+#        · 레코드 타입 필드(`final (int, int) span;`) — 폴더 밖의 모양이고
+#          `(double, double)` 이면 좌표 한 쌍 그대로다.
+#      전부 우회하지 말고 위 허용 목록을 의도적으로 넓히고 ADR 을 남기십시오.
 #      **그 눈에 띔이 이 검사의 목적이다.**
 #
 #   5) lib/location/ 이 좌표를 콘솔·기기 로그에 적지 않는다 (round 3 신설,
@@ -222,6 +268,22 @@ set -u
 cd "$(dirname "$0")/../.." || exit 1
 
 fail=0
+
+# 검사가 볼 자리가 사라지면 **조용히 건너뛰는 대신 드러난다.**
+#
+# 아래 검사들은 각자 `[ -d ]`·`[ -f ]` 로 자기 자리를 확인하고 들어간다.
+# 그 가드만 있으면 자리가 옮겨지거나 이름이 바뀌었을 때 검사가 아무 말도
+# 하지 않고 exit 0 이 된다 — round 6 의 지휘자가
+# `git mv lib/content/kst.dart lib/content/kst2.dart` 로 재현했다: 그 문에
+# 붙는 짝 검사 셋(2-a·2-b·2-c)이 통째로 침묵했다. 그래서 세 자리의 존재를
+# 먼저 단언한다. 자리를 정말 옮기는 변경이라면 여기 목록도 함께 고치게
+# 되는데, 그 눈에 띔이 이 단언의 목적이다.
+for required in lib/backend lib/location lib/content/kst.dart; do
+  if [ ! -e "$required" ]; then
+    echo "$required 이 없습니다 — 아래 검사들이 이 자리를 보고 있으므로, 자리가 사라지면 검사가 조용히 통과하는 대신 여기서 멈춥니다 (정말 옮겼다면 이 스크립트의 목록과 검사 본문을 함께 고치십시오)." >&2
+    fail=2
+  fi
+done
 
 # 1) 업로드 계층에 좌표 필드가 없다.
 DIR="lib/backend"
@@ -454,11 +516,25 @@ if [ -d "$LOC_DIR" ]; then
       }
 
       # 클래스 몸통의 선언 하나가 "값을 담아 둘 수 없는" 모양인가.
-      function fieldOk(s,   arr, n, i, type) {
+      function fieldOk(s,   arr, n, i, type, base) {
         n = topTokens(s, arr)
+        # 애노테이션은 선언의 모양을 바꾸지 않는다 — 앞에서 걷어 낸다.
+        # (round 6 의 구현자가 스스로 공격해 찾은 오탐: `@override final String
+        # name;` 이 exit 2 였다. 걷어 낸 **뒤에** 판정하므로
+        # `@override final List<DeviceFix> seen;` 은 그대로 걸린다.)
+        base = 1
+        while (base <= n && arr[base] ~ /^@/) base++
+        if (base > 1) {
+          for (i = base; i <= n; i++) arr[i - base + 1] = arr[i]
+          n = n - base + 1
+        }
         if (n < 2) return 1                       # 이름 하나뿐 — 선언이 아니다
         if (arr[n] ~ /[(]/) return 1              # 메서드·생성자
         if (arr[1] ~ /[(]/) return 1              # 초기화 목록이 붙은 생성자
+        # 몸통 없는 게터 선언(`String get id;`) — 게터는 값을 담지 못한다.
+        # `=>` 로 몸통을 쓰는 게터는 declPart 가 이미 걸러 내지만, 추상
+        # 클래스·인터페이스의 게터 선언은 여기까지 온다 (round 6 오탐).
+        if (n >= 3 && arr[n - 1] == "get") return 1
         if (arr[1] == "const") return 1
         if (arr[1] == "static" && arr[2] == "const") return 1
         if (arr[1] != "final") return 0           # var·late·수식어 없음·static
@@ -474,6 +550,13 @@ if [ -d "$LOC_DIR" ]; then
       function emit(stmt, depth, ln,   decl) {
         sub(/^ +/, "", stmt); sub(/ +$/, "", stmt)
         if (stmt == "") return
+        # enum 몸통의 **첫 문장**은 값 나열이지 선언이 아니다. Dart 는 값
+        # 목록 뒤에 멤버가 하나라도 오면 `;` 를 요구하는데, 그 `;` 로 끝나는
+        # 줄을 옛 검사가 "값을 담아 둘 자리"로 읽어 `enum E { a, b; bool get
+        # x => ...; }` 를 exit 2 로 냈다 (round 6 의 거부 사유). Dart 문법이
+        # 값 나열을 몸통의 첫 자리에 못 박으므로, 여기서 첫 문장 하나만
+        # 건너뛰어도 그 뒤의 필드는 전부 그대로 지난다.
+        if (enumHead[depth]) { enumHead[depth] = 0; return }
         decl = declPart(stmt)
         if (decl == "") return                    # 함수·게터·헤더 — 값 자리가 아니다
         if (depth == 0) {
@@ -536,9 +619,10 @@ if [ -d "$LOC_DIR" ]; then
               emit(hdr, bd, sline)
               bd++
               kind[bd] = (hdr ~ /(^|[^A-Za-z0-9_$])(class|enum|mixin|extension)[ ]/) ? 1 : 0
+              enumHead[bd] = (hdr ~ /(^|[^A-Za-z0-9_$])enum[ ]/) ? 1 : 0
               cur = ""
             } else {
-              bd++; kind[bd] = 0; cur = cur c
+              bd++; kind[bd] = 0; enumHead[bd] = 0; cur = cur c
             }
             continue
           }

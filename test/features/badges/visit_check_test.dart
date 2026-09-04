@@ -141,25 +141,136 @@ String _classBody(String source, String name) {
   fail('$name 의 닫는 중괄호를 찾지 못했다');
 }
 
+/// 클래스 몸통을 **문장 단위**로 끊어 돌려준다 — 들여쓰기를 보지 않는다.
+///
+/// 주석과 문자열을 걷어 내고, 괄호·대괄호 밖의 중괄호로 깊이를 세고, 깊이 0
+/// 에서 괄호 밖의 `;` 를 만날 때 문장 하나를 끊는다. 메서드 몸통을 여는 `{`
+/// 는 깊이를 올리고 모아 둔 것을 버리므로, 그 안의 지역 변수는 여기 오지
+/// 않는다. `({required this.x})` 처럼 **괄호 안의** 중괄호는 깊이를 바꾸지
+/// 않아서 생성자 하나가 문장 하나로 남는다.
+///
+/// `check-no-location-upload.sh` 의 검사 4) 가 쓰는 것과 같은 방식이고, 까닭도
+/// 같다: 표기가 아니라 구조로 자리를 정해야 들여쓰기를 바꾸는 것만으로 파수꾼
+/// 을 지나가지 못한다.
+List<String> _classLevelStatements(String body) {
+  final out = <String>[];
+  final buf = StringBuffer();
+  var depth = 0; // 클래스 몸통 안이 0, 메서드 몸통 안이 1 이상
+  var paren = 0;
+  String? quote;
+
+  void keep(String c) {
+    if (depth == 0) buf.write(c);
+  }
+
+  for (var i = 0; i < body.length; i++) {
+    final c = body[i];
+    if (quote != null) {
+      if (c == r'\') {
+        i++;
+      } else if (c == quote) {
+        quote = null;
+      }
+      continue;
+    }
+    if (c == '/' && i + 1 < body.length && body[i + 1] == '/') {
+      while (i < body.length && body[i] != '\n') {
+        i++;
+      }
+      keep(' ');
+      continue;
+    }
+    if (c == '/' && i + 1 < body.length && body[i + 1] == '*') {
+      i += 2;
+      while (i + 1 < body.length && !(body[i] == '*' && body[i + 1] == '/')) {
+        i++;
+      }
+      i++;
+      keep(' ');
+      continue;
+    }
+    if (c == "'" || c == '"') {
+      quote = c;
+      keep(c);
+      continue;
+    }
+    if (c == '(' || c == '[') {
+      paren++;
+      keep(c);
+      continue;
+    }
+    if (c == ')' || c == ']') {
+      paren--;
+      keep(c);
+      continue;
+    }
+    if (c == '{') {
+      if (paren == 0) {
+        depth++;
+        buf.clear();
+      } else {
+        keep(c);
+      }
+      continue;
+    }
+    if (c == '}') {
+      if (paren == 0) {
+        if (depth > 0) depth--;
+        buf.clear();
+      } else {
+        keep(c);
+      }
+      continue;
+    }
+    if (c == ';' && paren == 0) {
+      if (depth == 0) {
+        final stmt = buf.toString().replaceAll(RegExp(r'\s+'), ' ').trim();
+        if (stmt.isNotEmpty) out.add('$stmt;');
+      }
+      buf.clear();
+      continue;
+    }
+    keep(c);
+  }
+  return out;
+}
+
 /// 클래스 몸통이 **선언한 값 자리**를 이름→선언 앞부분 표로 편다.
 ///
-/// 두 칸 들여쓴 줄 중 이름 뒤에 `;` 나 `=` 가 오는 것만 보므로, 메서드·생성자
-/// (이름 뒤에 `(` 가 온다)와 메서드 안의 지역 변수(더 깊이 들여쓴다)는 섞이지
-/// 않는다. 표에 담는 값이 타입만이 아니라 **수식어까지**(`static`·`final`·
-/// `var`·`get`) 인 것이 옛 `^  final (.+) (\w+);$` 정규식과 다른 점이다:
-/// 그 정규식은 `final` 로 시작하지 않는 선언을 아예 보지 못해서
-/// `static DeviceFix? lastSpot;` 한 줄이 파수꾼과 훅을 함께 통과했고, 그 필드는
-/// `StadiumVisitResult.lastSpot!.lat` 으로 라이브러리 밖에서 읽혔다
-/// (4.1 round 3 지휘자 재현 — 경계 시험 30개·`check-no-location-upload.sh`
-/// 전부 초록불이었다).
-Map<String, String> _declaredStorage(String body) => {
-  for (final match in RegExp(
-    r'^  ((?:static |late |final |const |var |covariant )*'
+/// 이름 뒤에 `;` 나 `=` 가 오는 문장만 보므로, 메서드·생성자(이름 뒤에 `(` 가
+/// 온다)와 메서드 안의 지역 변수는 섞이지 않는다. 표에 담는 값이 타입만이
+/// 아니라 **수식어까지**(`static`·`final`·`var`·`get`) 인 것이 옛
+/// `^  final (.+) (\w+);$` 정규식과 다른 점이다: 그 정규식은 `final` 로
+/// 시작하지 않는 선언을 아예 보지 못해서 `static DeviceFix? lastSpot;` 한 줄이
+/// 파수꾼과 훅을 함께 통과했고, 그 필드는 `StadiumVisitResult.lastSpot!.lat`
+/// 으로 라이브러리 밖에서 읽혔다 (4.1 round 3 지휘자 재현 — 경계 시험 30개·
+/// `check-no-location-upload.sh` 전부 초록불이었다).
+///
+/// **round 6 이 고친 것은 이 표가 `^  `(두 칸 들여쓰기)에 못 박혀 있었다는
+/// 것이다.** `StadiumVisitResult` 에 `final DeviceFix? at;` 를 **네 칸**
+/// 들여쓰고 생성자에 `this.at` 을 더하면 그 필드가 이 표에 아예 들어오지
+/// 않아서, 훅 4종·`flutter analyze`·시험 665개가 전부 초록불인 채로 실 좌표가
+/// 라이브러리 밖에서 읽혔다(round 6 의 검증자 재현). 겹 4 의 훅은 같은
+/// 라운드에 이미 줄에서 문장으로 옮겼는데 이 파수꾼만 줄에 남아 있어서, 겹 4
+/// 와 겹 5 의 세기가 어긋나 있었다. 이제 [_classLevelStatements] 가 구조로
+/// 자리를 정하므로 네 칸이든 여덟 칸이든 탭이든 한 줄이든 같은 자리로 온다.
+///
+/// **이것이 표기 우회를 없애 주지는 않는다.** 이 함수는 여전히 소스 텍스트를
+/// 보고, 문자열·주석을 걷어 내는 방식도 거친 파서다 — `visit_check.dart` 첫
+/// 문단의 "이 파수꾼들이 막는 것" 문단이 그 세기를 적어 둔다. 다만 파서가
+/// 어긋나면 표가 기대와 달라져 **빨간불**이 된다(조용히 통과하지 않는다).
+Map<String, String> _declaredStorage(String body) {
+  final decl = RegExp(
+    r'^((?:@[A-Za-z_$][A-Za-z0-9_$]*(?:\([^)]*\))? )*'
+    r'(?:static |late |final |const |var |covariant )*'
     r'[A-Za-z_][A-Za-z0-9_<>?,.() ]*?) (\w+) *(?:;|=)',
-    multiLine: true,
-  ).allMatches(body))
-    match.group(2)!: match.group(1)!,
-};
+  );
+  return {
+    for (final stmt in _classLevelStatements(body))
+      if (decl.firstMatch(stmt) case final match?)
+        match.group(2)!: match.group(1)!,
+  };
+}
 
 /// 소스의 **코드 줄**이 각각 어느 최상위 선언 안에 있는지를 이름으로 붙여
 /// 돌려준다.
@@ -260,10 +371,17 @@ List<({String owner, String compact, String snippet})> _compactedDeclarations(
 /// (홈 상단 현재 위치)가 이 폴더에 파일을 하나 더 두면 그 파일도 같은 단언을
 /// 지나야 한다 — round 4 이전에는 `visit_check.dart` 만 읽어서, 그 옆에 파일을
 /// 하나 두는 것만으로 아래 단언 전부가 시야 밖이 되었다.
+///
+/// **하위 폴더까지 훑는다** (`recursive: true`). round 6 이전에는 한 겹만
+/// 훑어서, 이 폴더에 하위 폴더가 생기는 순간 그 안의 파일이 이 파수꾼의 시야
+/// 밖이었다 — 짝인 `check-no-location-upload.sh` 는 `find` 로 처음부터
+/// 재귀적으로 보고 있었으므로(하위 폴더의 금지 import·`part`·저장소 필드가
+/// 전부 exit 2 인 것을 실측했다) 그동안 훅과 이 파수꾼의 시야가 갈려 있었다.
+/// 5.2 가 하위 폴더를 만들면 그 어긋남이 곧 구멍이 된다.
 Map<String, String> _locationSources() {
   final files =
       Directory('lib/location')
-          .listSync()
+          .listSync(recursive: true)
           .whereType<File>()
           .where((file) => file.path.endsWith('.dart'))
           .toList()
