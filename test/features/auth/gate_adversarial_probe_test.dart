@@ -11,6 +11,8 @@
 library;
 
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -22,6 +24,7 @@ import 'package:kbo_away_fans/content/content_providers.dart';
 import 'package:kbo_away_fans/content/models.dart';
 import 'package:kbo_away_fans/features/auth/sign_in_screen.dart';
 import 'package:kbo_away_fans/features/home/home_screen.dart';
+import 'package:kbo_away_fans/features/places/stadium_places_screen.dart';
 import 'package:kbo_away_fans/features/team_select/selected_team.dart';
 import 'package:kbo_away_fans/features/team_select/team_select_screen.dart';
 import 'package:kbo_away_fans/ui/shared/social_sign_in_button.dart';
@@ -394,6 +397,100 @@ void main() {
         reason: '게이트가 화면을 걷어가지 않았는데 버튼 셋이 영구히 잠겼다 — '
             '앱을 다시 켜는 것 말고 나갈 길이 없다',
       );
+    });
+  });
+
+  group('탐침 5 — 탭 골격(step 3.1) 도입 후에도 서는가', () {
+    // 탐침 2b/2c 는 홈(탭 0)에서 민 화면으로 이미 이 보장을 잰다 — 홈도 이제
+    // 탭 골격 안의 탭별 Navigator 하나일 뿐이라 같은 구멍을 잡아낸다. 이
+    // 시험은 그것을 **다른** 탭(추천)에서 되풀이해, "그 Navigator 가 어느
+    // 탭의 것이든" 이라는 주장을 이름으로 못 박는다 — 탭이 다섯으로 늘어난
+    // 뒤에도 IndexedStack 의 다섯 형제 Navigator 는 전부 같은 자리(게이트가
+    // 조건부로 갈아 끼우는 그 위치) 아래 있으므로 하나가 서면 나머지도 선다.
+    testWidgets('홈이 아닌 탭에서 민 화면과 탭 바 자체가 로그아웃과 함께 걷힌다', (
+      tester,
+    ) async {
+      SharedPreferences.setMockInitialValues({});
+      // 캐시는 계정에 매여 있다 — 이 계정의 것으로 심어야 첫 프레임이 그려진다.
+      await const SelectedTeamStore().write(_user.uid, 'lg');
+
+      Map<String, Object?> readJson(String path) =>
+          jsonDecode(File(path).readAsStringSync()) as Map<String, Object?>;
+      final teamsDoc = TeamsDocument.fromJson(
+        readJson('content-pipeline/data/teams.json'),
+      );
+      final stadiumsDoc = StadiumsDocument.fromJson(
+        readJson('content-pipeline/data/stadiums.json'),
+      );
+      final placesDoc = PlacesDocument.fromJson(
+        readJson('content-pipeline/data/places.json'),
+      );
+      final emptySchedule = ScheduleDocument(
+        generatedAt: DateTime.utc(2026),
+        games: const [],
+      );
+
+      final auth = fakeAuth(signedIn: _user);
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authServiceProvider.overrideWithValue(auth),
+            teamsProvider.overrideWith(
+              (ref) async => ContentFresh<TeamsDocument>(teamsDoc),
+            ),
+            stadiumsProvider.overrideWith(
+              (ref) async => ContentFresh<StadiumsDocument>(stadiumsDoc),
+            ),
+            placesProvider.overrideWith(
+              (ref) async => ContentFresh<PlacesDocument>(placesDoc),
+            ),
+            scheduleProvider.overrideWith(
+              (ref) async => ContentFresh<ScheduleDocument>(emptySchedule),
+            ),
+          ],
+          child: const KboAwayFansApp(),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byType(HomeScreen), findsOneWidget);
+      expect(find.byType(BottomNavigationBar), findsOneWidget);
+
+      // 추천 탭으로 옮겨, 홈이 아닌 다른 탭-로컬 Navigator 에서 화면을 민다.
+      await tester.tap(find.text('추천'));
+      await _turn(tester);
+      final firstStadium = stadiumsDoc.stadiums.first.name;
+      await tester.tap(find.text(firstStadium));
+      await _turn(tester);
+      expect(find.byType(StadiumPlacesScreen).hitTestable(), findsOneWidget);
+
+      await auth.signOut();
+      await _turn(tester);
+      final pushedLeft = find
+          .byType(StadiumPlacesScreen)
+          .hitTestable()
+          .evaluate()
+          .length;
+      final tabBarLeft = find.byType(BottomNavigationBar).evaluate().length;
+      final signInVisible = find
+          .byType(SignInScreen)
+          .hitTestable()
+          .evaluate()
+          .length;
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      await _turn(tester, 3);
+
+      expect(
+        pushedLeft,
+        0,
+        reason: '탭 골격을 도입한 뒤에도 홈이 아닌 탭에서 민 화면이 로그아웃 뒤에 남으면 안 된다',
+      );
+      expect(
+        tabBarLeft,
+        0,
+        reason: '탭 바(그 아래 다섯 개의 탭별 Navigator)도 로그아웃과 함께 걷힌다',
+      );
+      expect(signInVisible, 1);
     });
   });
 }
