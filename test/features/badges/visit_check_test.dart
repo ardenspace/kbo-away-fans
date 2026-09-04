@@ -58,6 +58,7 @@ import 'package:kbo_away_fans/weather/weather.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../backend/fake_backend.dart';
+import '../../location/fake_location_permission_gateway.dart';
 
 /// 잠실야구장 좌표(stadiums.json 과 같은 값의 근사) — 반경 계산의 기준점.
 const double _jamsilLat = 37.5121;
@@ -85,6 +86,25 @@ StadiumVisitCandidate _jamsilTonight({String gameId = 'g-jamsil'}) =>
       gameId: gameId,
       stadiumId: 'jamsil',
       startsAt: DateTime.parse('2026-08-25T18:30:00+09:00'),
+      lat: _jamsilLat,
+      lng: _jamsilLng,
+    );
+
+/// 이유 한 갈래를 짓는 입력 한 벌.
+typedef _ReasonCase = ({
+  List<StadiumVisitCandidate> candidates,
+  DateTime now,
+  LocationPermissionStatus permission,
+  DeviceFix? fix,
+});
+
+/// 잠실에서 [startsAtKst] 에 시작하는 경기 하나 — 시간 창 밖을 지으려면
+/// 시작 시각을 골라야 한다([_jamsilTonight] 은 18:30 으로 고정이다).
+StadiumVisitCandidate _jamsilStartingAt(String startsAtKst) =>
+    StadiumVisitCandidate(
+      gameId: 'g-jamsil',
+      stadiumId: 'jamsil',
+      startsAt: DateTime.parse(startsAtKst),
       lat: _jamsilLat,
       lng: _jamsilLng,
     );
@@ -129,7 +149,8 @@ class _RecordingChecker {
 ///
 /// 머리를 `'class <이름> {'` 라는 **부분 문자열**로 찾는다. 그래서 Dart 3 의
 /// class modifier 는 그냥 지나가지만(round 8 실측: `class StadiumVisitChecker`
-/// 를 `final class …` 로 바꿔도 이 파일의 시험 39개가 전부 초록불이다),
+/// 를 `final class …` 로 바꿔도 이 파일의 시험이 전부 초록불이다 — round 8 이
+/// 39개로, round 9 가 54개로 재었다),
 /// 머리에 `extends`·`with`·`implements` 절이 붙으면 그 이름을 **찾지 못한다**.
 /// 그때 조용히 지나가지 않고 `expect(head, isNonNegative)` 가 빨간불이 되므로
 /// 막히는 쪽으로 틀린다(round 8 실측: `with` 절을 붙이면 그 시험이 실패한다).
@@ -887,6 +908,149 @@ void main() {
 
       expect(result.isVisit, isTrue);
       expect(recorder.fixReads, 1);
+    });
+  });
+
+  group('이유 여섯 갈래가 판정기로 전부 도달한다', () {
+    // **왜 판정기 쪽으로 다시 재는가.** 위의 `judgeStadiumVisit` 시험들은 순수
+    // 판정 함수로 다섯 갈래를 재지만, 앱이 실제로 부르는 자리는
+    // `StadiumVisitChecker.check` 이고 그 메서드는 갈래 하나(`noGameToday`)를
+    // **판정 함수를 거치지 않고** 스스로 답한다. round 9 의 검증자가 그 틈을
+    // 쟀다: 판정기로 서는 갈래가 `permissionMissing`·`noGameToday`·`visited`
+    // 셋뿐이고 `locationUnavailable`·`outsideRadius`·`outsideTimeWindow` 는
+    // 판정기 쪽으로 한 번도 서지 않았다.
+    //
+    // 표로 두는 것은 **죽은 갈래를 못 만들게** 하기 위해서다 — 갈래를 더하거나
+    // 지우면 아래 첫 시험이 빨간불이 된다. 좌표는 여기서도 값으로만 다루므로
+    // 실기기 채널을 타지 않는다.
+    final byReason = <StadiumVisitReason, _ReasonCase>{
+      StadiumVisitReason.noGameToday: (
+        candidates: const <StadiumVisitCandidate>[],
+        now: DateTime.parse('2026-08-25T17:30:00+09:00'),
+        permission: LocationPermissionStatus.granted,
+        fix: _northOf(0),
+      ),
+      StadiumVisitReason.permissionMissing: (
+        candidates: [_jamsilTonight()],
+        now: DateTime.parse('2026-08-25T17:30:00+09:00'),
+        permission: LocationPermissionStatus.denied,
+        fix: _northOf(0),
+      ),
+      StadiumVisitReason.locationUnavailable: (
+        candidates: [_jamsilTonight()],
+        now: DateTime.parse('2026-08-25T17:30:00+09:00'),
+        permission: LocationPermissionStatus.granted,
+        fix: null,
+      ),
+      StadiumVisitReason.outsideRadius: (
+        candidates: [_jamsilTonight()],
+        now: DateTime.parse('2026-08-25T17:30:00+09:00'),
+        permission: LocationPermissionStatus.granted,
+        fix: _northOf(50000),
+      ),
+      // 낮 경기의 창이 닫힌 뒤, 같은 KST 날짜의 밤에 구장에 선 사람 — 후보
+      // 게이트는 달력 팔로 통과하고 반경도 안이지만 창 밖이다.
+      StadiumVisitReason.outsideTimeWindow: (
+        candidates: [_jamsilStartingAt('2026-08-25T13:00:00+09:00')],
+        now: DateTime.parse('2026-08-25T23:00:00+09:00'),
+        permission: LocationPermissionStatus.granted,
+        fix: _northOf(0),
+      ),
+      StadiumVisitReason.visited: (
+        candidates: [_jamsilTonight()],
+        now: DateTime.parse('2026-08-25T17:30:00+09:00'),
+        permission: LocationPermissionStatus.granted,
+        fix: _northOf(0),
+      ),
+    };
+
+    test('표가 이유 enum 전체를 덮는다', () {
+      expect(
+        byReason.keys.toSet(),
+        StadiumVisitReason.values.toSet(),
+        reason: '갈래를 더하거나 지우면 이 표를 함께 고치게 된다',
+      );
+    });
+
+    for (final entry in byReason.entries) {
+      test('${entry.key.name} 은 판정기(check)로 도달한다', () async {
+        final input = entry.value;
+        final result = await _RecordingChecker(
+          permission: input.permission,
+          fix: input.fix,
+        ).build().check(candidates: input.candidates, now: input.now);
+
+        expect(result.reason, entry.key);
+        expect(result.isVisit, entry.key == StadiumVisitReason.visited);
+      });
+
+      test('${entry.key.name} 에서 판정기와 순수 판정 함수의 답이 같다', () async {
+        final input = entry.value;
+        final fromChecker = await _RecordingChecker(
+          permission: input.permission,
+          fix: input.fix,
+        ).build().check(candidates: input.candidates, now: input.now);
+
+        // 판정기는 권한이 없으면 좌표를 읽지 않으므로, 판정 함수에 넣는 좌표도
+        // 그 갈래에서는 null 이다 — 두 자리가 같은 입력을 보게 맞춘다.
+        final granted = input.permission == LocationPermissionStatus.granted;
+        final fromJudge = judgeStadiumVisit(
+          permission: input.permission,
+          candidates: input.candidates,
+          now: input.now,
+          fix: granted ? input.fix : null,
+        );
+
+        expect(fromChecker.reason, fromJudge.reason);
+        expect(fromChecker.stadiumId, fromJudge.stadiumId);
+        expect(fromChecker.gameId, fromJudge.gameId);
+      });
+    }
+
+    test('창이 닫힌 뒤에도 그날 경기는 후보로 남는다 — 이유가 noGameToday 가 아니다', () {
+      // `outsideTimeWindow` 갈래가 후보 게이트에서 미리 사라지면 이유가 조용히
+      // `noGameToday` 로 바뀐다. 그 둘을 4.2·4.5 가 다른 신호로 쓴다.
+      final dayGame = _jamsilStartingAt('2026-08-25T13:00:00+09:00');
+      final night = DateTime.parse('2026-08-25T23:00:00+09:00');
+
+      expect(candidatesToJudge([dayGame], night), hasLength(1));
+      expect(visitWindowCovers(dayGame, night), isFalse);
+    });
+  });
+
+  group('판정기 provider 는 권한을 조회로만 읽는다', () {
+    // **왜 이 자리가 여기에도 있는가.** 같은 성질을
+    // `test/location/stadium_visit_fix_contract_test.dart` 가 이미 재는데,
+    // 그 파일은 이 단계의 경계 시험 목록에 없다. 그래서 계약이 적어 둔 경계
+    // 시험 한 줄만 도는 사람에게는 `readPermission` 을 `gateway.status` 에서
+    // `gateway.request` 로 바꾸는 변이가 초록불이었다(round 9 검증자 실측).
+    // 그 변이는 경기가 있는 날마다 앱을 열 때 OS 다이얼로그를 띄우는 것이고,
+    // 2.5 가 "온보딩에서 한 번 묻고 끝낸다"로 정한 결정(decisions.md
+    // 2026-09-01 `[M]`)이 코드에서 깨지는 자리다.
+    //
+    // 여기서는 **권한이 없는 갈래로** 잰다. 그러면 판정기가 좌표를 읽지 않아
+    // 실 측위 플러그인의 플랫폼 채널을 타지 않고도 provider 의 배선을 그대로
+    // 지난다 — 짝 시험이 플랫폼 인터페이스를 갈아 끼우는 것과 달리 이 파일은
+    // 그 채비 없이 선다.
+    test('거절한 사람에게 다시 묻지 않는다', () async {
+      final gateway = FakeLocationPermissionGateway(
+        initial: LocationPermissionStatus.denied,
+        afterRequest: LocationPermissionStatus.granted,
+      );
+      final container = ProviderContainer(
+        overrides: [
+          locationPermissionGatewayProvider.overrideWithValue(gateway),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final result = await container
+          .read(stadiumVisitCheckerProvider)
+          .check(candidates: [_jamsilTonight()], now: duringPregame);
+
+      expect(result.reason, StadiumVisitReason.permissionMissing);
+      expect(gateway.statusCalls, 1, reason: '조회는 한 번만 한다');
+      expect(gateway.requestCalls, 0, reason: '판정은 OS 다이얼로그를 띄우지 않는다');
     });
   });
 

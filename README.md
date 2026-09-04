@@ -31,6 +31,20 @@ git config core.hooksPath scripts/hooks   # pre-commit 훅 설치 (아래 참조
 git hook은 클론으로 전파되지 않으므로 위처럼 저장소 내 훅 경로를 1회 지정한다.
 이후 커밋마다 검사 4종이 작업 트리 전체를 훑어 위반 커밋을 막는다:
 
+`check-firebase-import-boundary.sh` 전체와 `check-no-location-upload.sh` 의
+`lib/location/` 쪽 검사들은 Dart 소스에서 **주석을 걷어 낸 사본**을 읽는다 —
+그 규칙은 `scripts/hooks/dart-source.sh` 한 자리에 있다. 이 저장소는 계층
+경계를 doc 주석에 적는 것이 관례인데, 그 전에는 그렇게 적기만 해도 커밋과
+CI 가 막혔다(`/// 경계: 좌표 플러그인(package:geolocator)은 …` 한 줄이
+exit 2 였다).
+
+**아직 원본을 읽는 자리가 둘 남아 있고 같은 오탐이 거기 있다**(둘 다 step
+1.6·1.9 가 세운 검사라 4.1 이 고치지 않고 적어만 둔다): `check-hardcoded-values.sh`
+는 주석에 적은 `Curves.easeIn` 에 exit 2 이고, `check-no-location-upload.sh` 의
+첫 검사(`lib/backend/` 의 좌표 필드명)는 주석에 적은 `latitude` 에 exit 2 다
+(둘 다 실측). `check-registry-sync.sh` 는 Dart 소스를 읽지 않아 이 종류의
+오탐이 없다.
+
 - `check-hardcoded-values.sh` — 토큰 밖 raw 디자인 값.
 - `check-registry-sync.sh` — 공유 폴더 ↔ REGISTRY.md 로스터 동기화.
 - `check-no-location-upload.sh` — 기기 위치는 서버에 올리지 않는다는 데이터 소유권
@@ -42,7 +56,9 @@ git hook은 클론으로 전파되지 않으므로 위처럼 저장소 내 훅 �
   `Zone.current.print` 같은 점 뒤 호출).
   (1) 의 허용 목록은 그 폴더가 **오늘 실제로 쓰는 것** 여섯뿐이다(`dart:math` ·
   `package:flutter_riverpod` · 좌표·권한 플러그인 둘 ·
-  `../content/kst.dart` · 같은 폴더의 파일). 거부 목록이 아니라 허용 목록인 것은
+  `../content/kst.dart` · 같은 폴더의 파일 — 그 폴더는 평평하게 두므로 "같은
+  폴더"가 말 그대로 참이고, 하위 폴더를 만들면 그 자체가 exit 2 다).
+  거부 목록이 아니라 허용 목록인 것은
   거부 목록이 세 번 샜기 때문이다 — `lib/backend/` 만 막던 검사가 `lib/analytics/`
   를 놓쳤고, 그 둘을 막은 검사가 `lib/content/content_providers.dart` 의
   `httpClientProvider` 와 `lib/weather/weather.dart` 의 `effectAt(lat:, lng:)` 를
@@ -117,10 +133,12 @@ git hook은 클론으로 전파되지 않으므로 위처럼 저장소 내 훅 �
 
 그 약속은 다섯 겹으로 서 있는데 **겹마다 지키는 것이 다르고, 겹마다 지키지
 못하는 것도 있다** — 겹 1(좌표 통로가 private)은 Dart 의 가시성과
-`test/features/badges/visit_check_test.dart` 의 소스 대조 파수꾼 여섯이(폴더
-전체 · geolocator 의 모든 별칭을 만지는 최상위 선언이 `_readDeviceFix`
-하나인가 · `part` 금지 · 통로를 부르는 줄 · 밖에서 값을 건네받는 두 서명 ·
-판정기의 필드 집합), 겹 2(플러그인 import 를 파일 하나로)는
+`test/features/badges/visit_check_test.dart` 의 소스 대조 파수꾼 **일곱**이
+(`part`·`part of` 금지 · geolocator 의 모든 별칭을 만지는 최상위 선언이
+`_readDeviceFix` 하나인가 · 그 통로를 이름으로 부르는 최상위 선언이 둘인가 ·
+`_readFix` 를 이름으로 쓰는 줄이 셋인가 · 밖에서 값을 건네받는 두 서명 ·
+판정기가 값을 두는 자리 · 측위 함수의 몸통 — **일곱 다 폴더 전체를 본다**),
+겹 2(플러그인 import 를 파일 하나로)는
 `check-firebase-import-boundary.sh` 가, 겹 3(내보낼 수단 없음)과 겹 4(담아 둘
 자리 없음)는 `check-no-location-upload.sh` 가, 겹 5(경계를 넘는 타입에 좌표
 없음, 후보 타입에 팀 id 없음)는 타입 파수꾼 셋이 지킨다.

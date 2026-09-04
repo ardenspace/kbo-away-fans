@@ -72,6 +72,25 @@
 # 검사 4) 의 topDecl(). **같은 개념을 두 자리에 따로 적으면 어긋남이 다시
 # 생긴다 — 이 스크립트를 고칠 때 그것부터 확인하십시오.**
 #
+# **round 9 의 거부 사유도 오탐이고, 뿌리는 이 검사들이 소스 텍스트만 보고
+# 주석을 가리지 못한 것이었다.** 검사 5) 의 주석 제외가 "줄 머리의 `//`"
+# 하나뿐이라, 블록 주석(`/* 이 폴더는 print(x) 로 좌표를 찍지 않는다. */`)과
+# 코드 뒤 꼬리 주석(`const double kStadiumVisitRadiusMeters = 300;  //
+# print(x) 금지`)이 exit 2 였다 — 이 파일들이 **규칙 자체를 서술하는 자리**인데
+# 그 규칙을 주석에 적으면 커밋과 CI 가 막혔다는 뜻이고, 이 스크립트 헤더와
+# `.wellbegun/decisions.md` 2026-09-04 `[S]` 가 적어 둔 "주석 줄은 뺀다"는
+# 문장까지 함께 거짓이었다. 같은 모양이 검사 2)·2-a)·2-c) 에도 있었다(구현자가
+# 스스로 공격해 찾았고 셋 다 실측했다): 블록 주석으로 감싼 `import`·`export`
+# 줄과, 블록 주석 안의 문자로 시작하는 줄이 각각 exit 2 였다.
+#
+# 그래서 이번에는 **주석을 걷어 내는 규칙을 저장소에서 한 번만 적고**
+# (`scripts/hooks/dart-source.sh`), 이 스크립트의 검사 2)~5) 와 짝 훅
+# (`check-firebase-import-boundary.sh`)이 그 사본을 함께 읽는다. 직전 라운드가
+# 선언 머리 읽기를 한 자리로 모은 것과 같은 종류의 정리다. **검사 4) 의 훑기가
+# 문자열을 여전히 스스로 알아보는 것은 목적이 다르기 때문이고**(문장을 끊는
+# `;`·`{` 가 문자열 안에 있는지를 가린다), 그 구분은 dart-source.sh 헤더에
+# 적혀 있다.
+#
 # 그리고 round 6 은 이 헤더가 "일부러 거절하는 정당한 모양은 아래 **둘**"이라고
 # **닫힌 목록**으로 적어 그 문장이 거짓이었던 것도 함께 거부 사유로 삼았고,
 # round 7 은 같은 종류의 닫힌 문장을 하나 더 찾았다(최상위 변수의 허용 집합을
@@ -104,6 +123,10 @@
 #      660개가 전부 초록불인 것을 재현했다. **이름을 하나씩 늘리는 방식은
 #      다섯 번째 계층이 생길 때 또 샌다** — 그래서 거부 목록을 버리고 이
 #      폴더가 import 할 수 있는 것을 열거한다.
+#
+#      **이 폴더는 평평하다** — 하위 폴더를 두지 않는다는 단언이 아래에 따로
+#      선다(round 9. 그 전에는 문서가 허용 목록을 "같은 폴더의 파일"이라고
+#      적는데 하위 폴더에서 부모를 부르는 평범한 줄이 걸렸다).
 #
 #      허용 목록은 **지금 이 폴더가 실제로 쓰는 것**뿐이다. 새 import 가
 #      필요해지면 그때 이 목록을 의도적으로 넓히고 ADR 을 남기게 되는데,
@@ -360,8 +383,12 @@
 #      전부(`debugPrintSynchronously`·`debugPrintThrottled`). 그 둘은 검사
 #      2) 가 dart:async·flutter/foundation 을 허용 목록에서 빼면서 이미
 #      닫혔지만, 같은 자리를 두 각도에서 받아 둔다.
+#      **주석은 전부 뺀다** — 줄 머리 주석도, 코드 뒤 꼬리 주석도, 블록
+#      주석도(round 9 에서 고쳤다. 그 전에는 줄 머리의 `//` 하나만 빠졌다).
 #      한계는 정직하게 적어 둔다: 이 검사가 잡는 것은 이름을 그대로 부르는
-#      줄뿐이고, 함수를 변수에 담아 부르는 우회는 잡지 못한다.
+#      줄뿐이고, 함수를 변수에 담아 부르는 우회는 잡지 못한다. 그리고 주석과
+#      달리 **문자열 리터럴 안의 `print(` 는 그대로 잡는다** — 사본이 문자열
+#      내용은 건드리지 않기 때문이고, 막히는 쪽으로 틀리는 것이다.
 #
 # **이 검사들이 원리적으로 막지 못하는 것.** dart:core 는 막을 수 없다 —
 # import 없이 서는 유일한 라이브러리이고 `print` 가 거기 있다(검사 5 가
@@ -373,9 +400,29 @@
 #
 # 위반은 stderr 에 찍고 exit 2 (Claude Code PostToolUse 훅이 읽는 신호).
 set -u
-cd "$(dirname "$0")/../.." || exit 1
+hook_dir=$(cd "$(dirname "$0")" && pwd) || exit 1
+cd "$hook_dir/../.." || exit 1
+. "$hook_dir/dart-source.sh" || exit 1
 
 fail=0
+
+# ─────────────────────────────────────────────────────────────────────────
+# 아래 검사 2)~5) 는 **주석을 걷어 낸 사본**을 읽는다 (round 9).
+# ─────────────────────────────────────────────────────────────────────────
+#
+# 주석을 걷어 내는 규칙은 scripts/hooks/dart-source.sh 한 자리에 있고 짝 훅
+# (check-firebase-import-boundary.sh)도 같은 자리를 쓴다. 그 파일이 왜
+# 생겼는지와 무엇을 하지 않는지가 거기 적혀 있다.
+#
+# **검사 1) 만 원본을 읽는다.** 그 검사는 step 1.9 의 것이고 lib/backend/ 를
+# 보므로 4.1 의 범위 밖이다 — 같은 종류의 오탐이 거기에도 남아 있다(실측:
+# lib/backend/ 의 어느 파일에 `// 이 계층은 latitude 를 올리지 않는다.` 한
+# 줄을 넣으면 exit 2 다). 고치려면 아래 사본의 자리 목록에 lib/backend 를
+# 더하고 그 검사도 사본을 읽게 하면 되지만, 그 결정은 그 검사를 세운 단계의
+# 몫이라 여기서는 적어만 둔다.
+MIRROR=$(mktemp -d) || exit 1
+trap 'rm -rf "$MIRROR"' EXIT
+dart_source_mirror "$MIRROR" lib/location lib/content/kst.dart || fail=2
 
 # 검사가 볼 자리가 사라지면 **조용히 건너뛰는 대신 드러난다.**
 #
@@ -409,6 +456,35 @@ if [ -d "$DIR" ]; then
 fi
 
 LOC_DIR="lib/location"
+
+# 이 폴더는 **평평하다** — 하위 폴더를 두지 않는다 (round 9 에서 못 박았다).
+#
+# 그 전에는 문서와 검사가 다른 말을 하고 있었다: 아래 허용 목록은 "같은 폴더의
+# 파일"이라고 적는데 그 마지막 갈래(`[A-Za-z0-9_]+[.]dart`)가 `/` 가 든 상대
+# 경로를 받지 않아, 하위 폴더를 만들면 그 안에서 부모를 부르는 평범한 줄이
+# 걸렸다(실측: `lib/location/sub/probe.dart` 의 `import '../visit_check.dart';`
+# 가 exit 2 였고, 메시지는 "허용 목록 밖의 import"라고만 말했다).
+#
+# 여는 대신 막는 쪽을 골랐다. 상대 경로에 `/` 를 열어 주려면 그 경로가 이 폴더
+# **안으로** 떨어지는지를 따로 재야 하는데(그러지 않으면 `../backend/…` 가 함께
+# 열린다), 그 규칙을 하나 더 두는 것보다 폴더를 평평하게 두는 쪽이 싸고, 이
+# 계층이 지키는 것과도 결이 같다: 허용 목록의 폴더 밖 문은 오늘 하나
+# (`../content/kst.dart`)이고 그 문에만 짝 검사가 셋 붙어 있다.
+#
+# 이 단언은 **자리를 옮기는 변경을 눈에 띄게** 한다. 정말 하위 폴더가 필요하면
+# 그때 이 단언과 허용 목록과 문서를 함께 고치고 ADR 을 남기게 된다. 겹 1 의
+# 파수꾼들과 아래 `find` 가 하위 폴더까지 재귀로 훑는 것은 그대로 두는데, 그것은
+# 이 단언이 없을 때를 위한 뒷받침이다.
+if [ -d "$LOC_DIR" ]; then
+  loc_sub_dirs=$(find "$LOC_DIR" -mindepth 1 -type d | sort)
+  if [ -n "$loc_sub_dirs" ]; then
+    {
+      echo "$LOC_DIR 에 하위 폴더가 있습니다 — 이 폴더는 평평하게 둡니다(아래 허용 목록의 \"같은 폴더의 파일\"이 말 그대로 참이도록). 정말 필요하면 이 단언과 허용 목록과 lib/location/CLAUDE.md 를 함께 고치고 ADR 을 남기십시오:"
+      echo "$loc_sub_dirs"
+    } >&2
+    fail=2
+  fi
+fi
 
 # ─────────────────────────────────────────────────────────────────────────
 # 선언 머리를 읽는 규칙 — 이 스크립트 안에서 **한 번만** 적는다.
@@ -507,6 +583,8 @@ DECL_KW_RE="^($DECL_KEYWORDS)$"
 #   package:permission_handler/permission_handler.dart — 권한 접점
 #   ../content/kst.dart                             — KST 달력
 #   <같은 폴더의 파일>.dart                          — 이 폴더 안의 파일끼리
+#                                                     (이 폴더는 평평하다 —
+#                                                      바로 위의 단언 참조)
 #
 # 같은 폴더 파일을 통째로 허용해도 새는 곳이 없는 것은, 그 파일들도 전부 이
 # 검사들을 그대로 지나기 때문이다(find 가 폴더 전체를 훑는다).
@@ -526,14 +604,9 @@ if [ -d "$LOC_DIR" ]; then
   uri_scan=$(find "$LOC_DIR" -type f -name '*.dart' | sort | while read -r dart_file; do
     awk -v ALLOW="$ALLOWED_URI" -v FNAME="$dart_file" '
       function report(msg) { printf "%s:%d: %s\n", FNAME, ln, msg }
+      # 주석은 dart-source.sh 가 이미 걷어 냈다 — 여기서 다시 보지 않는다.
       {
         line = $0
-        trimmed = line
-        sub(/^[[:space:]]+/, "", trimmed)
-        if (trimmed ~ /^\/\//) next
-        # 지시자의 URI 에는 "//" 가 없으므로 줄 주석은 그냥 잘라 낸다.
-        sub(/\/\/.*$/, "", line)
-
         if (buf == "") {
           if (line ~ /^[[:space:]]*(import|export)[[:space:]]+["'"'"']/) { buf = line; ln = FNR }
           else if (line ~ /^[[:space:]]*part[[:space:]]+(["'"'"']|of[[:space:]])/) { buf = line; ln = FNR }
@@ -562,7 +635,7 @@ if [ -d "$LOC_DIR" ]; then
         if (!seen) { sub(/^[[:space:]]+/, "", stmt); report("URI 를 읽지 못한 지시자 — " stmt) }
       }
       END { if (buf != "") report("닫히지 않은 지시자 — " buf) }
-    ' "$dart_file" || printf 'AWKFAIL\t%s\n' "$dart_file"
+    ' "$MIRROR/$dart_file" || printf 'AWKFAIL\t%s\n' "$dart_file"
   done)
 
   uri_awk_fail=$(printf '%s\n' "$uri_scan" | sed -n 's/^AWKFAIL\t//p')
@@ -588,7 +661,7 @@ if [ -d "$LOC_DIR" ]; then
   DOOR="lib/content/kst.dart"
   if [ -f "$DOOR" ]; then
     # 2-a) 재수출도, part 도 없다.
-    door_hits=$(grep -nE "^[[:space:]]*(export|part)[[:space:]]" "$DOOR" 2>/dev/null)
+    door_hits=$(grep -nE "^[[:space:]]*(export|part)[[:space:]]" "$MIRROR/$DOOR" 2>/dev/null)
     if [ -n "$door_hits" ]; then
       {
         echo "$DOOR 이 라이브러리 경계를 넓힙니다 — 이 파일은 $LOC_DIR 허용 목록의 유일한 폴더 밖 문이라, export 는 곧 그 허용 목록에 이름을 몰래 더하는 것이고 part 는 아래 공개 이름 검사의 시야 밖에서 이름을 더하는 것입니다:"
@@ -598,7 +671,7 @@ if [ -d "$LOC_DIR" ]; then
     fi
 
     # 2-b) 그 문 자신의 import 도 허용 목록 안에만 있다.
-    door_uris=$(grep -oE "^[[:space:]]*import[[:space:]]+[\"'][^\"']*[\"']" "$DOOR" 2>/dev/null \
+    door_uris=$(grep -oE "^[[:space:]]*import[[:space:]]+[\"'][^\"']*[\"']" "$MIRROR/$DOOR" 2>/dev/null \
       | sed -E "s/^[[:space:]]*import[[:space:]]+[\"']//; s/[\"']\$//" \
       | grep -vxE 'models[.]dart' | sort -u)
     if [ -n "$door_uris" ]; then
@@ -623,11 +696,10 @@ kstOffset'
     # 선언 머리는 위 DECL_AWK 의 declHead() 하나로 읽는다 — 검사 4) 의 두
     # 자리와 같은 수식어 집합·같은 이름 추출이다.
     door_actual=$(awk -v DECL_MOD_RE="$DECL_MOD_RE" -v DECL_KW_RE="$DECL_KW_RE" "$DECL_AWK"'
-      /^[[:space:]]*\/\// { next }
+      # 주석은 dart-source.sh 가 이미 걷어 냈다.
       /^(import|export|part|library)([[:space:]]|;)/ { next }
       /^[A-Za-z_$]/ {
         line = $0
-        sub(/\/\/.*$/, "", line)
         hdN = topTokens(line, hdArr)
         head = declHead(hdArr, hdN, hd)
         if (head == 1) { print hd["name"]; next }
@@ -636,7 +708,7 @@ kstOffset'
         }
         print "?" line
       }
-    ' "$DOOR")
+    ' "$MIRROR/$DOOR")
     # awk 의 종료 상태는 대입 **직후**에만 남는다 — 파이프 뒤로 미루면 사라진다.
     door_awk_status=$?
     door_actual=$(printf '%s\n' "$door_actual" | grep -v '^_' | grep -v '^$' | sort -u)
@@ -703,9 +775,9 @@ if [ -d "$LOC_DIR" ]; then
         for (i = 1; i <= m; i++) if (rt[i] ~ /^Function[(<]/) return 1
         return 0
       }
+      # 주석은 dart-source.sh 가 이미 걷어 냈다.
       /^[A-Za-z_$]/ {
         line = $0
-        sub(/\/\/.*$/, "", line)
         n = topTokens(line, arr)
         if (declHead(arr, n, hd) != 1) next
         if (hd["kw"] == "typedef") {
@@ -717,7 +789,7 @@ if [ -d "$LOC_DIR" ]; then
         if (hd["kw"] == "class" || hd["kw"] == "enum" || hd["kw"] == "mixin")
           print "TYPE\t" hd["name"]
       }
-    ' "$dart_file" || printf 'AWKFAIL\t%s\n' "$dart_file"
+    ' "$MIRROR/$dart_file" || printf 'AWKFAIL\t%s\n' "$dart_file"
   done)
 
   decl_awk_fail=$(printf '%s\n' "$decl_scan" | sed -n 's/^AWKFAIL\t//p')
@@ -1044,19 +1116,10 @@ if [ -d "$LOC_DIR" ]; then
             continue
           }
 
-          if (c == "/" && substr(src, i + 1, 1) == "/") {      # 줄 주석
-            while (i <= len && substr(src, i, 1) != "\n") i++
-            c = "\n"
-          } else if (c == "/" && substr(src, i + 1, 1) == "*") { # 블록 주석
-            i += 2
-            while (i < len && !(substr(src, i, 1) == "*" && substr(src, i + 1, 1) == "/")) {
-              if (substr(src, i, 1) == "\n") line++
-              i++
-            }
-            i++
-            c = " "
-          }
-
+          # 주석은 dart-source.sh 가 이미 걷어 냈다 — 이 훑기는 문자열만
+          # 알아본다(문장을 끊는 ";"·"{" 가 문자열 안에 있는지를 가리려는
+          # 것이라, 주석을 가리는 것과 목적이 다르다. 그 구분은
+          # dart-source.sh 의 헤더에 적혀 있다).
           if (c == "\n") { line++; c = " " }
           if (c == " " || c == "\t" || c == "\r") {
             if (cur != "" && substr(cur, length(cur), 1) != " ") cur = cur " "
@@ -1101,7 +1164,7 @@ if [ -d "$LOC_DIR" ]; then
         }
         emit(cur, bd, sline)
       }
-    ' "$dart_file" || printf 'AWKFAIL\t%s\n' "$dart_file"
+    ' "$MIRROR/$dart_file" || printf 'AWKFAIL\t%s\n' "$dart_file"
   done)
 
   awk_fail=$(printf '%s\n' "$scan" | sed -n 's/^AWKFAIL\t//p')
@@ -1184,11 +1247,18 @@ fi
 # `print` 는 dart:core 라 import 가 없어서 검사 2) 의 허용 목록이 원리상 닿지
 # 못한다. 점 뒤에서 부르는 꼴(`Zone.current.print(...)`)과 `debugPrint` 로
 # 시작하는 이름 전부(`debugPrintSynchronously` 등)를 함께 잡는다.
-# 주석 줄은 뺀다(이 파일들이 규칙 자체를 서술하는 자리다).
+# **주석은 전부 뺀다**(이 파일들이 규칙 자체를 서술하는 자리다). round 9 까지
+# 그 제외가 "줄 머리의 `//`" 하나뿐이라, 블록 주석(`/* … print(x) … */`)과
+# 코드 뒤 꼬리 주석(`const int kProbe = 1; // print(x) 금지`)이 exit 2 였다
+# (실측). 이제 dart-source.sh 가 걷어 낸 사본을 본다.
 if [ -d "$LOC_DIR" ]; then
-  log_hits=$(grep -rnE --include='*.dart' \
-    '\b(print|debugPrint[A-Za-z]*)[[:space:]]*\(' "$LOC_DIR" 2>/dev/null \
-    | grep -vE '^[^:]+:[0-9]+:[[:space:]]*//')
+  log_hits=$( (cd "$MIRROR" || exit 9; grep -rnE --include='*.dart' \
+    '\b(print|debugPrint[A-Za-z]*)[[:space:]]*\(' "$LOC_DIR") 2>/dev/null )
+  log_status=$?
+  if [ "$log_status" -gt 1 ]; then
+    echo "검사 5) 가 주석을 걷어 낸 사본을 읽지 못했습니다 — 검사가 조용히 통과하는 대신 여기서 멈춥니다." >&2
+    fail=2
+  fi
   if [ -n "$log_hits" ]; then
     {
       echo "$LOC_DIR 이 콘솔·기기 로그에 값을 적습니다 (좌표는 이 계층 안에서 태어나 그 안에서 죽는다):"

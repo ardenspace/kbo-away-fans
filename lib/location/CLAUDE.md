@@ -143,6 +143,13 @@
      (`dart:math` · `package:flutter_riverpod` · `package:geolocator` ·
      권한 플러그인 · `../content/kst.dart` · 같은 폴더의 파일),
      `export`·`part` 는 쓰지 않으며, 콘솔에 찍지도 못한다.
+     **이 폴더는 평평하다** — 하위 폴더를 두면 훅이 exit 2 다(round 9).
+     그 전에는 허용 목록의 마지막 갈래가 `/` 가 든 상대 경로를 받지 않아
+     하위 폴더에서 부모를 부르는 평범한 줄이 걸렸는데, 훅은 "허용 목록 밖의
+     import"라고만 말하고 이 문서는 "같은 폴더의 파일"이라고 적어 둘이 다른
+     말을 하고 있었다. 여는 대신 막는 쪽을 골랐다 — 까닭과 무른 쪽은
+     `.wellbegun/decisions.md` 2026-09-05 `[S]` 에 있다. 정말 필요하면 훅의
+     단언과 허용 목록과 이 문단을 함께 고치고 ADR 을 남기십시오.
      **지키는 것:** `check-no-location-upload.sh` 의 검사 2)·3)·5) 와, 허용
      목록의 유일한 폴더 밖 문(`lib/content/kst.dart`)에 붙는 짝 검사 **셋** —
      그 파일에 `export`·`part` 가 없고, 그 파일 자신의 import 도 허용
