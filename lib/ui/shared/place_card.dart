@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 
 import '../../design/tokens.dart';
+import 'like_button.dart';
 
-/// 추천 장소 카드 (샤라웃 출처 뱃지 포함).
+/// 추천 장소 카드 (샤라웃 출처 뱃지 포함, 좋아요 토글 포함).
 ///
-/// 추천 목록·미리보기 어디서든 이 카드로 렌더한다.
+/// 추천 목록·미리보기 어디서든 이 카드로 렌더한다. 좋아요 버튼은
+/// [onLikeChanged] 를 줄 때만 뜬다 — 없으면 자리 자체를 두지 않는다
+/// ([ContentFallback] 이 `onRetry` 없을 때 버튼을 두지 않는 것과 같은 규칙).
 class PlaceCard extends StatelessWidget {
   const PlaceCard({
     super.key,
@@ -12,6 +15,9 @@ class PlaceCard extends StatelessWidget {
     required this.categoryLabel,
     this.shoutoutSource,
     this.onTap,
+    this.liked = false,
+    this.onLikeChanged,
+    this.onLikeFailed,
   });
 
   /// 장소 이름.
@@ -26,9 +32,19 @@ class PlaceCard extends StatelessWidget {
   /// 카드 탭 콜백 (보통 PlaceDetailSheet 열기).
   final VoidCallback? onTap;
 
+  /// 지금까지 알려진 좋아요 상태.
+  final bool liked;
+
+  /// 좋아요 상태를 서버에 쓴다 — 주지 않으면 좋아요 버튼 자체가 없다.
+  final Future<void> Function(bool liked)? onLikeChanged;
+
+  /// 좋아요 쓰기 실패를 화면에 알리는 경로.
+  final void Function(Object error)? onLikeFailed;
+
   @override
   Widget build(BuildContext context) {
     final source = shoutoutSource;
+    final onLikeChanged = this.onLikeChanged;
 
     return Material(
       color: ColorTokens.surface,
@@ -41,7 +57,17 @@ class PlaceCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(name, style: TextTokens.sectionTitle),
+              Row(
+                children: [
+                  Expanded(child: Text(name, style: TextTokens.sectionTitle)),
+                  if (onLikeChanged != null)
+                    LikeButton(
+                      liked: liked,
+                      onChanged: onLikeChanged,
+                      onFailed: onLikeFailed,
+                    ),
+                ],
+              ),
               const SizedBox(height: SpaceTokens.sm),
               Row(
                 children: [

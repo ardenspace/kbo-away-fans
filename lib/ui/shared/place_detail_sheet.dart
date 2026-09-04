@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 
 import '../../design/tokens.dart';
+import 'like_button.dart';
 
-/// 장소 상세 바텀시트 (지도 진입·길안내·OS 공유 진입점). 장소 카드 탭 시 띄운다.
+/// 장소 상세 바텀시트 (지도 진입·길안내·OS 공유 진입점, 좋아요 토글 포함).
+///
+/// 장소 카드 탭 시 띄운다. 좋아요 버튼은 [onLikeChanged] 를 줄 때만 뜬다.
 class PlaceDetailSheet extends StatelessWidget {
   const PlaceDetailSheet({
     super.key,
@@ -13,6 +16,9 @@ class PlaceDetailSheet extends StatelessWidget {
     this.onOpenMap,
     this.onDirections,
     this.onShare,
+    this.liked = false,
+    this.onLikeChanged,
+    this.onLikeFailed,
   });
 
   /// 장소 이름.
@@ -36,6 +42,15 @@ class PlaceDetailSheet extends StatelessWidget {
   /// OS 공유 시트 진입 콜백.
   final VoidCallback? onShare;
 
+  /// 지금까지 알려진 좋아요 상태.
+  final bool liked;
+
+  /// 좋아요 상태를 서버에 쓴다 — 주지 않으면 좋아요 버튼 자체가 없다.
+  final Future<void> Function(bool liked)? onLikeChanged;
+
+  /// 좋아요 쓰기 실패를 화면에 알리는 경로.
+  final void Function(Object error)? onLikeFailed;
+
   /// 표준 진입점 — 모달 바텀시트로 띄운다.
   static Future<void> show(
     BuildContext context, {
@@ -46,6 +61,9 @@ class PlaceDetailSheet extends StatelessWidget {
     VoidCallback? onOpenMap,
     VoidCallback? onDirections,
     VoidCallback? onShare,
+    bool liked = false,
+    Future<void> Function(bool liked)? onLikeChanged,
+    void Function(Object error)? onLikeFailed,
   }) {
     return showModalBottomSheet<void>(
       context: context,
@@ -63,6 +81,9 @@ class PlaceDetailSheet extends StatelessWidget {
         onOpenMap: onOpenMap,
         onDirections: onDirections,
         onShare: onShare,
+        liked: liked,
+        onLikeChanged: onLikeChanged,
+        onLikeFailed: onLikeFailed,
       ),
     );
   }
@@ -71,6 +92,7 @@ class PlaceDetailSheet extends StatelessWidget {
   Widget build(BuildContext context) {
     final address = this.address;
     final description = this.description;
+    final onLikeChanged = this.onLikeChanged;
 
     return Padding(
       padding: const EdgeInsets.all(SpaceTokens.xl),
@@ -78,7 +100,17 @@ class PlaceDetailSheet extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(name, style: TextTokens.title),
+          Row(
+            children: [
+              Expanded(child: Text(name, style: TextTokens.title)),
+              if (onLikeChanged != null)
+                LikeButton(
+                  liked: liked,
+                  onChanged: onLikeChanged,
+                  onFailed: onLikeFailed,
+                ),
+            ],
+          ),
           const SizedBox(height: SpaceTokens.xs),
           Text(
             address == null ? categoryLabel : '$categoryLabel · $address',
