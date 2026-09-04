@@ -52,6 +52,17 @@ dev_dependencies:
   # 스트림을 실 SDK 와 같은 의미로 돌려 주는 것이 이 패키지의 몫이고, 규칙이
   # payload 를 받아 주는지는 에뮬레이터(`firebase/test/`)가 따로 잰다.
   fake_cloud_firestore: ^4.2.0
+  # `test/location/device_permission_handler_gateway_test.dart` 가
+  # `DevicePermissionHandlerGateway` **그 자체**를 돌리려고 위치 권한 플러그인의
+  # 플랫폼 인터페이스를 갈아 끼운다 (같은 까닭·같은 방식의 선례가 위 셋이다).
+  # 이 자리가 서기 전에는 실 구현의 어느 줄을 바꿔도 — 묻는 권한을 "항상
+  # 허용"으로 바꾸는 것까지 — 시험이 전부 초록불이었다. `permission_handler` 가
+  # 이미 끌어오는 패키지라 새로 받아 오는 것은 없다.
+  permission_handler_platform_interface: ^4.4.0
+  # 같은 시험의 "플랫폼이 영영 답하지 않는 실행"을 재려면 시간을 밀어야 한다 —
+  # 위젯 시험이 아니라 `tester.pump` 가 없다. `flutter_test` 가 이미 끌어오는
+  # 패키지라 새로 받아 오는 것은 없다.
+  fake_async: ^1.3.3
 
 # 런처 아이콘 생성 — 소스 한 장에서 iOS·Android 전 사이즈를 만든다.
 # 아이콘을 갈아끼울 때는 assets/icon/ 의 원본을 바꾸고
