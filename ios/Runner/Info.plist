@@ -4,6 +4,12 @@
 <dict>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
+	<!-- 온보딩 팀 선택 직후 설명과 함께 묻는 위치 권한(step 2.5) — 이 문구가
+	     없으면 permission_handler 의 요청이 앱을 그대로 종료시킨다. 포그라운드
+	     판정만 쓰므로 "항상 허용"(NSLocationAlwaysAndWhenInUseUsageDescription)
+	     은 요청하지 않는다 (.wellbegun/decisions.md 2026-09-01 [L]). -->
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>구장에 도착하면 도장을 찍어 드리고, 홈 화면에 지금 계신 곳을 보여드릴 때 위치를 사용해요.</string>
 	<key>LSApplicationQueriesSchemes</key>
 	<array>
 		<string>nmap</string>

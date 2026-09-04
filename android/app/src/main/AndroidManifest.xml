@@ -2,6 +2,15 @@
     <!-- 콘텐츠 JSON·지도 타일·날씨 API 등 앱 핵심 기능이 네트워크에 의존한다.
          플러그인 매니페스트 병합에 기대지 않고 본 매니페스트에 명시 선언. -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- 온보딩 팀 선택 직후 설명과 함께 묻는 위치 권한(step 2.5). 포그라운드
+         판정만 쓰므로 ACCESS_BACKGROUND_LOCATION 은 선언하지 않는다
+         (.wellbegun/decisions.md 2026-09-01 [L]: 구장 방문 확인은 앱이 열려
+         있을 때만 하는 포그라운드 판정). COARSE 도 함께 두는 것은 기기가
+         FINE 을 거부해도 permission_handler 의 요청 흐름이 이어지게 하려는
+         것으로, 두 권한 모두 같은 dangerous 그룹(location)이라 사용자가 보는
+         시스템 다이얼로그는 하나다. -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
     <application
         android:label="KBO 원정러"
         android:name="${applicationName}"
