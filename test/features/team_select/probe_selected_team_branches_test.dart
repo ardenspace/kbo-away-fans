@@ -394,6 +394,32 @@ void main() {
     expect(cache.writes, ['$uid|lg'], reason: '같은 값을 두 번 적었다');
   });
 
+  test('앞 계정에 적어 둔 값이 새 계정의 첫 프레임을 칠하지 않는다', () async {
+    // 캐시 provider 는 기기 저장에 **적어 낸 값**도 함께 들고 있다(늦게 끝난
+    // 읽기가 방금 적은 값을 덮지 않게 하는 자리). 그 기억에 소유 계정이 붙어
+    // 있지 않으면, 같은 실행에서 다른 계정으로 로그인한 사람이 스냅샷을
+    // 기다리는 구간에 앞사람의 팀으로 홈에 든다 — 기기 저장 쪽은 소유자를
+    // 적어 막고 있는데 기억 쪽에 구멍이 남는 모양이다.
+    store.holdProfiles = true;
+    final container = makeContainer();
+    await pumpEventQueue();
+
+    await container.read(selectedTeamIdProvider.notifier).select('lotte');
+    expect(container.read(cachedTeamIdProvider).value, 'lotte');
+
+    await auth.signOut();
+    await pumpEventQueue();
+    final next = await auth.signIn(AuthProviderId.google);
+    await pumpEventQueue();
+    expect(next.uid, isNot(uid));
+
+    expect(
+      container.read(cachedTeamIdProvider).value,
+      isNull,
+      reason: '앞 계정에 적어 둔 값이 새 계정의 캐시로 읽혔다',
+    );
+  });
+
   group('기기 캐시의 값을 읽는 규칙', () {
     test('로스터 밖 팀 id 는 없는 것으로 본다', () async {
       // 파일 머리말이 "로스터 검사는 사본에만 건다 — 기기 저장에서 읽은

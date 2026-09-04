@@ -739,13 +739,18 @@ void main() {
     test('뒤 선택이 이미 옮긴 화면은 앞 선택의 실패가 되돌리지 않는다', () async {
       // 줄에 선 두 선택 중 앞엣것만 실패한 실행이다. 되돌리기가 지금 화면을
       // 보지 않으면, 성공한 뒤 선택의 팀이 앞 선택의 실패에 밀려 사라진다.
+      // 스냅샷도 사본도 이 실행에서 화면을 다시 그리지 않게 막아 둔다 — 둘 중
+      // 하나라도 움직이면 build 가 다시 돌아 되돌리기가 남긴 자국을 덮어,
+      // 이 시험이 재려는 갈래를 지나치게 된다.
       SharedPreferences.setMockInitialValues({});
       final failing = _FailFirstCreateStore();
       addTearDown(failing.dispose);
+      failing.holdProfiles = true;
       final container = ProviderContainer(
         overrides: [
           authServiceProvider.overrideWithValue(auth),
           userDataStoreProvider.overrideWithValue(failing),
+          selectedTeamStoreProvider.overrideWithValue(const _FailingCacheStore()),
         ],
       );
       addTearDown(container.dispose);
@@ -759,7 +764,11 @@ void main() {
       await second;
       await pumpEventQueue();
 
-      expect(container.read(selectedTeamIdProvider).value, 'kia');
+      expect(
+        container.read(selectedTeamIdProvider).value,
+        'kia',
+        reason: '성공한 뒤 선택의 팀이 앞 선택의 실패에 밀려 사라졌다',
+      );
       expect(failing.documents[uid]![UserFields.favoriteTeamId], 'kia');
     });
   });
