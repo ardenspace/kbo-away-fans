@@ -34,12 +34,19 @@ git hook은 클론으로 전파되지 않으므로 위처럼 저장소 내 훅 �
 - `check-hardcoded-values.sh` — 토큰 밖 raw 디자인 값.
 - `check-registry-sync.sh` — 공유 폴더 ↔ REGISTRY.md 로스터 동기화.
 - `check-no-location-upload.sh` — 기기 위치는 서버에 올리지 않는다는 데이터 소유권
-  결정의 강제. 네 방향을 본다: `lib/backend/` 에 위도·경도로 읽히는 필드가 없는지,
-  그리고 좌표를 다루는 `lib/location/` 이 (1) 업로드 계층(`lib/backend/`)을,
-  (2) 값을 밖으로 내보낼 수 있는 패키지(`package:http`·`dart:io`·
-  `shared_preferences` 등)를 import 하지 않는지, (3) 그 폴더에 최상위 변수를
-  두지 않았는지(`const` 와 읽기 전용 provider 선언만 통과한다 — 최상위 공개
-  변수 한 줄이면 판정에 쓴 좌표가 라이브러리 밖에서 읽힌다).
+  결정의 강제. 다섯 방향을 본다: `lib/backend/` 에 위도·경도로 읽히는 필드가 없는지,
+  그리고 좌표를 다루는 `lib/location/` 이 (1) 업로드 계층 둘(`lib/backend/`·
+  `lib/analytics/`)을, (2) 값을 밖으로 내보낼 수 있는 패키지(`package:http`·
+  `dart:io`·`dart:isolate`·`shared_preferences`·`package:flutter/services.dart`
+  와 그것을 재수출하는 `material`·`widgets`·`cupertino` 등)를 import 하지
+  않는지, (3) 그 폴더에 값을 담아 둘 자리(최상위 변수 · 클래스 안의 `static`
+  저장소)를 두지 않았는지, (4) 좌표를 콘솔에 찍지 않는지(`print`·`debugPrint`
+  직접 호출).
+  (3) 이 허용하는 것은 `const`·`static const` 와, 타입 인자가 **홑 식별자**인
+  읽기 전용 provider 뿐이다 — `Provider<LocationPermissionGateway>` 는 통과하고
+  `Provider<List<DeviceFix>>` 는 통과하지 못한다(변경 가능한 통이 곧 좌표를
+  담아 둘 자리다). 선언이 80칸을 넘겨 `dart format` 이 `=` 뒤에서 자른 모양은
+  통과한다.
 - `check-firebase-import-boundary.sh` — SDK import 가 전용 계층 밖으로 새지 않는지.
   백엔드 SDK(`firebase_*` · `cloud_firestore` · `cloud_functions` ·
   `google_sign_in` · 카카오)는 `lib/backend/`·`lib/analytics/` 안에만, 위치 권한
@@ -49,14 +56,23 @@ git hook은 클론으로 전파되지 않으므로 위처럼 저장소 내 훅 �
   위해서다 — 그 통로는 private 함수 하나이고, 그것을 들고 도는 판정기도
   private 필드로만 쥔다.
 
-이 검사 둘과 `lib/location/` 의 구조가 함께 지키는 약속은 **"앱의 코드가 기기
-좌표를 서버로 보내지 않으며, 그렇게 하려면 눈에 띄는 의도적 변경이 필요하다"**
-이다(`.wellbegun/decisions.md` 2026-09-04 `[L]`). 그보다 강한 문장 — 좌표를
-알아내는 것이 구조적으로 불가능하다 — 은 이 앱이 하지 않는 약속이다: 구장 방문
-판정 API 는 "이 지점 반경 안에 있는가"를 묻는 신탁이라 반복 질의로 좌표가
-좁혀지고(측위 5회로 오차 0.03m), 위치 기반 참·거짓을 묻는 코드가 앱 안에 있는
-한 그 성질은 없앨 수 없다. 자세한 것은 `lib/location/visit_check.dart` 첫
-문단과 `test/probe/coord_oracle_probe_test.dart` 에 있다.
+이 검사 둘과 `lib/location/` 의 구조와 경계 시험의 파수꾼들이 함께 지키는
+약속은 **"앱의 코드가 기기 좌표를 서버로 보내지 않으며, 그렇게 하려면 눈에
+띄는 의도적 변경이 필요하다"** 이다(`.wellbegun/decisions.md` 2026-09-04
+`[L]`). 그 약속은 다섯 겹으로 서 있는데 **겹마다 지키는 것이 다르다** —
+겹 1(좌표 통로가 private)은 Dart 의 가시성과 소스 대조 시험이, 겹 2(플러그인
+import 를 파일 하나로)는 `check-firebase-import-boundary.sh` 가, 겹 3(내보낼
+수단 없음)과 겹 4(담아 둘 자리 없음)는 `check-no-location-upload.sh` 가,
+겹 5(경계를 넘는 타입에 좌표 없음)는 결과 타입 파수꾼이 지킨다. 겹별로 무엇이
+지키고 무엇은 지키지 않는지는 `lib/location/visit_check.dart` 첫 문단에 실측과
+함께 적혀 있다 — 뭉뚱그려 "다섯 다 검사가 지킨다"라고 쓰지 말 것.
+
+그보다 강한 문장 — 좌표를 알아내는 것이 구조적으로 불가능하다 — 은 이 앱이
+하지 않는 약속이다: 구장 방문 판정 API 는 "이 지점 반경 안에 있는가"를 묻는
+신탁이라 반복 질의로 좌표가 좁혀지고(측위 5회로 오차 0.03m), 위치 기반
+참·거짓을 묻는 코드가 앱 안에 있는 한 그 성질은 없앨 수 없다. 자세한 것은
+`lib/location/visit_check.dart` 첫 문단과
+`test/probe/coord_oracle_probe_test.dart` 에 있다.
 
 Claude Code 세션에서는 `.claude/settings.json`의 PostToolUse 훅이 편집 직후에도 검사를
 돌리지만 범위가 다르다 — `check-hardcoded-values.sh`와 `check-no-location-upload.sh`

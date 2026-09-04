@@ -8,11 +8,14 @@
 ///   5. 위치 권한 없음 → **판정을 시도하지 않고** 이유가 남는다
 ///
 /// 그리고 계약의 나머지 두 문장도 여기서 잰다:
-///   - "판정에 쓰인 좌표는 어디에도 저장되지 않고 서버로 가지 않는다" —
-///     판정 결과가 좌표를 들고 나오지 않는다는 것을 값으로 확인하고, 그
-///     타입의 **필드 집합 자체**를 소스 텍스트로 못 박는다(문자열 시험
-///     하나만으로는 결과 타입에 좌표 필드를 더하는 변이가 그대로 통과한다 —
-///     `.wellbegun/decisions.md` 2026-09-04 `[S]`).
+///   - "판정에 쓰인 좌표는 어디에도 저장되지 않고 서버로 가지 않는다" — 두
+///     자리에서 잰다. (a) 판정 결과가 좌표를 들고 나오지 않는다는 것을 값으로
+///     확인하고, 그 타입이 **값을 두는 자리 집합 자체**를 소스 텍스트로 못
+///     박는다(문자열 시험 하나만으로는 결과 타입에 좌표 필드를 더하는 변이가
+///     그대로 통과한다 — `.wellbegun/decisions.md` 2026-09-04 `[S]`).
+///     (b) 좌표를 얻는 통로가 `lib/location/` 안에서만 보인다는 것
+///     (`visit_check.dart` 첫 문단의 겹 1)을 같은 방식으로 소스에서 잰다 —
+///     round 3 이전에는 그 겹을 재는 검사도 시험도 하나도 없었다.
 ///   - "홈·원정을 구분하지 않는다" — 후보를 짓는 자리가 팀으로 거르지 않는다.
 ///
 /// 그리고 계약 Goal 의 "앱이 열려 있을 때 위치를 한 번 받는다"는 트리거 위젯
@@ -122,15 +125,54 @@ String _classBody(String source, String name) {
   fail('$name 의 닫는 중괄호를 찾지 못했다');
 }
 
-/// 클래스 몸통이 **선언한 필드**를 이름→타입 표로 편다. 두 칸 들여쓴 `final`
-/// 줄만 보므로 메서드 안의 지역 변수(더 깊이 들여쓴다)는 섞이지 않는다.
-Map<String, String> _declaredFields(String body) => {
+/// 클래스 몸통이 **선언한 값 자리**를 이름→선언 앞부분 표로 편다.
+///
+/// 두 칸 들여쓴 줄 중 이름 뒤에 `;` 나 `=` 가 오는 것만 보므로, 메서드·생성자
+/// (이름 뒤에 `(` 가 온다)와 메서드 안의 지역 변수(더 깊이 들여쓴다)는 섞이지
+/// 않는다. 표에 담는 값이 타입만이 아니라 **수식어까지**(`static`·`final`·
+/// `var`·`get`) 인 것이 옛 `^  final (.+) (\w+);$` 정규식과 다른 점이다:
+/// 그 정규식은 `final` 로 시작하지 않는 선언을 아예 보지 못해서
+/// `static DeviceFix? lastSpot;` 한 줄이 파수꾼과 훅을 함께 통과했고, 그 필드는
+/// `StadiumVisitResult.lastSpot!.lat` 으로 라이브러리 밖에서 읽혔다
+/// (4.1 round 3 지휘자 재현 — 경계 시험 30개·`check-no-location-upload.sh`
+/// 전부 초록불이었다).
+Map<String, String> _declaredStorage(String body) => {
   for (final match in RegExp(
-    r'^  final (.+) (\w+);$',
+    r'^  ((?:static |late |final |const |var |covariant )*'
+    r'[A-Za-z_][A-Za-z0-9_<>?,.() ]*?) (\w+) *(?:;|=)',
     multiLine: true,
   ).allMatches(body))
     match.group(2)!: match.group(1)!,
 };
+
+/// 소스의 **코드 줄**이 각각 어느 최상위 선언 안에 있는지를 이름으로 붙여
+/// 돌려준다.
+///
+/// 열 0 에서 식별자로 시작하는 줄을 새 선언의 머리로 보고, 그 줄에서 `(` 나
+/// `=` 앞에 오는 **첫** 식별자를 이름으로 잡는다: 측위 함수 선언 줄에서는
+/// `_readDeviceFix` 를, provider 선언 줄에서는 `stadiumVisitCheckerProvider`
+/// 를 잡는다. 마지막이 아니라 첫째인 것에 까닭이 있다: 표현식 본문 함수는
+/// 머리 줄에 **부르는 이름까지** 함께 있어서, 마지막을 잡으면 공개 래퍼
+/// 한 줄이 자기가 부르는 private 함수의 이름을 뒤집어쓰고 아래 단언을
+/// 통과한다(실측 — 그 래퍼를 더한 변이가 마지막을 잡을 때 초록불이었다).
+/// 열 0 의 `///`·`}`·닫는 괄호는 머리가 아니므로 앞 선언의 이름이 이어진다.
+/// 주석 줄은 아예 빼고 돌려준다 — 이 파일의 주석은 규칙 자체를 서술하는
+/// 자리라 그 이름들을 그대로 적는다.
+List<({String owner, String line})> _byTopLevelOwner(String source) {
+  final head = RegExp(r'^[A-Za-z_$]');
+  final name = RegExp(r'([A-Za-z_$][A-Za-z0-9_$]*) *[(=]');
+  final out = <({String owner, String line})>[];
+  var owner = '(파일 최상위)';
+  for (final line in source.split('\n')) {
+    if (head.hasMatch(line)) {
+      final matches = name.allMatches(line).toList();
+      owner = matches.isEmpty ? line.trim() : matches.first.group(1)!;
+    }
+    if (line.trimLeft().startsWith('//')) continue;
+    out.add((owner: owner, line: line));
+  }
+  return out;
+}
 
 /// 테스트용 경기 픽스처 (next_away_game_test.dart 와 같은 모양).
 Game _game({
@@ -557,17 +599,21 @@ void main() {
     // 훅 2종 전부 초록불). 그래서 경계를 넘는 타입의 **필드 집합 자체**를
     // 소스에서 읽어 표와 대조한다 — `test/cross_layer_seams_test.dart` 가
     // `firestore.rules` 를 읽어 Dart 상수와 대조하는 것과 같은 방식이다.
-    test('경계를 넘는 타입의 필드는 이 셋뿐이다 (소스 대조)', () {
+    test('경계를 넘는 타입이 값을 두는 자리는 이 넷뿐이다 (소스 대조)', () {
       final body = _classBody(
         File('lib/location/visit_check.dart').readAsStringSync(),
         'StadiumVisitResult',
       );
 
-      expect(_declaredFields(body), {
-        'reason': 'StadiumVisitReason',
-        'stadiumId': 'String?',
-        'gameId': 'String?',
-      }, reason: '이 타입에 필드를 더하면 좌표가 계층 경계를 넘을 수 있다');
+      // 표에 `static` 필드와 게터까지 들어오는 것이 요점이다 — 인스턴스 필드만
+      // 보던 옛 표는 `static DeviceFix? lastSpot;` 을 놓쳤고, 그 한 줄이 곧
+      // 라이브러리 밖에서 읽히는 좌표 자리였다(`_declaredStorage` 문서 참조).
+      expect(_declaredStorage(body), {
+        'reason': 'final StadiumVisitReason',
+        'stadiumId': 'final String?',
+        'gameId': 'final String?',
+        'isVisit': 'bool get',
+      }, reason: '이 타입에 값 자리를 더하면 좌표가 계층 경계를 넘을 수 있다');
     });
 
     test('경계를 넘는 타입에는 좌표 어휘가 없다 (소스 대조)', () {
@@ -583,6 +629,67 @@ void main() {
         RegExp(r'\b(lat|lng|latitude|longitude|coord)\b').hasMatch(body),
         isFalse,
         reason: '결과 타입이 좌표를 이름으로도 들고 나가지 않는다',
+      );
+    });
+  });
+
+  // 겹 1("좌표를 얻는 통로가 이 라이브러리 안에서만 보인다")을 지키는 자리다.
+  // 4.1 round 3 이전에는 이 겹을 재는 검사도 시험도 하나도 없어서,
+  // `_readDeviceFix` 를 공개 함수로 개명하거나 `StadiumVisitChecker._readFix`
+  // 를 public 으로 되돌려도 analyze·시험 657개·훅 4종이 전부 초록불이었다
+  // (지휘자 재현 — 뒤엣것은 2026-09-04 `[M]` 이 결함으로 적어 고친 바로 그
+  // 상태이고, 앞엣것은 2026-09-04 `[S]` 가 rejected 로 적어 둔 갈래다).
+  //
+  // **이 파수꾼이 재지 않는 것:** 새 private 통로를 더한 뒤 그 값을 다른
+  // 공개 표면으로 실어 내보내는 조합. 그쪽은 결과 타입 파수꾼(위 group)과
+  // `check-no-location-upload.sh` 의 검사 4)(값을 담아 둘 자리 금지)가 각각
+  // 다른 각도에서 받는다.
+  group('좌표를 얻는 통로는 이 라이브러리 안에서만 보인다 (겹 1, 소스 대조)', () {
+    final source = File('lib/location/visit_check.dart').readAsStringSync();
+
+    test('플러그인을 만지는 줄은 전부 private 선언 안에 있다', () {
+      // 이 시험은 `geo.` 를 플러그인 호출의 표지로 쓴다 — 표지 자체가 살아
+      // 있는지 먼저 못 박아 둔다(접두어가 바뀌면 아래 단언이 조용히 빈
+      // 목록을 보게 된다).
+      expect(
+        source,
+        contains("import 'package:geolocator/geolocator.dart' as geo;"),
+        reason: 'geolocator 를 `geo` 로 들이는 줄이 이 파수꾼의 표지다',
+      );
+
+      final offenders = [
+        for (final entry in _byTopLevelOwner(source))
+          if (entry.line.contains('geo.') && !entry.owner.startsWith('_'))
+            '${entry.owner}: ${entry.line.trim()}',
+      ];
+
+      expect(offenders, isEmpty, reason: '기기 좌표를 읽는 자리가 라이브러리 밖에서 불릴 수 있다');
+    });
+
+    test('그 통로를 이름으로 부르는 최상위 선언은 둘뿐이다', () {
+      final owners = {
+        for (final entry in _byTopLevelOwner(source))
+          if (entry.line.contains('_readDeviceFix')) entry.owner,
+      };
+
+      // 선언 자신과, 그것을 판정기의 private 필드에 넣어 주는 provider.
+      // 여기에 셋째가 생기면 그 자리가 곧 좌표를 얻는 새 통로다.
+      expect(owners, {
+        '_readDeviceFix',
+        'stadiumVisitCheckerProvider',
+      }, reason: '측위 함수를 들고 도는 자리가 늘면 통로가 늘어난다');
+    });
+
+    test('판정기가 그 통로를 쥐는 자리는 private 필드다 (소스 대조)', () {
+      // `_readFix` 가 public 이면 `stadiumVisitCheckerProvider` 를 읽은 어느
+      // feature 든 `ref.read(...).readFix()` 로 실 좌표를 얻는다.
+      expect(
+        _declaredStorage(_classBody(source, 'StadiumVisitChecker')),
+        {
+          'readPermission': 'final Future<LocationPermissionStatus> Function()',
+          '_readFix': 'final DeviceFixReader',
+        },
+        reason: '판정기가 밖으로 내주는 것은 "판정을 한 번 돌린다"는 능력뿐이다',
       );
     });
   });

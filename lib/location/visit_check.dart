@@ -10,8 +10,13 @@
 ///
 /// **하는 약속:** 이 앱의 코드는 기기 좌표를 서버로 보내지 않고 어디에도
 /// 적지 않는다. 그렇게 하려면 **눈에 띄는 의도적 변경**이 필요하다 — 아래
-/// 다섯 겹 중 하나를 걷어내야 하고, 다섯 다 검사나 시험이 지키고 있어서
-/// 걷어내는 순간 빨간불이 된다(`.wellbegun/decisions.md` 2026-09-04 `[L]`).
+/// 다섯 겹 중 하나를 걷어내야 한다(`.wellbegun/decisions.md` 2026-09-04 `[L]`).
+///
+/// **겹마다 무엇이 그것을 지키는지 따로 적는다.** 뭉뚱그려 "다섯 다 검사나
+/// 시험이 지킨다"라고 쓰지 말 것 — 4.1 의 fresh 검증 round 3 이 REJECT 한
+/// 까닭이 정확히 그 한 문장이었고, 그때 실제로 그러한 겹은 다섯 중 하나뿐
+/// 이었다. 아래의 "지키는 것"은 전부 위반을 실제로 만들어 빨간불을 확인한
+/// 것이고, "지키지 않는 것"은 지키는 척하지 않고 적어 둔 자리다.
 ///
 /// 1. **좌표를 얻는 통로가 이 라이브러리 안에서만 보인다.** 기기의 좌표를
 ///    실제로 읽는 자리는 아래 [_readDeviceFix] 하나이고 이름이 `_` 로 시작해
@@ -19,31 +24,87 @@
 ///    [StadiumVisitChecker] 도 그것을 **private 필드**로만 쥔다 — 생성자로
 ///    넣을 수는 있어도(시험이 갈아 끼우는 이음매) 밖에서 다시 꺼내 부를 수는
 ///    없어서, `stadiumVisitCheckerProvider` 를 읽은 쪽이 손에 넣는 것은
-///    "판정을 한 번 돌린다"는 능력뿐이다. (이 필드가 public 이던 동안에는 어느
-///    feature 든 `ref.read(stadiumVisitCheckerProvider).readFix()` 로 실제
-///    좌표를 얻을 수 있었고 훅 넷과 `flutter analyze` 가 전부 초록불이었다 —
-///    `.wellbegun/decisions.md` 2026-09-04 `[M]`.)
+///    "판정을 한 번 돌린다"는 능력뿐이다.
+///
+///    *지키는 것:* Dart 의 `_` 가시성(구조)과, 그 구조가 그대로 서 있는지를
+///    소스로 대조하는 `test/features/badges/visit_check_test.dart` 의 겹 1
+///    파수꾼 셋 — (a) 플러그인을 만지는 줄(geolocator 를 들이는 접두어가
+///    나오는 줄)이 전부 `_` 로 시작하는 최상위 선언 안에 있다(주석 줄은
+///    뺀다), (b) [_readDeviceFix] 를 이름으로
+///    부르는 최상위 선언은 그 함수 자신과 `stadiumVisitCheckerProvider`
+///    둘뿐이다, (c) [StadiumVisitChecker] 가 값을 두는 자리는
+///    `readPermission` 과 `_readFix` 둘뿐이다. 실측 변이 넷이 빨간불이다:
+///    `_readDeviceFix` 를 공개 이름으로 개명, 공개 래퍼
+///    (`Future<DeviceFix?> readFixNow() => _readDeviceFix();`) 추가, 새 공개
+///    함수에서 플러그인 직접 호출, `_readFix` 를 public 필드로 되돌리기.
+///    (round 3 이전에는 이 겹을 재는 것이 **하나도 없어서** 네 변이가 전부
+///    초록불이었다. 뒤엣것은 `.wellbegun/decisions.md` 2026-09-04 `[M]` 이
+///    결함으로 적어 고친 바로 그 상태이고, 앞엣것은 같은 날 `[S]` 가
+///    rejected 로 적어 둔 갈래다.)
+///
+///    *지키지 않는 것:* 새 private 통로를 하나 더 두는 것 자체는 이 겹이
+///    막지 않는다(그 값이 밖으로 나가려면 겹 3·4·5 를 지나야 한다).
 /// 2. **플러그인을 직접 부르는 길이 이 파일 하나로 못 박혀 있다.** 위 통로
 ///    밖에서 좌표를 얻으려면 `package:geolocator` 를 직접 부르는 수밖에
-///    없는데, 그 import 를
-///    `scripts/hooks/check-firebase-import-boundary.sh` 가 이 **파일**로
-///    좁혀 둔다.
+///    없는데, 그 import 를 `lib/` 안에서 이 **파일**로 좁혀 둔다.
+///
+///    *지키는 것:* `scripts/hooks/check-firebase-import-boundary.sh`
+///    (PostToolUse + pre-commit). 실측: 그 import 를 다른 파일에 두면 exit 2.
 /// 3. **이 계층은 값을 밖으로 내보낼 수단을 갖지 않는다.** `lib/location/` 은
-///    `lib/backend/` 를 import 하지 않고, 네트워크·저장 패키지
-///    (`package:http`·`dart:io`·`shared_preferences` 등)도 import 하지 못한다
-///    (`check-no-location-upload.sh`). 그래서 이 폴더 안에서 좌표를 손에
-///    쥐고 있어도 보낼 곳도 적을 곳도 없다.
-/// 4. **이 계층에는 값을 남겨 둘 자리가 없다.** 같은 검사가 이 폴더의 최상위
-///    변수를 막는다 — `const` 와 읽기 전용 provider 선언만 통과한다. 좌표는
+///    업로드 계층 둘(`lib/backend/`·`lib/analytics/`)을 import 하지 않고,
+///    네트워크·저장·프로세스 경계 패키지도 import 하지 못하며, 콘솔에 찍지도
+///    않는다. 그래서 이 폴더 안에서 좌표를 손에 쥐고 있어도 보낼 곳도 적을
+///    곳도 없다.
+///
+///    *지키는 것:* `scripts/hooks/check-no-location-upload.sh` 의 검사
+///    2)·3)·5). 실측 정탐 15종이 exit 2 다 — `lib/analytics/` import(상대
+///    경로·패키지 경로 둘 다), `package:flutter/` 의 services·material·
+///    widgets·cupertino(뒤의 셋은 services 를 재수출해서 `Clipboard`·
+///    `MethodChannel` 이 그대로 돌아온다), `dart:isolate`·`dart:developer`·
+///    `dart:ffi`·`dart:io`, `package:http`·`package:file`·`package:web`,
+///    그리고 `print(...)`·`debugPrint(...)` 직접 호출.
+///
+///    **`lib/analytics/` 가 이 목록에 있는 것이 round 3 이 막은 실제 구멍이다:**
+///    그 폴더는 두 번째 업로드 계층인데 짝 훅이 firebase 경계에서 그것을
+///    면제하므로, 이 파일에서 `logPlaceTap(stadiumId: '<위도>,<경도>', ...)`
+///    로 실 좌표를 구글 서버에 보내고 훅 4종·`flutter analyze`·시험 657개가
+///    전부 초록불이었다(분석 래퍼의 화이트리스트는 파라미터 **키**만 보고
+///    값은 보지 않는다).
+///
+///    *지키지 않는 것:* `dart:core`·`dart:async`·`package:flutter/foundation`
+///    은 막지 않는다 — 앞의 둘은 언어의 바닥이고, 셋째는 `dart:io` 를 막으면서
+///    `Platform.isAndroid` 의 대체(`defaultTargetPlatform`)로 지목한 자리다.
+///    그리고 `print` 검사는 이름을 그대로 부르는 줄만 잡으므로, 함수를 변수에
+///    담아 부르는 우회는 잡지 못한다(눈에 띄게 할 뿐 "적을 수 없다"가 되지는
+///    않는다).
+/// 4. **이 계층에는 값을 남겨 둘 자리가 없다.** 이 폴더에는 최상위 변수도,
+///    클래스 안의 `static` 저장소도 둘 수 없다. 좌표는
 ///    [StadiumVisitChecker.check] 안에서 태어나 그 안에서 죽는다.
+///
+///    *지키는 것:* 같은 스크립트의 검사 4). 허용은 셋뿐이다 — `const`,
+///    `static const`(둘 다 컴파일 시각 값이라 실행 중에 얻은 좌표를 담을 수
+///    없다), 그리고 타입 인자가 **홑 식별자**인 읽기 전용 provider. 실측
+///    정탐 8종이 exit 2 다: 최상위 `DeviceFix? lastSpot;`·`var lastSpot = 0.0;`·
+///    `final _spots = <DeviceFix>[];`·`StateProvider`, 두 칸 들여쓴
+///    `static DeviceFix? lastSpot;`·`static final List<DeviceFix> spots = [];`,
+///    `Provider<List<DeviceFix>>`·`Provider<Map<String, DeviceFix>>`.
+///    뒤의 넷이 round 3 이 막은 자리다 — `static` 필드는 열 0 만 보던 옛
+///    검사에 아예 보이지 않았고, `Provider<변경 가능한 통>` 은 허용 규칙이
+///    provider 타입 이름만 보고 담긴 것을 보지 않아 통과했다.
 /// 5. **경계를 넘는 값에 좌표가 없다.** 이 파일이 밖으로 내보내는 판정 결과
-///    [StadiumVisitResult] 는 이유·구장 id·경기 id 세 가지뿐이고, 그 **필드
-///    집합 자체**를 `test/features/badges/visit_check_test.dart` 의 파수꾼이
-///    이 파일의 소스를 읽어 표와 대조한다(`test/cross_layer_seams_test.dart`
-///    가 `firestore.rules` 를 읽어 대조하는 것과 같은 방식이다) — 그 타입에
-///    좌표 필드를 하나 더하면 빨간불이다. [DeviceFix] 는 타입 자체는
-///    공개(시험이 판정 함수에 좌표를 넣어야 한다)지만, 위 1번 때문에 **실제
-///    기기 좌표가 담긴 값**은 이 라이브러리 밖으로 나가지 않는다.
+///    [StadiumVisitResult] 는 이유·구장 id·경기 id 와 [StadiumVisitResult.isVisit]
+///    뿐이다. [DeviceFix] 는 타입 자체는 공개(시험이 판정 함수에 좌표를 넣어야
+///    한다)지만, 위 1번 때문에 **실제 기기 좌표가 담긴 값**은 이 라이브러리
+///    밖으로 나가지 않는다.
+///
+///    *지키는 것:* `test/features/badges/visit_check_test.dart` 의 결과 타입
+///    파수꾼 둘 — 그 타입이 **값을 두는 자리 집합 자체**를 이 파일의 소스에서
+///    읽어 표와 대조하고(`test/cross_layer_seams_test.dart` 가 `firestore.rules`
+///    를 읽어 대조하는 것과 같은 방식이다), 짝으로 그 몸통에 좌표 어휘가
+///    없음을 잰다. 실측: 좌표 필드·`static` 필드·좌표 게터를 하나씩 더하면
+///    각각 빨간불이다. round 3 이전에는 표가 두 칸 들여쓴 `final` 줄만 봐서
+///    `static DeviceFix? lastSpot;` 을 놓쳤고, 그 필드는 라이브러리 밖에서
+///    `StadiumVisitResult.lastSpot!.lat` 으로 읽혔다.
 ///
 /// **하지 않는 약속: "기기 좌표를 알아내는 것이 구조적으로 불가능하다"고
 /// 말하지 않는다.** [StadiumVisitChecker.check] 는 후보 지점을 **부르는 쪽이

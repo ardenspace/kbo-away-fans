@@ -41,32 +41,54 @@
 - **기기가 어디에 있었는지는 서버로 올리지 않는다** (되돌리기 비용 XL 의 제품
   결정, `.wellbegun/decisions.md` 2026-09-01). 좌표는 이 계층 안에서 판정에만
   쓰고 결과(어느 구장·어느 경기)만 백엔드로 넘긴다. 그래서 이 폴더는
-  **`lib/backend/` 를 import 하지 않는다** — 업로드 계층에 닿을 수 있는 길을
-  만들지 않으면 좌표가 payload 로 흘러갈 길도 없다. 백엔드로 넘길 결과가 있으면
-  이 폴더가 아니라 부르는 쪽(feature)이 두 계층을 잇는다.
-  `scripts/hooks/check-no-location-upload.sh` 가 이 폴더의 `import`·`export` 를
-  잡는다(step 2.5, PostToolUse + pre-commit). 그 검사가 `lib/backend/` 에서처럼
-  `lat`·`lng` 같은 **이름**을 막지 않는 것은 이 폴더에서는 좌표가 정당하기
-  때문이다 — 여기서 막는 것은 이름이 아니라 나가는 길이다.
+  **업로드 계층 둘(`lib/backend/`·`lib/analytics/`)을 import 하지 않는다** —
+  업로드 계층에 닿을 수 있는 길을 만들지 않으면 좌표가 payload 로 흘러갈 길도
+  없다. 백엔드로 넘길 결과가 있으면 이 폴더가 아니라 부르는 쪽(feature)이 두
+  계층을 잇는다. `scripts/hooks/check-no-location-upload.sh` 가 이 폴더의
+  `import`·`export` 를 잡는다(step 2.5, PostToolUse + pre-commit). 그 검사가
+  `lib/backend/` 에서처럼 `lat`·`lng` 같은 **이름**을 막지 않는 것은 이
+  폴더에서는 좌표가 정당하기 때문이다 — 여기서 막는 것은 이름이 아니라 나가는
+  길이다.
 
   **이 폴더가 하는 약속의 정확한 문장은 "앱의 코드가 좌표를 서버로 보내지
   않으며, 그렇게 하려면 눈에 띄는 의도적 변경이 필요하다" 이다**
   (`.wellbegun/decisions.md` 2026-09-04 `[L]`). 4.1 이 실제로 좌표를 들여온
-  뒤로 그 약속을 지키는 겹은 다섯이고, 다섯 다 사람의 주의력이 아니라
-  **구조·검사·시험**이 지킨다: (1) 좌표를 얻는 통로가 `visit_check.dart` 안의
-  private 함수 하나이고 판정기(`StadiumVisitChecker`)도 그것을 private
-  필드로만 쥔다, (2) 그 밖의 길인 플러그인 직접 호출은 import 가 같은 파일로
-  못 박혀 있다, (3) 이 폴더가 `lib/backend/` 도, 값을 내보낼 수 있는
-  패키지(`package:http`·`dart:io`·`shared_preferences` 등)도 import 하지 못해
-  안에서도 보낼 곳이 없다, (4) 이 폴더에 최상위 변수를 둘 수 없어 좌표를 남겨
-  둘 자리가 없다(`const` 와 읽기 전용 provider 선언만 통과한다), (5) 경계를
-  넘는 값(`StadiumVisitResult`)에 좌표가 없고, 그 **필드 집합 자체**를
-  `test/features/badges/visit_check_test.dart` 의 파수꾼이 소스를 읽어 표와
-  대조한다 — 그 타입에 좌표 필드를 하나 더하면 빨간불이다. (1)·(5) 가
-  서술뿐이던 동안에는 어느 feature 든 판정기에서 실 좌표를 꺼내 쓸 수 있었고
-  결과 타입에 좌표를 실어 보낼 수 있었으며, (3)·(4) 가 없던 동안에는 이 폴더
-  안에서 `package:http` 로 보내거나 최상위 공개 변수 한 줄로 내보낼 수 있었다
-  (`.wellbegun/decisions.md` 2026-09-04 `[M]`·`[S]`·`[L]`).
+  뒤로 그 약속을 지키는 겹은 다섯이다. **겹마다 무엇이 그것을 지키는지 따로
+  적는다** — 뭉뚱그려 "다섯 다 검사나 시험이 지킨다"라고 쓰면 안 된다(4.1 의
+  fresh 검증 round 3 이 REJECT 한 까닭이 그 한 문장이었고, 그때 실제로 그러한
+  겹은 다섯 중 하나뿐이었다):
+
+  1. 좌표를 얻는 통로가 `visit_check.dart` 안의 private 함수 하나이고
+     판정기(`StadiumVisitChecker`)도 그것을 private 필드로만 쥔다.
+     **지키는 것:** Dart 의 `_` 가시성(구조)과
+     `test/features/badges/visit_check_test.dart` 의 겹 1 파수꾼 셋(플러그인
+     호출 줄이 전부 private 선언 안에 있는가 · 측위 함수를 이름으로 부르는
+     최상위 선언이 둘뿐인가 · 판정기가 값을 두는 자리가 둘뿐인가).
+  2. 그 밖의 길인 플러그인 직접 호출은 import 가 같은 파일로 못 박혀 있다.
+     **지키는 것:** `scripts/hooks/check-firebase-import-boundary.sh`.
+  3. 이 폴더가 업로드 계층 둘도, 값을 내보낼 수 있는 패키지도 import 하지
+     못하고 콘솔에 찍지도 못해 안에서도 보낼 곳이 없다.
+     **지키는 것:** `check-no-location-upload.sh` 의 검사 2)·3)·5).
+     **막지 않는 것:** `dart:core`·`dart:async`·`package:flutter/foundation`
+     (언어의 바닥과, `dart:io` 를 막으면서 대체로 지목한 자리), 그리고
+     `print` 를 변수에 담아 부르는 우회(직접 호출만 잡는다).
+  4. 이 폴더에 최상위 변수도, 클래스 안의 `static` 저장소도 둘 수 없어 좌표를
+     남겨 둘 자리가 없다(`const`·`static const` 와, 타입 인자가 홑 식별자인
+     읽기 전용 provider 만 통과한다).
+     **지키는 것:** 같은 스크립트의 검사 4).
+  5. 경계를 넘는 값(`StadiumVisitResult`)에 좌표가 없고, 그 **값을 두는 자리
+     집합 자체**를 소스에서 읽어 표와 대조한다 — 그 타입에 좌표 필드나
+     `static` 필드나 좌표 게터를 하나 더하면 빨간불이다.
+     **지키는 것:** `test/features/badges/visit_check_test.dart` 의 결과 타입
+     파수꾼 둘.
+
+  이 목록의 "지키는 것"은 전부 위반을 실제로 만들어 빨간불(시험) 또는 exit 2
+  (훅)를 확인한 것이다. 각 겹이 서술뿐이던 동안 무엇이 열려 있었는지는
+  `.wellbegun/decisions.md` 2026-09-04 `[M]`·`[S]`·`[L]` 과 그 뒤의 round 3
+  줄에 남아 있다 — 그중 가장 무거웠던 것은 겹 3 이었다: `lib/analytics/` 가
+  두 번째 업로드 계층인데 검사가 `lib/backend/` 만 보고 있어서, 이 폴더에서
+  분석 이벤트의 파라미터 **값**에 실 좌표를 실어 구글 서버로 보내고 훅
+  4종·`flutter analyze`·시험 657개가 전부 초록불이었다.
 
   **하지 않는 약속:** "좌표를 알아내는 것이 구조적으로 불가능하다"고 적지
   않는다. `StadiumVisitChecker.check` 는 후보 지점을 부르는 쪽이 지어서 넣고
