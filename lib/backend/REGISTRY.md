@@ -56,11 +56,20 @@
 
 카카오 네이티브 앱 키(`kKakaoNativeAppKey`)는 **저장소에 그대로 두는 값**이다
 (`.wellbegun/decisions.md` 의 [S] 줄: 감출지 말지를 "이 값이 바이너리에 실려
-나가는가"로 가른다). 아직 카카오 앱을 등록하지 않아 값이 비어 있고, 그 실행에서
-카카오 로그인은 `kakao-key-missing` 으로 드러나게 실패한다. 값을 채울 때는 세
-자리를 함께 고친다 — Dart 상수, `android/app/src/main/AndroidManifest.xml` 의
-리다이렉트 스킴, `ios/Runner/Info.plist` 의 `CFBundleURLTypes`.
-`test/backend/kakao_app_key_sync_test.dart` 가 셋을 대조한다.
+나가는가"로 가른다). 값을 바꿀 때는 세 자리를 함께 고친다 — Dart 상수,
+`android/app/src/main/AndroidManifest.xml` 의 리다이렉트 스킴,
+`ios/Runner/Info.plist` 의 `CFBundleURLTypes`.
+`test/backend/kakao_app_key_sync_test.dart` 가 셋을 대조한다. 그 상수가 비어
+있는 실행(= 카카오 앱을 아직 등록하지 않은 상태)에서는 카카오 로그인이
+`kakao-key-missing` 으로 드러나게 실패한다.
+
+**지금 그 상수에 무엇이 들어 있는지는 이 문서가 말하지 않는다** —
+`lib/backend/auth_kakao.dart` 의 상수 한 줄이 그 답이고, 이 로스터는 그 값이
+비었을 때와 채워졌을 때 각각 무슨 일이 일어나는지만 적는다. 앞선 판이 여기에
+"지금 비어 있다"를 적어 두었다가 커밋 `ab20031` 이 값을 채우면서 산문만 남아,
+"이 빌드에서 카카오 로그인은 실패한다"는 거짓말을 로스터가 한동안 들고 있었다.
+`check-registry-sync.sh` 는 표의 **경로만** 대조하므로 그 표류를 잡지 못한다.
+같은 표류를 막는 값싼 길은 새 검사가 아니라 **상태를 적지 않는 것**이다.
 
 설정 파일(`google-services.json` / `GoogleService-Info.plist`)이 없는 실행에서는
 인증 구현도 사용자 데이터 구현도 서지 못하고 둘 다 `firebase-unconfigured` 로
