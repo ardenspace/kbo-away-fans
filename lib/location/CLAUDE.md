@@ -124,9 +124,16 @@
      그동안 그 자리를 실제로 막던 것은 import-boundary 훅이었다). 5.2 가
      하위 폴더를 만들면 그 어긋남이 곧 구멍이 된다.
      **막지 않는 것:** 이미 손에 있는 좌표를 private 헬퍼끼리 주고받는 것
-     (그쪽은 겹 3·4 가 받는다). 그리고 이 파수꾼은 선언을 **열 0 의 머리
-     줄**로 알아보므로, 열 0 을 블록 주석으로 여는 선언은 앞 선언의 이름을
-     물려받아 지나간다(실측 — `visit_check.dart` 첫 문단에 그대로 적어 두었다).
+     (그쪽은 겹 3·4 가 받는다). 그리고 둘째·셋째 파수꾼은 선언을 **열 0 의
+     머리 줄**로 알아보므로, 열 0 을 블록 주석으로 여는 선언은 앞 선언의
+     이름을 물려받아 그 둘을 지나간다. **다만 그 갈래 자체가 열려 있지는
+     않다** — round 7 이 여기를 "훅 4종과 시험 665개를 전부 통과한다"로 적었던
+     것이 거짓이었고, round 8 이 그 조각(`/*x*/Future<DeviceFix?> readSneaky()
+     ... geo.Geolocator ...`)을 측위 함수 바로 뒤에 두고 재어 **둘이 빨간불**
+     인 것을 확인했다: 훅의 검사 4)(a) 가 블록 주석을 걷어 낸 뒤 이름을 읽어
+     `readSneaky:func` 를 목록 밖으로 찍고, 일곱째 파수꾼(측위 함수 몸통)이
+     그 줄들을 측위 함수의 몸통으로 물려받아 표와 어긋난다. 인정하는 것은
+     **파수꾼 둘의 한계**이지 갈래가 열려 있다는 것이 아니다.
   2. 그 밖의 길인 플러그인 직접 호출은 import 가 같은 파일로 못 박혀 있다.
      **지키는 것:** `scripts/hooks/check-firebase-import-boundary.sh` — 그
      import 를 다른 파일에 두는 것도, `export` 로 재수출하는 것도 exit 2 다
@@ -164,6 +171,14 @@
      kst.dart 짝 검사 셋은 **그 파일 자신의 텍스트**만 보므로 그 파일이 부르는
      `lib/content/models.dart` 안쪽까지는 보지 않고, 허용 목록의 패키지
      다섯이 새 버전에서 무언가를 더 재수출하는 것도 보지 못한다.
+     **던져진 예외도 세지 않는다.** 이 겹이 세는 것은 값을 보낼 수 있는
+     이름뿐이라, 좌표를 예외 메시지에 담아 던지면 그대로 밖으로 나간다 —
+     round 8 실측: `_metersBetween` 안에 `throw StateError` 한 줄을 두면
+     `lib/features/badges/stadium_visit.dart` 의 `run()`(`try/finally` 라
+     잡지 않는다)을 지나 부르는 쪽이 실 좌표 문자열을 받고, 그때 훅 4종이
+     전부 exit 0 이고 `flutter analyze` 도 무지적이다. 막을 필요는 없지만
+     (실수로 나오는 모양이 아니다) 겹 3·4 를 "값이 나갈 길이 아예 없다"로
+     읽지 않도록 적어 둔다.
   4. 이 폴더에 최상위 선언으로 값을 담아 두는 자리도, 클래스 안의 `static`
      저장소도, 좌표를 쌓을 수 있는 인스턴스 필드도 둘 수 없다. **검사는 두
      자리를 서로 다른 방식으로 본다.** 최상위 선언은 **타입이 아니라 이름을
@@ -176,6 +191,19 @@
      `final` 필드, 메서드·생성자와 `=>` 몸통, 몸통 없는 게터 선언, enum 몸통의
      첫 문장인 값 나열이다(애노테이션과 `final` 앞의 `static`·`abstract`·
      `external`·`covariant` 는 걷어 낸 뒤 타입을 본다).
+     그 "스스로 선언한 이름"은 **class modifier 가 붙어도 같은 이름으로**
+     읽히고(`final class`·`sealed class`·`base class`·`interface class`·
+     `abstract final class`·`mixin class`), 타입 매개변수 목록은 이름의
+     일부가 아니다(`class Box<T>` → `Box`). **타입 인자를 붙인 인스턴스화까지
+     받는 것은 함수 타입 typedef 하나뿐이다**(`Parse<int>` 는 통과, 폴더가
+     선언한 class 의 `Box<int>` 는 exit 2 — `Box<DeviceFix>` 가 그대로 통이기
+     때문이다). **round 8 의 거부 사유가 이 자리였다:** 이름을 모으는 자리가
+     수식어를 `abstract` 하나로 알고 있어서, 이 저장소가 `lib/` 에서 31번 쓰는
+     모양(`abstract final class` 16 · `final class` 11 · `sealed class` 4)이
+     그 집합에 들어오지 않았고 5.2 가 지을 `sealed class` + `final class`
+     조합의 `final AtStadium nearest;` 가 exit 2 였다(`flutter analyze` 는
+     무지적). 이제 선언 머리를 읽는 규칙을 훅 스크립트 안에서 **한 번만** 적고
+     세 자리(2-c · 타입 이름 모으기 · 최상위 이름 읽기)가 그 함수 하나를 쓴다.
      **지키는 것:** 같은 스크립트의 검사 4). **round 7 이 최상위 규칙을
      타입에서 이름으로 뒤집었다** — round 6 이 오탐 셋을 고치자 round 7 이
      최상위 `void Function(double, double)? coordSink;` 와

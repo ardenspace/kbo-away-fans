@@ -126,6 +126,14 @@ class _RecordingChecker {
 /// 소스 텍스트에서 클래스 [name] 의 몸통을 잘라 온다 — 중괄호를 세는 거친
 /// 파서다(계약을 소스로 대조하는 `test/cross_layer_seams_test.dart` 의 선례와
 /// 같은 방식이고, 파싱이 어긋나면 조용히 통과하는 대신 빨간불이 된다).
+///
+/// 머리를 `'class <이름> {'` 라는 **부분 문자열**로 찾는다. 그래서 Dart 3 의
+/// class modifier 는 그냥 지나가지만(round 8 실측: `class StadiumVisitChecker`
+/// 를 `final class …` 로 바꿔도 이 파일의 시험 39개가 전부 초록불이다),
+/// 머리에 `extends`·`with`·`implements` 절이 붙으면 그 이름을 **찾지 못한다**.
+/// 그때 조용히 지나가지 않고 `expect(head, isNonNegative)` 가 빨간불이 되므로
+/// 막히는 쪽으로 틀린다(round 8 실측: `with` 절을 붙이면 그 시험이 실패한다).
+/// 5.2 가 경계 타입에 상위 타입을 붙이면 여기를 함께 고치게 된다.
 String _classBody(String source, String name) {
   final head = source.indexOf('class $name {');
   expect(head, isNonNegative, reason: '$name 을 소스에서 찾지 못했다');

@@ -50,6 +50,28 @@
 # 오는 필드(`static final int retryBudget = 3;` 등)를 잡았다. 이 검사는 CI 에도
 # 걸려 있으므로 오탐은 로컬 훅뿐 아니라 CI 도 막는다.
 #
+# **round 8 의 거부 사유도 오탐이고, 뿌리는 이 스크립트 자신 안의 어긋남
+# 이었다.** 검사 4) 가 "이 폴더가 스스로 선언한 타입"을 모으는 자리는 수식어를
+# `abstract` 하나로 알고 있었는데 같은 검사의 topDecl() 은 일곱을 알고 있었다.
+# 그래서 Dart 3 의 class modifier 가 붙은 타입이 그 집합에 들어오지 않았고,
+# 그 타입의 `final` 필드가 exit 2 였다(실측: `class`·`abstract class` 는
+# 통과하고 `final class`·`sealed class`·`base class`·`interface class`·
+# `abstract final class` 다섯이 전부 exit 2). 이 저장소가 `lib/` 에서 그 모양을
+# **31번** 쓰고(`abstract final class` 16 · `final class` 11 · `sealed class` 4),
+# 5.2 가 이 폴더에 지을 모양이 그대로 그것이다(`sealed class CurrentPlace` +
+# `final class AtStadium` — `final AtStadium nearest;` 가 exit 2 였고
+# `flutter analyze` 는 무지적이었다). 같은 뿌리에서 함께 나온 것이 **제네릭
+# 함수 typedef** 다: `typedef Parse<T> = T Function(String raw);` 는 이름 뒤의
+# 타입 매개변수 목록 때문에 아예 읽히지 않아 `final Parse<int> parse;` 가
+# exit 2 였다(제네릭을 뗀 같은 typedef 는 exit 0 이었다. 저장소에 실재하는
+# 모양이다 — lib/content/content_loader.dart:121).
+#
+# 그래서 이번에는 **선언 머리를 읽는 규칙을 이 스크립트 안에서 한 번만 적고**
+# (아래 DECL_MODIFIERS·DECL_KEYWORDS 와 DECL_AWK 의 declHead()), 그것을 세
+# 자리가 함께 쓴다: 2-c 의 kst.dart 이름 읽기 · 검사 4) 의 타입 이름 모으기 ·
+# 검사 4) 의 topDecl(). **같은 개념을 두 자리에 따로 적으면 어긋남이 다시
+# 생긴다 — 이 스크립트를 고칠 때 그것부터 확인하십시오.**
+#
 # 그리고 round 6 은 이 헤더가 "일부러 거절하는 정당한 모양은 아래 **둘**"이라고
 # **닫힌 목록**으로 적어 그 문장이 거짓이었던 것도 함께 거부 사유로 삼았고,
 # round 7 은 같은 종류의 닫힌 문장을 하나 더 찾았다(최상위 변수의 허용 집합을
@@ -270,7 +292,17 @@
 #
 #      **"담을 수 없는 타입"** 은 (i) 값이 변하지 않는 dart:core 기본형
 #      (bool·double·int·num·String·Duration·DateTime) 과 (ii) **이 폴더가
-#      스스로 선언한 타입 이름들**의 합이다. 뒤엣것을 허용해도 고리가 닫히는
+#      스스로 선언한 타입 이름들**의 합이다. 뒤엣것을 읽는 것이 declHead() 라,
+#      class modifier 가 붙어도(`final class`·`sealed class`·`base class`·
+#      `interface class`·`abstract final class`·`mixin class`) 같은 이름으로
+#      읽히고 타입 매개변수 목록은 이름의 일부가 아니다(`class Box<T>` → Box).
+#      **타입 인자를 붙인 인스턴스화까지 받는 것은 함수 타입 typedef 하나뿐
+#      이다** (`Parse<int>`) — 함수 타입은 무엇으로 인스턴스화해도 값을 담지
+#      못하기 때문이다. 그 문장이 참이도록, `=` 오른쪽의 **최상위** 토막이
+#      `Function(`·`Function<` 로 시작하는 typedef 만 함수 타입으로 센다:
+#      그 전에는 `typedef Bag = List<DeviceFix Function()>;` 이 함수 타입으로
+#      세어져 `final Bag b;` 와 `Provider<Bag>` 이 통과했다(실측: round 7 판은
+#      둘 다 exit 0, 지금은 둘 다 exit 2). 뒤엣것을 허용해도 고리가 닫히는
 #      까닭은, 그 타입의 필드가 다시 이 검사를 지나기 때문이다 —
 #      `Provider<SpotLog>` 는 통과해도 `SpotLog` 안의 `List<DeviceFix>` 에서
 #      막힌다. 반대로 폴더 밖의 이름은 통과하지 못하므로
@@ -306,6 +338,17 @@
 #          `(double, double)` 이면 좌표 한 쌍 그대로다.
 #        · `extension type Box(List<DeviceFix> v) {}` — 표현 필드가 헤더의
 #          괄호 안이라 몸통 검사가 닿지 않는데, 최상위 이름 목록이 받는다.
+#        · **이 폴더가 선언한 class·enum·mixin 의 제네릭 인스턴스화**
+#          (`class Box<T>` 를 두고 `final Box<int> b;`) — 이름은 받아도 타입
+#          인자는 받지 않는다. 같은 자리에 `final Box<DeviceFix> b;` 를 적을
+#          수 있기 때문이고, 그것도 exit 2 다(둘 다 실측). 위의 타입 매개변수
+#          필드(`final T value;`)와 같은 규칙이다. 함수 타입 typedef 만 여기서
+#          갈린다 — `Parse<int>` 는 통과한다(위 "담을 수 없는 타입" 참조).
+#        · **레코드를 가리키는 typedef 필드**
+#          (`typedef Point = ({double lat, double lng});` 를 두고
+#          `final Point p;`) — 레코드는 값을 담는 자리이고 이 모양은 위의
+#          `final (double, double) span;` 과 같은 것이다. 저장소에 실재하는
+#          모양이다(lib/weather/weather.dart:87 의 WeatherPoint; 실측 exit 2).
 #      전부 우회하지 말고 위 두 목록을 의도적으로 넓히고 ADR 을 남기십시오.
 #      **그 눈에 띔이 이 검사의 목적이다.**
 #
@@ -366,6 +409,94 @@ if [ -d "$DIR" ]; then
 fi
 
 LOC_DIR="lib/location"
+
+# ─────────────────────────────────────────────────────────────────────────
+# 선언 머리를 읽는 규칙 — 이 스크립트 안에서 **한 번만** 적는다.
+# ─────────────────────────────────────────────────────────────────────────
+#
+# round 8 의 거부 사유가 이것을 두 번 다르게 적은 것이었다. 검사 4) 가 "이
+# 폴더가 스스로 선언한 타입"을 모을 때 쓰던 grep 은 수식어를 `abstract` 하나로
+# 알고 있었는데, 바로 아래 같은 검사의 topDecl() 은 일곱을 알고 있었다. 그래서
+# `final class`·`sealed class`·`base class`·`interface class`·
+# `abstract final class` 로 선언한 타입이 그 집합에 들어오지 않아 **그 타입의
+# final 필드가 exit 2** 였다 — 이 저장소가 `lib/` 에서 실제로 31번 쓰는 모양
+# 이고(`abstract final class` 16 · `final class` 11 · `sealed class` 4), 5.2 가
+# 이 폴더에 지을 모양 그대로다. 같은 개념을 두 자리에 따로 적으면 어긋남이
+# 다시 생기므로, 아래 awk 함수 하나를 **세 자리**가 함께 쓴다:
+#   · 2-c 의 kst.dart 공개 이름 읽기
+#   · 검사 4) 의 "이 폴더가 스스로 선언한 타입" 모으기
+#   · 검사 4) 의 topDecl() (최상위 선언의 이름 읽기)
+#
+# 수식어 집합은 Dart 3 의 class modifier 전부다(`abstract`·`base`·`final`·
+# `sealed`·`interface`)에 `external`·`augment` 를 더한 것이다.
+DECL_MODIFIERS='abstract|base|final|sealed|interface|external|augment'
+DECL_KEYWORDS='class|enum|mixin|extension|typedef'
+
+# 세 자리가 함께 쓰는 awk 함수 셋. 부르는 쪽은 이 문자열을 자기 프로그램 앞에
+# 이어 붙이고 DECL_MOD_RE·DECL_KW_RE 를 -v 로 넘긴다.
+DECL_AWK='
+  # 괄호·꺾쇠 **밖**의 공백으로만 토막 낸다 — `Future<A> Function()` 은
+  # 두 토막이지만 `DeviceFix({required this.lat, ...})` 는 한 토막이다.
+  function topTokens(s, arr,   i, c, d, cur, n) {
+    d = 0; n = 0; cur = ""
+    for (i = 1; i <= length(s); i++) {
+      c = substr(s, i, 1)
+      if (c == "(" || c == "<" || c == "[" || c == "{") d++
+      else if (c == ")" || c == ">" || c == "]" || c == "}") d--
+      if (d == 0 && (c == " " || c == "\t")) {
+        if (cur != "") { arr[++n] = cur; cur = "" }
+        continue
+      }
+      cur = cur c
+    }
+    if (cur != "") arr[++n] = cur
+    return n
+  }
+
+  # 괄호·꺾쇠 밖의 첫 "=" 자리 (없으면 0). "=>"·"==" 도 그 "=" 에서 끊긴다.
+  function firstTopEq(s,   i, c, d) {
+    d = 0
+    for (i = 1; i <= length(s); i++) {
+      c = substr(s, i, 1)
+      if (c == "(" || c == "<" || c == "[" || c == "{") { d++; continue }
+      if (c == ")" || c == ">" || c == "]" || c == "}") { d--; continue }
+      if (d == 0 && c == "=") return i
+    }
+    return 0
+  }
+
+  # 선언 머리 arr[1..n] 에서 갈래 키워드와 이름을 읽는다 (애노테이션은 부른
+  # 쪽에서 이미 걷어 냈다). 수식어를 앞에서 걷어 내고, 이름에서 타입 매개변수
+  # 목록과 표현 필드 목록을 뗀다(`final class Box<T> {` → class · Box).
+  #
+  # 돌려주는 값이 셋이다:
+  #    1  읽었다 — out["kw"] · out["name"] 이 찼다.
+  #   -1  갈래 키워드는 왔는데 이름을 읽지 못했다 (부른 쪽은 "?" 로 낸다).
+  #    0  타입을 짓는 선언이 아니다 (부른 쪽은 값·함수 쪽으로 넘어간다).
+  function declHead(arr, n, out,   i, kw, t) {
+    out["kw"] = ""; out["name"] = ""
+    for (i = 1; i <= n; i++) {
+      kw = arr[i]
+      if (kw == "mixin" && i < n && arr[i + 1] == "class") continue
+      if (kw == "extension" && i < n && arr[i + 1] == "type") continue
+      if (kw ~ DECL_KW_RE) {
+        if (i < n) {
+          t = arr[i + 1]
+          sub(/[<(].*$/, "", t)
+          if (t ~ /^[A-Za-z_$][A-Za-z0-9_$]*$/ && t != "on") {
+            out["kw"] = kw; out["name"] = t
+            return 1
+          }
+        }
+        return -1
+      }
+      if (kw !~ DECL_MOD_RE) return 0
+    }
+    return 0
+  }
+'
+DECL_MOD_RE="^($DECL_MODIFIERS)$"
+DECL_KW_RE="^($DECL_KEYWORDS)$"
 
 # 2)·3) 이 폴더의 import 는 허용 목록 안에만 있고, export·part 는 쓰지 않는다.
 #
@@ -489,16 +620,18 @@ if [ -d "$LOC_DIR" ]; then
 gameStartsAt
 kstDateOf
 kstOffset'
-    door_actual=$(awk '
+    # 선언 머리는 위 DECL_AWK 의 declHead() 하나로 읽는다 — 검사 4) 의 두
+    # 자리와 같은 수식어 집합·같은 이름 추출이다.
+    door_actual=$(awk -v DECL_MOD_RE="$DECL_MOD_RE" -v DECL_KW_RE="$DECL_KW_RE" "$DECL_AWK"'
       /^[[:space:]]*\/\// { next }
       /^(import|export|part|library)([[:space:]]|;)/ { next }
       /^[A-Za-z_$]/ {
         line = $0
         sub(/\/\/.*$/, "", line)
-        if (match(line, /^(abstract[ ]+)?(base[ ]+|final[ ]+|sealed[ ]+|interface[ ]+)*(class|enum|mixin|extension|typedef)[ ]+[A-Za-z_$][A-Za-z0-9_$]*/)) {
-          s = substr(line, RSTART, RLENGTH); n = split(s, a, /[ ]+/); print a[n]; next
-        }
-        if (match(line, /[A-Za-z_$][A-Za-z0-9_$]*[ ]*[(=;]/)) {
+        hdN = topTokens(line, hdArr)
+        head = declHead(hdArr, hdN, hd)
+        if (head == 1) { print hd["name"]; next }
+        if (head == 0 && match(line, /[A-Za-z_$][A-Za-z0-9_$]*[ ]*[(=;]/)) {
           s = substr(line, RSTART, RLENGTH); sub(/[ ]*[(=;]$/, "", s); print s; next
         }
         print "?" line
@@ -547,20 +680,68 @@ if [ -d "$LOC_DIR" ]; then
   # 예외는 **함수 타입 typedef** 하나다(`typedef X = ... Function(...)`).
   # 함수 타입은 값을 담지 못하고, 이 폴더의 이음매(`DeviceFixReader`)가 그
   # 모양이라 이것까지 빼면 정당한 필드가 걸린다.
-  declared=$(grep -rhoE --include='*.dart' \
-    '^(abstract +)?(class|enum|mixin) +[A-Za-z_][A-Za-z0-9_]*' \
-    "$LOC_DIR" 2>/dev/null | awk '{ print $NF }' | sort -u)
-  declared_fn=$(grep -rhE --include='*.dart' \
-    '^typedef +[A-Za-z_][A-Za-z0-9_]* *=.*Function *[(<]' \
-    "$LOC_DIR" 2>/dev/null | awk '{ print $2 }' | sort -u)
-  declared=$(printf '%s\n%s\n' "$declared" "$declared_fn" | grep -v '^$' | sort -u | paste -sd'|' -)
+  # 이름은 **위 DECL_AWK 의 declHead() 하나로** 읽는다 — topDecl() 이 읽는
+  # 것과 같은 수식어 집합이고 같은 이름 추출이다(round 8 의 거부 사유가 이
+  # 둘이 어긋난 것이었다). 그래서 `final class Foo`·`sealed class Foo`·
+  # `abstract final class Foo`·`mixin class Foo`·`class Box<T>` 가 전부 이
+  # 집합에 들어온다.
+  #
+  # **함수 타입 typedef 는 따로 모은다**(FNTYPES). 그 이름은 타입 매개변수를
+  # 붙인 인스턴스화(`Parse<int>`)까지 받아야 하는데, class 이름 쪽은 그러면
+  # 안 되기 때문이다 — `Box<DeviceFix>` 는 그대로 좌표를 담는 통이다.
+  # 함수 타입은 무엇으로 인스턴스화해도 값을 담지 못하므로 그 차이가 성립하고,
+  # 그것이 성립하도록 `=` 오른쪽의 **최상위** 토막이 `Function(`·`Function<`
+  # 로 시작하는 typedef 만 여기 센다(`typedef Bag = List<int Function()>;` 는
+  # 함수가 아니라 통이므로 들어오지 않는다).
+  decl_scan=$(find "$LOC_DIR" -type f -name '*.dart' | sort | while read -r dart_file; do
+    awk -v DECL_MOD_RE="$DECL_MOD_RE" -v DECL_KW_RE="$DECL_KW_RE" "$DECL_AWK"'
+      function isFnTypedef(s,   eq, rhs, rt, m, i) {
+        eq = firstTopEq(s)
+        if (eq == 0) return 0
+        rhs = substr(s, eq + 1)
+        m = topTokens(rhs, rt)
+        for (i = 1; i <= m; i++) if (rt[i] ~ /^Function[(<]/) return 1
+        return 0
+      }
+      /^[A-Za-z_$]/ {
+        line = $0
+        sub(/\/\/.*$/, "", line)
+        n = topTokens(line, arr)
+        if (declHead(arr, n, hd) != 1) next
+        if (hd["kw"] == "typedef") {
+          if (isFnTypedef(line)) print "FN\t" hd["name"]
+          next
+        }
+        # class·enum·mixin 만 센다 (까닭은 위 문단). extension·extension type
+        # 과 함수 타입이 아닌 typedef 는 여기 오지 않는다.
+        if (hd["kw"] == "class" || hd["kw"] == "enum" || hd["kw"] == "mixin")
+          print "TYPE\t" hd["name"]
+      }
+    ' "$dart_file" || printf 'AWKFAIL\t%s\n' "$dart_file"
+  done)
+
+  decl_awk_fail=$(printf '%s\n' "$decl_scan" | sed -n 's/^AWKFAIL\t//p')
+  if [ -n "$decl_awk_fail" ]; then
+    {
+      echo "검사 4) 의 타입 이름 모으기 awk 가 아래 파일에서 실패했습니다 — 검사가 조용히 통과하는 대신 여기서 멈춥니다:"
+      echo "$decl_awk_fail"
+    } >&2
+    fail=2
+  fi
+
+  declared=$(printf '%s\n' "$decl_scan" | sed -n 's/^TYPE\t//p' | grep -v '^$' | sort -u)
+  declared_fn=$(printf '%s\n' "$decl_scan" | sed -n 's/^FN\t//p' | grep -v '^$' | sort -u)
+  all_declared=$(printf '%s\n%s\n' "$declared" "$declared_fn" | grep -v '^$' | sort -u | paste -sd'|' -)
+  FNTYPES=$(printf '%s\n' "$declared_fn" | paste -sd'|' -)
   TYPES='bool|double|int|num|String|Duration|DateTime'
-  [ -n "$declared" ] && TYPES="$TYPES|$declared"
+  [ -n "$all_declared" ] && TYPES="$TYPES|$all_declared"
 
   scan=$(find "$LOC_DIR" -type f -name '*.dart' | sort | while read -r dart_file; do
-    awk -v TYPES="$TYPES" -v FNAME="$dart_file" '
+    awk -v TYPES="$TYPES" -v FNTYPES="$FNTYPES" -v FNAME="$dart_file" \
+        -v DECL_MOD_RE="$DECL_MOD_RE" -v DECL_KW_RE="$DECL_KW_RE" "$DECL_AWK"'
       BEGIN {
         n = split(TYPES, t, "|"); for (i = 1; i <= n; i++) ok[t[i]] = 1
+        if (FNTYPES != "") { n = split(FNTYPES, t, "|"); for (i = 1; i <= n; i++) okfn[t[i]] = 1 }
         SQ = sprintf("%c", 39); DQ = sprintf("%c", 34)
       }
 
@@ -586,22 +767,24 @@ if [ -d "$LOC_DIR" ]; then
         return ""
       }
 
-      # 괄호·꺾쇠 **밖**의 공백으로만 토막 낸다 — `Future<A> Function()` 은
-      # 두 토막이지만 `DeviceFix({required this.lat, ...})` 는 한 토막이다.
-      function topTokens(s, arr,   i, c, d, cur, n) {
-        d = 0; n = 0; cur = ""
-        for (i = 1; i <= length(s); i++) {
-          c = substr(s, i, 1)
-          if (c == "(" || c == "<" || c == "[" || c == "{") d++
-          else if (c == ")" || c == ">" || c == "]" || c == "}") d--
-          if (d == 0 && (c == " " || c == "\t")) {
-            if (cur != "") { arr[++n] = cur; cur = "" }
-            continue
-          }
-          cur = cur c
-        }
-        if (cur != "") arr[++n] = cur
-        return n
+      # topTokens()·firstTopEq()·declHead() 는 위 DECL_AWK 에 있다 — 이
+      # 스크립트의 세 자리가 같은 함수를 쓴다.
+
+      # 값을 담아 둘 수 없는 **함수 타입**인가.
+      #
+      # 그 자리에 직접 적은 함수 타입(`... Function(...)`)과, 이 폴더가
+      # 선언한 함수 타입 typedef 의 이름 둘 다다. typedef 이름은 타입
+      # 매개변수를 붙인 인스턴스화(`Parse<int>`)까지 받는다 — 함수 타입은
+      # 무엇으로 인스턴스화해도 값을 담지 못하기 때문이고, 위에서 그 집합을
+      # 모을 때 오른쪽이 **최상위** 함수 타입인 typedef 만 세는 것이 이
+      # 문장을 참으로 만든다. class 이름 쪽은 이렇게 하지 **않는다**:
+      # `Box<DeviceFix>` 는 그대로 좌표를 담는 통이라 exit 2 다.
+      function isFnType(t,   b) {
+        if (t ~ /Function[(]/) return 1
+        b = t
+        sub(/[?]$/, "", b)
+        sub(/<.*$/, "", b)
+        return (b in okfn)
       }
 
       # 클래스 몸통의 선언 하나가 "값을 담아 둘 수 없는" 모양인가.
@@ -631,6 +814,12 @@ if [ -d "$LOC_DIR" ]; then
         #  `abstract final String` 도 같이 걸렸다.)
         # `late` 는 이 집합에 **없다** — 값이 생성자 밖의 어느 시점에
         # 들어오는 자리라 일부러 거절하는 모양이다(헤더의 4) 참조).
+        #
+        # **이 집합은 위 DECL_MODIFIERS 와 다른 개념이고, 같아서도 안 된다.**
+        # 저것은 선언 **머리**의 수식어(class modifier)이고 이것은 **필드**의
+        # 수식어다: `sealed`·`base`·`interface` 는 필드에 붙지 않고
+        # `static`·`covariant` 는 머리에 붙지 않는다. 둘이 겹치는 것은
+        # `abstract`·`external` 둘뿐이다.
         base = 1
         while (base <= n && arr[base] ~ /^(static|abstract|external|covariant)$/) base++
         if (base > 1) {
@@ -642,7 +831,7 @@ if [ -d "$LOC_DIR" ]; then
         if (arr[1] != "final") return 0           # var·late·수식어 없음
         type = ""
         for (i = 2; i < n; i++) type = (type == "" ? arr[i] : type " " arr[i])
-        if (type ~ /Function[(]/) return 1        # 이음매(함수 타입)
+        if (isFnType(type)) return 1              # 이음매(함수 타입)
         if (n != 3) return 0
         sub(/[?]$/, "", type)
         return (type in ok)
@@ -697,23 +886,11 @@ if [ -d "$LOC_DIR" ]; then
         for (i = 1; i <= n; i++) {
           t = a[i]
           sub(/^ +/, "", t); sub(/ +$/, "", t)
-          if (t ~ /Function[(]/) continue
+          if (isFnType(t)) continue
           sub(/[?]$/, "", t)
           if (!(t in ok)) return 0
         }
         return 1
-      }
-
-      # 괄호·꺾쇠 밖의 첫 "=" 자리 (없으면 0). "=>"·"==" 도 그 "=" 에서 끊긴다.
-      function firstTopEq(s,   i, c, d) {
-        d = 0
-        for (i = 1; i <= length(s); i++) {
-          c = substr(s, i, 1)
-          if (c == "(" || c == "<" || c == "[" || c == "{") { d++; continue }
-          if (c == ")" || c == ">" || c == "]" || c == "}") { d--; continue }
-          if (d == 0 && c == "=") return i
-        }
-        return 0
       }
 
       # 한 문장에 값 자리가 둘 이상인가 (`double a, b;` ·
@@ -756,7 +933,7 @@ if [ -d "$LOC_DIR" ]; then
       #   const    const 로 시작하는 값 선언
       #   provider providerOk 에 맞는 읽기 전용 provider
       #   var      그 밖의 값 선언 (오늘 이 폴더에는 하나도 없다)
-      function topDecl(s, out,   arr, n, i, base, eq, pre, init, kw, t) {
+      function topDecl(s, out,   arr, n, i, base, eq, pre, init, kw, t, h, hd) {
         out["name"] = "?"; out["kind"] = "?"
         # 빈 문장 — 중괄호 리터럴(`const Map<..> t = <..>{...};` · 최상위
         # 클로저)의 닫는 괄호 뒤에 남는 `;` 가 여기로 온다. 선언 자체는 그
@@ -775,24 +952,11 @@ if [ -d "$LOC_DIR" ]; then
         }
         if (n < 1) { out["name"] = ""; return }
 
-        # (1) 타입을 짓는 선언 — 키워드 바로 뒤가 이름이다.
-        for (i = 1; i <= n; i++) {
-          kw = arr[i]
-          if (kw == "mixin" && i < n && arr[i + 1] == "class") continue
-          if (kw == "extension" && i < n && arr[i + 1] == "type") continue
-          if (kw ~ /^(class|enum|mixin|extension|typedef)$/) {
-            if (i < n) {
-              # 타입 매개변수 목록은 이름의 일부가 아니다 (`class Box<T> {`).
-              t = arr[i + 1]
-              sub(/[<(].*$/, "", t)
-              if (t ~ /^[A-Za-z_$][A-Za-z0-9_$]*$/ && t != "on") {
-                out["name"] = t; out["kind"] = "type"
-              }
-            }
-            return
-          }
-          if (kw !~ /^(abstract|base|final|sealed|interface|external|augment)$/) break
-        }
+        # (1) 타입을 짓는 선언 — 위 DECL_AWK 의 declHead() 가 읽는다.
+        #     같은 함수를 검사 4) 의 타입 이름 모으기와 2-c 도 쓴다.
+        h = declHead(arr, n, hd)
+        if (h == 1) { out["name"] = hd["name"]; out["kind"] = "type"; return }
+        if (h == -1) return
 
         # (2) 값·함수 선언 — 괄호 밖의 첫 "=" 앞이 선언의 앞부분이다.
         eq = firstTopEq(s)
@@ -908,6 +1072,12 @@ if [ -d "$LOC_DIR" ]; then
               hdr = cur; sub(/ +$/, "", hdr)
               emit(hdr, bd, sline)
               bd++
+              # 이 갈래 집합은 위 DECL_KEYWORDS 에서 `typedef` 를 뺀 것이다 —
+              # typedef 는 몸통을 열지 않으므로 여기 올 일이 없다. 그리고
+              # declHead() 가 아니라 머리 문자열을 그대로 보는데, 그래야
+              # `extension type Box(...) {` 의 몸통도 함께 세어진다
+              # (declHead() 는 그것을 타입 선언으로 읽지 않는다 — 막히는
+              # 쪽으로 틀린다).
               kind[bd] = (hdr ~ /(^|[^A-Za-z0-9_$])(class|enum|mixin|extension)[ ]/) ? 1 : 0
               enumHead[bd] = (hdr ~ /(^|[^A-Za-z0-9_$])enum[ ]/) ? 1 : 0
               cur = ""
