@@ -687,3 +687,12 @@ abstract final class MotionTokens {
     curve: emphasized,
   );
 }
+
+/// `profile.*` — 마이페이지(3.4) 프로필 색 스와치 수치 토큰.
+abstract final class ProfileTokens {
+  /// 스와치 한 변 (원형이라 지름).
+  static const double colorSwatchSize = 40;
+
+  /// 선택된 스와치의 테두리 굵기.
+  static const double colorSwatchSelectedBorderWidth = 3;
+}

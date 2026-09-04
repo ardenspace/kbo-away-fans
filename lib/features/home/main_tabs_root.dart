@@ -6,6 +6,7 @@ import '../../ui/shared/content_fallback.dart';
 import '../../ui/shared/main_tab_scaffold.dart';
 import '../likes/likes_tab_screen.dart';
 import '../places/recommend_tab_screen.dart';
+import '../profile/profile_tab_screen.dart';
 import '../team_select/selected_team.dart';
 import 'home_screen.dart';
 
@@ -25,10 +26,12 @@ import 'home_screen.dart';
 ///   사람"이 아니라 "로그인해 이 화면에 닿은 모든 사람"에서 일어난다 — 다만
 ///   3.2 가 이미 이 provider 를 세션당 정확히 1회로 캐시해 두었으므로 늘어나는
 ///   것은 그 1회가 일어나는 **시점**이지 **횟수**가 아니다.
-/// - **배지**(4.3)·**마이페이지**(3.4)는 아직 화면이 없다. 그 자리 표시
-///   ([_ComingSoonTab])가 provider 를 하나도 구독하지 않는 것은 의도다 —
-///   아직 없는 화면이 서버를 읽는 자리를 만들면 그 비용이 탭을 열어 보지
-///   않아도 항상 켜져 있게 된다.
+/// - **마이페이지** 탭(3.4)은 [ProfileTabScreen] — `userProfileProvider` 를
+///   직접 구독한다(그 위젯 문서 참조. 위 [_HomeTab] 과 같은 얼어붙음을 피하는
+///   이유다).
+/// - **배지**(4.3)는 아직 화면이 없다. 그 자리 표시([_ComingSoonTab])가
+///   provider 를 하나도 구독하지 않는 것은 의도다 — 아직 없는 화면이 서버를
+///   읽는 자리를 만들면 그 비용이 탭을 열어 보지 않아도 항상 켜져 있게 된다.
 class MainTabsRoot extends StatelessWidget {
   const MainTabsRoot({super.key});
 
@@ -64,7 +67,7 @@ class MainTabsRoot extends StatelessWidget {
           label: '마이페이지',
           icon: Icons.person_outline_rounded,
           selectedIcon: Icons.person_rounded,
-          builder: (_) => const _ComingSoonTab(label: '마이페이지'),
+          builder: (_) => const ProfileTabScreen(),
         ),
       ],
     );
