@@ -188,6 +188,58 @@ void main() {
     expect(await const SelectedTeamStore().read(uid), 'lg');
   });
 
+  test('수렴하는 사이에 온 늦은 스냅샷이 둘째 선택의 물러서기를 지우지 않는다', () async {
+    // 위 시험의 실행에 **늦은 스냅샷 하나**를 끼운 자리다. 물러선 첫 선택이
+    // 수렴 읽기(서버 왕복)에 들어가 있는 사이에 상한 뒤의 진짜 답이 도착하면,
+    // 그 답을 받은 자리가 "이 계정의 문서를 안다"를 세워 버린다 — 그러면 줄에
+    // 서 있던 둘째 선택은 물러서기를 건너뛰고 수정 경로로 들어가 원본을 덮는다.
+    // 물러설지 말지는 **그 선택이 줄에 설 때의 사정**으로 정해져야 하고, 그
+    // 사이에 일어난 일이 판단을 바꾸면 안 된다.
+    final gated = _GatedReadStore();
+    addTearDown(gated.dispose);
+    gated.documents[uid] = _serverDocument('lg');
+    gated.holdProfiles = true;
+    final container = ProviderContainer(
+      overrides: [
+        authServiceProvider.overrideWithValue(auth),
+        userDataStoreProvider.overrideWithValue(gated),
+      ],
+    );
+    addTearDown(container.dispose);
+    container.listen(selectedTeamIdProvider, (_, _) {});
+    await pumpEventQueue();
+    gated.emitProfileError(const BackendNetworkError(code: 'unavailable'));
+    await pumpEventQueue();
+    expect(container.read(selectedTeamIdProvider).value, isNull, reason: '온보딩이다');
+
+    final notifier = container.read(selectedTeamIdProvider.notifier);
+    final first = notifier.select('kt');
+    final second = notifier.select('kia');
+    // 첫 선택이 물러서서 수렴 읽기에 들어가 멈춰 있다.
+    await pumpEventQueue();
+
+    // 그 사이에 상한 뒤의 진짜 답이 도착한다 — 화면은 서버 팀으로 수렴한다.
+    gated.releaseProfiles();
+    await pumpEventQueue();
+    expect(container.read(selectedTeamIdProvider).value, 'lg');
+
+    // 이제 수렴 읽기가 끝나고 줄에 서 있던 둘째 선택이 실행된다.
+    gated.readGate.complete();
+    await first;
+    await second;
+    await pumpEventQueue();
+
+    expect(gated.profileCreates, 0);
+    expect(
+      gated.documents[uid]![UserFields.favoriteTeamId],
+      'lg',
+      reason: '늦은 스냅샷이 끼어든 실행에서 둘째 선택이 원본을 덮었다',
+    );
+    expect(gated.documents[uid]![UserFields.profileThemeKey], 'lg');
+    expect(container.read(selectedTeamIdProvider).value, 'lg');
+    expect(await const SelectedTeamStore().read(uid), 'lg');
+  });
+
   test('같은 팀을 두 번 눌러도 원본은 그대로다', () async {
     // 위와 같은 자리인데 사람이 한 번 더 누른 모양이다 — "안 먹혔나" 싶어
     // 같은 카드를 다시 누르는 것이 온보딩에서 가장 흔하다.
