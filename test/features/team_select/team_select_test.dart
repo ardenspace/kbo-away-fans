@@ -43,6 +43,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../backend/fake_backend.dart';
 import '../../location/fake_location_permission_gateway.dart';
 
+/// 상한이 **있다면** 그 안에는 끝나야 하는 시간 — 상한이 있다는 사실을 재는
+/// 케이스가 미는 시간이다. `kCachedTeamReadTimeout` 을 곱해 쓰지 않는 것은,
+/// 그러면 상수를 키우는 변이가 미는 시간까지 함께 키워 그 케이스가 어떤 값도
+/// 지키지 못하기 때문이다. 값 자체는 따로 잰다
+/// ('기기 저장 읽기의 상한이 실제로 사람이 견딜 길이다').
+const Duration _generousCacheBound = Duration(seconds: 10);
+
 /// 서버에 이미 남아 있는 사용자 문서.
 Map<String, Object?> serverDocument(String teamId) => <String, Object?>{
       UserFields.nickname: '먼저있던닉',
@@ -322,13 +329,30 @@ void main() {
     expect(find.byType(TeamSelectScreen), findsNothing);
     expect(find.byType(HomeScreen), findsNothing);
 
-    await tester.pump(kCachedTeamReadTimeout * 2);
+    await tester.pump(_generousCacheBound);
     await tester.pump(const Duration(milliseconds: 500));
 
     expect(
       find.byType(TeamSelectScreen),
       findsOneWidget,
       reason: '기기 저장 읽기가 끝나지 않아 대기 화면이 그대로다 — 나갈 길이 없다',
+    );
+  });
+
+  test('기기 저장 읽기의 상한이 실제로 사람이 견딜 길이다', () {
+    // 바로 위 케이스는 상한이 **있는지**만 잰다. 그 시간을 상수로 세지 않는
+    // 것은(예전에는 `kCachedTeamReadTimeout * 2` 였다) 상수를 키우는 변이가
+    // 미는 시간까지 함께 키워 아무것도 지키지 못하기 때문이다 — 5초를 600초로
+    // 바꿔도 전체가 초록불이었다. 이 값은 곧 기기를 바꿔 처음 로그인한 사람이
+    // 대기 화면 앞에 앉아 있는 최대 시간이라, 길이 자체를 여기서 못 박는다.
+    // 짝인 `kProfileServerConfirmGrace`·`kAppCheckActivationTimeout` 에 같은
+    // 모양의 시험이 서 있다.
+    expect(kCachedTeamReadTimeout, greaterThan(Duration.zero));
+    expect(
+      kCachedTeamReadTimeout,
+      lessThanOrEqualTo(const Duration(seconds: 10)),
+      reason: '늘리면 그만큼 대기 화면이 길어진다 — 서버 쪽이 이미 답한 실행에서도 '
+          '갈래가 정해지지 않는다',
     );
   });
 
@@ -572,15 +596,68 @@ void main() {
     await tester.pumpAndSettle();
     expect(slow.documents[uid]![UserFields.favoriteTeamId], 'samsung');
   });
+
+  testWidgets('늦게 실패한 팀 바꾸기의 안내는 화면이 닫힌 뒤에도 닿는다', (tester) async {
+    // 바로 위 케이스가 만든 순서의 뒷면이다: 변경 화면은 서버 왕복을 **기다리지
+    // 않고** 닫히므로, 실패는 언제나 그 화면이 사라진 뒤에 온다. 그래서
+    // `TeamSelectScreen._select` 는 `ScaffoldMessenger` 를 첫 await **앞에서**
+    // 잡아 둔다 — 그 줄을 await 뒤로 옮기면 조회하는 context 가 이미 트리에서
+    // 빠진 뒤라 안내가 아무 데도 닿지 못한다.
+    //
+    // 대역의 쓰기가 즉시 실패하는 다른 케이스들에는 이 구간이 아예 없어서(화면이
+    // 닫히기 전에 실패가 이미 와 있다) 그 줄을 옮겨도 전부 초록불이었다. 여기서
+    // 서버 왕복을 문으로 붙잡아 그 구간을 만든다.
+    SharedPreferences.setMockInitialValues({});
+    final slow = _GatedPatchStore(
+      failure: const BackendNetworkError(code: 'unavailable'),
+    );
+    addTearDown(slow.dispose);
+    slow.documents[uid] = serverDocument('lg');
+    await tester.pumpWidget(app(backend: slow));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('응원 팀 바꾸기'));
+    await tester.pumpAndSettle();
+    final samsung = find.text('삼성 라이온즈', skipOffstage: false);
+    await tester.ensureVisible(samsung);
+    await tester.pumpAndSettle();
+    await tester.tap(samsung);
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byType(TeamSelectScreen),
+      findsNothing,
+      reason: '이 케이스의 전제다 — 안내가 올 때 그 화면은 이미 없어야 한다',
+    );
+    expect(find.text(TeamSelectScreen.saveFailureNotice), findsNothing);
+
+    // 서버가 이제야 답한다 — 실패로.
+    slow.gate.complete();
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text(TeamSelectScreen.saveFailureNotice),
+      findsOneWidget,
+      reason: '화면이 닫힌 뒤에 온 실패가 조용히 지나가면, 사람은 팀이 바뀌었다고 '
+          '믿은 채 다음 콜드 스타트에서 옛 팀을 만난다',
+    );
+  });
 }
 
 /// 문서 고치기를 붙잡아 두는 대역 — 서버 왕복이 끝나지 않은 구간이다.
+/// [failure] 를 들려 보내면 그 왕복이 **늦게 실패하는** 실행이 된다.
 class _GatedPatchStore extends FakeUserDataStore {
+  _GatedPatchStore({this.failure});
+
+  final BackendError? failure;
+
   final Completer<void> gate = Completer<void>();
 
   @override
   Future<void> patchProfile(String uid, UserProfilePatch patch) async {
     await gate.future;
+    final failure = this.failure;
+    if (failure != null) throw failure;
     return super.patchProfile(uid, patch);
   }
 }

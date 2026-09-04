@@ -44,6 +44,14 @@ class TeamSelectScreen extends ConsumerWidget {
   final bool isChange;
 
   Future<void> _select(BuildContext context, WidgetRef ref, Team team) async {
+    // 안내를 띄울 자리를 **첫 await 앞에서** 잡아 둔다. 변경 모드에서는 아래
+    // `pop()` 이 이 화면을 트리에서 빼내는데, 서버 쓰기는 그 뒤에 끝나므로
+    // 실패는 언제나 화면이 사라진 다음에 온다 — 그때 가서 context 로 조회하면
+    // 이미 없는 화면을 뒤지게 되어 안내가 아무 데도 닿지 못한다. 대역의 쓰기가
+    // 즉시 실패하는 시험에는 그 구간이 아예 없어서 이 순서가 뒤집혀도 드러나지
+    // 않는다 — 서버 왕복을 붙잡아 그 구간을 만들어 재는 자리가
+    // `team_select_test.dart` 의 '늦게 실패한 팀 바꾸기의 안내는 화면이 닫힌
+    // 뒤에도 닿는다' 다.
     final messenger = ScaffoldMessenger.maybeOf(context);
     final navigator = isChange ? Navigator.of(context) : null;
     // `select` 는 첫 await 앞에서 상태를 이미 옮겨 놓는다 — 그래서 여기서
