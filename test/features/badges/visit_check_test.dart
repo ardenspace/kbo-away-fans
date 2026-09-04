@@ -39,6 +39,7 @@
 library;
 
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 
@@ -246,8 +247,15 @@ String _classBody(String source, String name) {
 /// 다루는 것과 다루지 못하는 것은 `dart-source.sh` 헤더의 목록 그대로다:
 /// 홑·겹따옴표와 각각의 세 겹, raw 접두어, 이스케이프, 중첩 블록 주석,
 /// **깊이 제한 없는 문자열 보간**(`'${a ?? 'https://a.b'}/x'`) 을 다루고,
-/// 닫히지 않은 주석·문자열과 **한 줄짜리 문자열의 보간 안에 있는 줄 주석**은
-/// 조용히 자르는 대신 [StateError] 로 세운다(시험에서는 그것이 빨간불이다).
+/// 닫히지 않은 주석·문자열은 조용히 자르는 대신 [StateError] 로 세운다
+/// (시험에서는 그것이 빨간불이다).
+///
+/// **round 12 가 보간 안의 줄 주석을 던지는 갈래에서 뺐다.** 그 자리는
+/// `'${a // c}'` 를 "성립하지 않는 입력"이라고 적고 막았는데, 보간이 줄을
+/// 넘기면(`'${id // c` 다음 줄에 `} 라벨'`) 줄 주석이 닫는 따옴표를 먹지
+/// 않으므로 **성립하는 Dart** 다(실측: `dart analyze` 무지적). 이제 세 겹과
+/// 같이 그 줄의 나머지만 버린다. 정말로 성립하지 않는 같은 줄 입력은 문자열이
+/// 끝내 닫히지 않으므로 "닫히지 않은 문자열" 갈래가 그대로 받는다(실측).
 ///
 /// 줄 수를 그대로 두는 것은 부르는 쪽이 줄 단위로 보기 때문이다: 주석만 있던
 /// 줄은 **빈 줄**로 남는다.
@@ -298,13 +306,6 @@ String _stripped(String source, {required bool blankStrings}) {
     quote.removeLast();
     raw.removeLast();
     brace.removeLast();
-  }
-
-  bool innerStringIsTriple() {
-    for (var k = kind.length - 1; k >= 0; k--) {
-      if (kind[k] == 'S') return quote[k].length == 3;
-    }
-    return false;
   }
 
   var i = 0;
@@ -360,10 +361,10 @@ String _stripped(String source, {required bool blankStrings}) {
     }
 
     // 여기부터는 코드 자리다 — 파일 최상위('C') 이거나 보간 안('I').
+    // 줄 주석 — 이 줄의 나머지를 버리고 상태는 그대로 다음 줄로 넘긴다.
+    // 보간(`${...}`) 안에서 만나도 같다: 보간 안은 코드 자리라 줄 주석이
+    // 성립하고, 그 보간이 다음 줄에서 이어진다.
     if (two == '//') {
-      if (kind.isNotEmpty && !innerStringIsTriple()) {
-        throw StateError('한 줄짜리 문자열의 보간 안에서 줄 주석을 만났다 — 닫는 따옴표까지 함께 사라진다');
-      }
       while (i < source.length && source[i] != '\n') {
         i++;
       }
@@ -884,6 +885,61 @@ void main() {
         );
         expect(result.reason, StadiumVisitReason.permissionMissing);
       }
+    });
+  });
+
+  group('재량으로 넘어온 수치 셋은 소리 없이 움직이지 않는다', () {
+    test('반경·시간 창은 여기 못 박혀 있다 — 바꾸려면 이 시험을 함께 고친다', () {
+      // 계약(step 4.1)이 **재량으로 넘긴** 수치 셋이다. 그래서 값을 금지하지
+      // 않는다 — 세 상수의 주석이 전부 "초기값이고 실측으로 조정할 값"이라고
+      // 적고 있고 그 문장을 지우지 않는다.
+      //
+      // 그런데 지금 이 셋은 **소리 없이** 움직인다: round 12 가
+      // `kVisitWindowBeforeStart` 를 3시간에서 4시간으로 바꾸고
+      // `flutter analyze`·시험 690개·훅 4종을 돌렸는데 전부 초록불이었다
+      // (실측). 나머지 둘도 같다 — 이 파일의 시험들이 세 상수를 **자기 자신을
+      // 기준으로** 쓰기 때문이다(`_northOf(kStadiumVisitRadiusMeters + 200)`,
+      // `start.subtract(kVisitWindowBeforeStart)`). 그 시험들은 "창의 안팎이
+      // 갈린다"는 성질을 재는 자리라 그렇게 쓰는 것이 맞고, 그래서 **길이를
+      // 재는 자리는 따로 있어야 한다.**
+      //
+      // 4.2 가 이 판정 위에 도장을 얹으면 이 셋이 곧 "도장이 붙는 범위"다.
+      // 여기서 막는 것은 변경이 아니라 **소리 없음**이다: 값을 바꾸는 커밋은
+      // 이 시험도 함께 고치게 되고, 그때 그 상수의 주석에 적힌 근거를 다시
+      // 쓰게 된다.
+      expect(kStadiumVisitRadiusMeters, 300);
+      expect(kVisitWindowBeforeStart, const Duration(hours: 3));
+      expect(kVisitWindowAfterStart, const Duration(hours: 5));
+    });
+
+    test('세 상수의 주석이 적은 근거가 값과 어긋나지 않는다', () {
+      // 위 시험이 "이 값이다"만 말하는 데 견주어, 여기는 **주석이 적은 까닭**을
+      // 그대로 잰다. 값을 고치는 사람이 위 시험만 고치고 지나가면 근거와
+      // 값이 갈리는데, 그때 이쪽이 선다.
+      expect(
+        kVisitWindowBeforeStart,
+        greaterThanOrEqualTo(const Duration(hours: 2)),
+        reason: '상수 주석의 근거가 "게이트 오픈이 보통 경기 2시간 전"이다 — '
+            '그보다 짧으면 문을 열고 들어간 사람이 창 밖이 된다',
+      );
+      expect(
+        kVisitWindowAfterStart,
+        greaterThanOrEqualTo(const Duration(hours: 3, minutes: 20)),
+        reason: '상수 주석의 근거가 "KBO 경기는 평균 3시간 20분 안팎"이다 — '
+            '그보다 짧으면 경기가 끝나기 전에 창이 닫힌다',
+      );
+      expect(
+        kVisitWindowBeforeStart + kVisitWindowAfterStart,
+        lessThan(const Duration(hours: 24)),
+        reason: '창 하나가 하루를 넘으면 이어진 두 날의 창이 겹쳐, 어느 날의 '
+            '경기로 도장을 받았는지가 좌표가 아니라 순서로 갈린다',
+      );
+      expect(
+        kStadiumVisitRadiusMeters,
+        greaterThanOrEqualTo(150),
+        reason: '상수 주석의 근거가 "구장의 구조물 반경이 110~150m" 다 — '
+            '그보다 좁으면 구장 안에 서 있는 사람이 반경 밖이 된다',
+      );
     });
   });
 
@@ -2121,6 +2177,19 @@ void main() {
         _withoutComments("String d() => '''it's fine'''; // c\n"),
         "String d() => '''it's fine'''; \n",
       );
+      // round 12 가 고친 자리: 보간이 줄을 넘기면 그 안의 줄 주석은 닫는
+      // 따옴표를 먹지 않으므로 **성립하는 Dart** 다. 직전 판은 이것을
+      // "성립하지 않는 입력"이라 적고 exit 2 로 막았다(오탐).
+      expect(
+        _withoutComments("final t = '\${id // c\n} 라벨';\n"),
+        "final t = '\${id \n} 라벨';\n",
+      );
+      // 그런데 **같은 줄에서 닫으려는** 입력은 여전히 드러난다 — 그 줄 주석이
+      // 닫는 따옴표까지 먹어서 문자열이 끝내 닫히지 않기 때문이다.
+      expect(
+        () => _withoutComments("final v = '\${a // c}';\n"),
+        throwsA(isA<StateError>()),
+      );
     });
 
     test('문자열을 지운 사본에는 따옴표가 남지 않고 글자 자리도 그대로다', () {
@@ -2132,11 +2201,22 @@ void main() {
           code.length,
           reason: '${entry.name}: 지운 사본은 글자 자리를 그대로 둔다',
         );
+        // 통째 길이만 재면 한 줄이 길어지고 다른 줄이 짧아지는 어긋남이
+        // 상쇄되어 보이지 않는다 — **줄마다** 잰다.
+        final codeLines = code.split('\n');
+        final blankLines = blank.split('\n');
         expect(
-          blank.split('\n').length,
-          code.split('\n').length,
+          blankLines.length,
+          codeLines.length,
           reason: '${entry.name}: 줄 수도 그대로다',
         );
+        for (var i = 0; i < codeLines.length; i++) {
+          expect(
+            blankLines[i].length,
+            codeLines[i].length,
+            reason: '${entry.name}: ${i + 1}번째 줄의 글자 자리',
+          );
+        }
         expect(
           blank,
           isNot(anyOf(contains("'"), contains('"'))),
@@ -2178,27 +2258,59 @@ void main() {
           _withoutComments(entry.source),
           reason: '${entry.name}: 주석만 걷어 낸 사본이 두 판에서 같다',
         );
-        // 지운 사본은 **공백을 접어서** 견준다. awk 는 문자열 안의 글자를
-        // 바이트로 세고 Dart 는 UTF-16 단위로 세어서, 리터럴 안에 한글이
-        // 있으면 지운 자리의 **공백 개수**만 달라진다(둘 다 공백이므로 부르는
-        // 쪽에는 차이가 없다 — 문장을 끊는 쪽은 공백을 하나로 접어 본다).
-        // 그 밖의 어긋남(따옴표나 중괄호가 한쪽에만 남는 것, 줄이 사라지는
-        // 것)은 접어도 그대로 드러난다.
-        String fold(String s) => s.replaceAll(RegExp(' +'), ' ');
+        // 지운 사본은 **글자 자리까지** 견준다. round 11 이 세운 첫 판은
+        // 공백 런을 하나로 접어 보았는데, 그러면 "한쪽이 공백을 한 칸 더
+        // 넣는" 어긋남이 통째로 보이지 않는다 — round 12 의 거부 사유가
+        // 정확히 그것이었다(줄 끝 역슬래시에서 셸 판의 blank 사본이 한 글자
+        // 길었다). 두 판의 **정당한** 차이는 지운 자리의 공백 개수 하나뿐이고
+        // ([_asShellBlank] 의 doc 참조), 그것만 옮긴 뒤 나머지는 그대로
+        // 견준다.
         expect(
-          fold(run.blank[entry.name] ?? ''),
-          fold(_withStringsBlanked(entry.source)),
+          run.blank[entry.name],
+          _asShellBlank(
+            _withoutComments(entry.source),
+            _withStringsBlanked(entry.source),
+          ),
           reason: '${entry.name}: 문자열까지 지운 사본이 두 판에서 같다',
         );
       }
     });
 
+    test('셸 판의 두 사본은 줄 수도 각 줄의 글자 수도 같다', () {
+      // `dart-source.sh` 헤더가 "두 사본은 줄 수도 각 줄의 글자 수도 같다"라고
+      // 적은 문장을 그 자리에서 그대로 잰다. round 12 까지 그 문장은
+      // **거짓**이었다: 여러 줄 문자열 안에서 줄이 역슬래시로 끝나면
+      // 이스케이프를 두 글자로 세어 blank 사본이 한 글자 길었다. 두 판을
+      // 견주는 시험이 공백 런을 접어 보고 있어서 그 축을 못 보았고,
+      // `_mirrorCorpus` 에도 **줄 끝** 역슬래시가 없었다.
+      final run = _shellMirror(_mirrorCorpus);
+      expect(run.exitCode, 0, reason: run.stderr);
+      for (final entry in _mirrorCorpus) {
+        final code = (run.code[entry.name] ?? '').split('\n');
+        final blank = (run.blank[entry.name] ?? '').split('\n');
+        expect(blank.length, code.length, reason: '${entry.name}: 줄 수');
+        for (var i = 0; i < code.length; i++) {
+          // awk 는 바이트로 세므로 여기서도 바이트로 잰다 — 그것이 셸 판이
+          // 말하는 "글자 자리"다.
+          expect(
+            utf8.encode(blank[i]).length,
+            utf8.encode(code[i]).length,
+            reason: '${entry.name}: ${i + 1}번째 줄의 글자 자리',
+          );
+        }
+      }
+    });
+
     test('사본을 만들지 못하는 입력은 조용히 통과하는 대신 2 로 선다', () {
-      // 갈래마다 **자기 까닭**을 적는다 — 셋이 한 메시지로 뭉개지면
+      // 갈래마다 **자기 까닭**을 적는다 — 둘이 한 메시지로 뭉개지면
       // `dart-source.sh` 헤더의 "다루지 못하는 것" 목록이 고칠 길을 잘못
-      // 가리킨다. 그래서 메시지까지 함께 못 박는다(그러지 않으면 `bail()` 을
-      // 통째로 없애도 2)의 END 가드가 대신 서 주어 이 시험이 공허해진다 —
-      // 실측으로 확인했다).
+      // 가리킨다. 그래서 메시지까지 함께 못 박는다(블록 주석 갈래를 지우면
+      // 첫 프로브가, 문자열 갈래를 지우면 나머지 둘이 "닫히지 않은 문자열
+      // 보간으로 …" 로 바뀌어 빨간불이 된다 — 실측으로 확인했다).
+      //
+      // **round 12 가 셋을 둘로 줄였다.** 셋째 갈래(`bail()`)는 성립하는
+      // Dart 를 막는 오탐이었고, 그것을 빼도 같은 입력이 **둘째 갈래로**
+      // 그대로 드러난다(아래 셋째 프로브가 그것을 잰다).
       const probes = <({String why, String source, String shell, String dart})>[
         (
           why: '닫히지 않은 블록 주석',
@@ -2213,10 +2325,14 @@ void main() {
           dart: '닫히지 않은 문자열으로 소스가 끝났다',
         ),
         (
-          why: '한 줄짜리 문자열의 보간 안 줄 주석',
+          // 같은 줄에서 닫으려는 보간 안의 줄 주석 — 그 주석이 닫는 따옴표까지
+          // 먹으므로 문자열이 끝내 닫히지 않는다. `dart analyze` 도 같은
+          // 자리를 "Unterminated string literal" 로 적는다(실측). 그래서
+          // 이것은 **자기 갈래가 아니라 둘째 갈래로** 드러난다.
+          why: '같은 줄에서 닫으려는 보간 안 줄 주석',
           source: "final v = '\${a // c}';\n",
-          shell: '한 줄짜리 문자열의 보간 안에서 줄 주석을 만났습니다',
-          dart: '한 줄짜리 문자열의 보간 안에서 줄 주석을 만났다',
+          shell: '닫히지 않은 문자열로 파일이 끝났습니다',
+          dart: '닫히지 않은 문자열으로 소스가 끝났다',
         ),
       ];
       for (final probe in probes) {
@@ -2259,6 +2375,37 @@ void main() {
       final empty = _shellMirror(const []);
       expect(empty.exitCode, 2);
       expect(empty.stderr, contains('사본이 하나도 생기지 않았습니다'));
+    });
+
+    test('마지막 줄바꿈이 없는 파일에서 두 판이 갈리는 자리는 여기 못 박는다', () {
+      // 두 판의 유일하게 남은 어긋남이다: awk 의 `print` 는 마지막 레코드
+      // 뒤에도 줄바꿈을 넣고, Dart 판은 원본을 그대로 둔다. **적어 두는 대신
+      // 못 박는다** — round 12 의 거부 사유가 "헤더가 적은 것과 코드가 다르다"
+      // 였기 때문이다.
+      const source = 'final a = 1;';
+      final run = _shellMirror(const [(name: 'nonl', source: source)]);
+      expect(run.exitCode, 0, reason: run.stderr);
+      expect(run.code['nonl'], '$source\n', reason: '셸 판은 줄바꿈을 더한다');
+      expect(run.blank['nonl'], '$source\n');
+      expect(_withoutComments(source), source, reason: 'Dart 판은 더하지 않는다');
+
+      // 그 어긋남이 부르는 쪽에 닿지 않는 까닭은 이 저장소의 dart 파일이 전부
+      // 줄바꿈으로 끝나기 때문이다 — 그 전제도 여기서 함께 잰다.
+      final dartFiles = [
+        for (final dir in const ['lib', 'test'])
+          ...Directory(dir)
+              .listSync(recursive: true)
+              .whereType<File>()
+              .where((f) => f.path.endsWith('.dart')),
+      ];
+      expect(dartFiles.length, greaterThan(100), reason: '훑은 것이 있어야 한다');
+      for (final f in dartFiles) {
+        expect(
+          f.readAsStringSync().endsWith('\n'),
+          isTrue,
+          reason: '${f.path} 가 줄바꿈으로 끝나지 않는다',
+        );
+      }
     });
   });
 }
@@ -2320,9 +2467,58 @@ _shellMirror(List<({String name, String source})> files) {
   }
 }
 
+/// Dart 판의 blank 사본을 **셸 판이 낼 모양**으로 옮긴다.
+///
+/// 두 판이 지운 자리에 넣는 것은 둘 다 공백이고, 갈리는 것은 그 **개수**뿐
+/// 이다: awk 는 바이트로 세고(실측: BSD awk 20200816 과 mawk 둘 다
+/// `length("한글")` 이 6 이다) Dart 는 UTF-16 단위로 센다. 그래서 리터럴 안에
+/// ASCII 밖의 글자가 있으면 지운 자리의 길이가 갈린다.
+///
+/// round 11 은 그 차이를 **공백 런을 하나로 접어서** 넘겼는데, 그러면 "한쪽이
+/// 공백을 한 칸 더 넣는" 어긋남도 함께 사라진다 — round 12 의 거부 사유가
+/// 그것이었다. 그래서 접는 대신 바이트 수로 **옮겨** 놓고 나머지는 글자
+/// 자리까지 그대로 견준다.
+///
+/// [code] 와 [blank] 는 같은 글자 자리를 쓰는 두 사본이다(그것을 위 시험이
+/// 먼저 잰다). 지워진 자리는 [blank] 쪽이 공백이고, 그 자리에 [code] 의 그
+/// 글자가 UTF-8 로 차지하는 바이트 수만큼 공백을 넣는다.
+String _asShellBlank(String code, String blank) {
+  final out = StringBuffer();
+  var at = 0;
+  for (final rune in code.runes) {
+    final ch = String.fromCharCode(rune);
+    final slice = blank.substring(at, at + ch.length);
+    out.write(slice == ch ? ch : ' ' * utf8.encode(ch).length);
+    at += ch.length;
+  }
+  return out.toString();
+}
+
 /// 두 판에 함께 먹이는 입력들 — `dart-source.sh` 헤더의 "바르게 다루는 것"
 /// 목록을 그대로 옮긴 것이고, round 11 이 찾은 두 모양(세 겹 문자열 안의
 /// 홀수 개 홑따옴표, 보간 안의 닫는 중괄호)이 앞의 둘이다.
+///
+/// **열여섯 개가 전부 성립하는 Dart 다** — round 12 가 열여섯을 각각 `.dart`
+/// 파일로 지어 `dart analyze` 를 돌렸고 오류는 하나도 없었다(`??` 예제의
+/// dead_code 경고 둘뿐이다). 픽스처가 성립하지 않는 입력을 담고 있으면
+/// "이 규칙이 그것을 바르게 다룬다"는 문장 자체가 뜻을 잃는다.
+///
+/// **round 12 가 여섯을 더했다.** 앞선 라운드가 한 축만 담아서 재지 못하던
+/// 자리들이고, 그중 앞의 둘이 이번 거부 사유다:
+///   · `backslash_at_line_end` — 앞선 픽스처는 "역슬래시로 끝나는 문자열"
+///     (`escapes` 의 `'a\\'`)은 담았는데 **줄 끝의 역슬래시**는 담지 않았다.
+///     셸 판이 거기서 blank 사본에 한 글자를 더 넣고 있었다.
+///   · `interp_line_comment_over_lines` — 줄을 넘기는 보간 안의 줄 주석.
+///     직전 판이 이것을 "성립하지 않는 입력"이라 적고 막았다(오탐).
+///   · `triple_double_odd_quote` — round 11 은 세 겹 홑따옴표 안의 홀수 개
+///     홑따옴표만 담고, 세 겹 겹따옴표 쪽은 담지 않았다(같은 축의 반대쪽).
+///   · `doc_comment_and_block_over_lines` — `///` 와 **여러 줄에 걸친** 블록
+///     주석. 앞선 픽스처의 블록 주석은 전부 한 줄 안에서 닫혔다.
+///   · `markers_in_string` — 헤더가 이름을 부른 넷 중 `*/` 와 `print(` 가
+///     픽스처에 없었다(`//` 와 `/*` 만 있었다).
+///   · `bare_interp` — 중괄호 없는 보간. 규칙은 `${` 만 알아보고 이것은
+///     문자열 내용으로 지나가는데(그래서 blank 사본이 통째로 지운다),
+///     그것을 재는 자리가 없었다.
 const _mirrorCorpus = <({String name, String source})>[
   (
     name: 'triple_odd_quote',
@@ -2336,6 +2532,7 @@ class Probe {
   (
     name: 'interp_close_brace',
     source: r"""
+String f(String s) => s;
 final t = '${f('}')}'; // 꼬리 주석
 final after = 1;
 """,
@@ -2343,6 +2540,7 @@ final after = 1;
   (
     name: 'nested_interp',
     source: r"""
+final a = 'A';
 final v = '${a ?? 'https://a.b'}/x'; // 꼬리 주석
 final s = 'a${'b${'c'}d'}e'; // 꼬리 주석
 """,
@@ -2366,6 +2564,7 @@ final w = '\${notInterp}//still string';
   (
     name: 'code_in_interp',
     source: r"""
+final a = 1;
 final z = '${ /* } */ a}';
 final m = '${ {'k': 1}.length }';
 final r2 = '${r'x'}';
@@ -2383,6 +2582,8 @@ final p = '''a'b''';
   (
     name: 'nested_block_comment',
     source: r"""
+final a = 4;
+final b = 2;
 final/*c*/int x = 1; /* /* y */ */
 final y = a / /* c */ b;
 // 주석 안의 '따옴표
@@ -2401,10 +2602,83 @@ final after = 1;
   (
     name: 'line_comment_in_triple_interp',
     source: r'''
+final a = 1;
 final t3 = """${a
 // 세 겹 안의 보간이라 이 줄 주석은 성립한다
 }""";
 final rr3 = r"""a\b${c}""";
 ''',
+  ),
+  // ── round 12 가 더한 여섯 축 ──────────────────────────────────────────
+  (
+    // 이번 거부 사유 (2): 여러 줄 문자열 안에서 줄이 역슬래시로 끝나면 셸
+    // 판이 blank 사본에 한 글자를 더 넣었다. raw 세 겹도 함께 담는다 —
+    // raw 에서는 역슬래시가 이스케이프가 아니라 다른 길로 지난다.
+    name: 'backslash_at_line_end',
+    source: r"""
+class Probe {
+  static const banner = '''
+  +---+\
+  | o |
+  +---+''';
+  static const rawBanner = r'''
+  +---+\
+  | o |
+  +---+''';
+}
+""",
+  ),
+  (
+    // 이번 거부 사유 (1): 보간이 줄을 넘기면 줄 주석이 닫는 따옴표를 먹지
+    // 않으므로 **성립하는 Dart** 다(실측: dart analyze 무지적). 직전 판은
+    // 이것을 exit 2 로 막았고, 그 훅은 `lib/` 전체를 훑으므로 판정 계층 밖의
+    // 아무 파일에서나 로컬 커밋과 CI 를 함께 세웠다.
+    name: 'interp_line_comment_over_lines',
+    source: r"""
+String debugLabel(String id) {
+  return '경기 ${id // 식별자는 schedule 계약이 준다
+      } 의 라벨';
+}
+""",
+  ),
+  (
+    // round 11 의 거부 사유가 세 겹 홑따옴표 쪽이었는데 픽스처가 그쪽만
+    // 담았다 — 같은 축의 반대쪽.
+    name: 'triple_double_odd_quote',
+    source: r'''
+final q = """he said "x" ok""";
+final qAfter = 1;
+''',
+  ),
+  (
+    // `///` 와 **줄을 넘기는** 블록 주석. 앞선 픽스처의 블록 주석은 전부 한
+    // 줄 안에서 닫혀서 'B' 상태가 줄을 넘는 길을 재지 못했다.
+    name: 'doc_comment_and_block_over_lines',
+    source: r"""
+/// doc 주석 안의 '따옴표 와 // 표지
+/*
+  여러 줄에 걸친 블록 주석 — ' 와 " 와 /* 중첩 */ 도 담는다
+*/
+final afterComments = 1;
+""",
+  ),
+  (
+    // 헤더가 이름을 부른 넷 가운데 픽스처에 없던 둘.
+    name: 'markers_in_string',
+    source: r"""
+final endMarker = '*/';
+final callish = 'print(x)';
+final urlish = 'https://a.b/*not a comment*/';
+""",
+  ),
+  (
+    // 중괄호 없는 보간 — 규칙이 알아보지 않고 문자열 내용으로 지나간다.
+    // 안전한 것은 이름 하나에 따옴표·중괄호·주석 표지가 들어갈 수 없기
+    // 때문이고, blank 사본은 그것까지 통째로 지운다.
+    name: 'bare_interp',
+    source: r"""
+final who = 'n';
+final greeting = '$who 님'; // 중괄호 없는 보간
+""",
   ),
 ];
