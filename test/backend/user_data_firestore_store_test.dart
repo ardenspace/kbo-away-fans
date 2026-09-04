@@ -178,6 +178,161 @@ void main() {
     });
   });
 
+  group('도장 쓰기 — 문서와 칸 요약이 한 배치로 간다 (4.2)', () {
+    const stamp = StampWrite(
+      stadiumId: 'jamsil',
+      gameId: 'g-jamsil-1',
+      homeTeamId: 'lg',
+      gameDate: '2026-08-25',
+    );
+
+    Future<Map<String, Object?>?> rawStamp(String id) async {
+      final snapshot = await db
+          .collection(kUsersCollection)
+          .doc(uid)
+          .collection(kStampsCollection)
+          .doc(id)
+          .get();
+      final data = snapshot.data();
+      return data == null ? null : decodeBackendValues(data);
+    }
+
+    test('새 도장은 문서와 그 칸의 요약을 함께 남긴다', () async {
+      await seedDocument('lg'); // jamsil_lg 는 이미 2개다
+
+      expect(
+        await store.writeStamp(uid, stamp),
+        StampWriteOutcome.created,
+      );
+
+      final written = await rawStamp('jamsil_g-jamsil-1');
+      expect(written, isNotNull);
+      expect(written!.keys.toSet(), StampFields.all);
+      expect(written[StampFields.homeTeamId], 'lg');
+
+      final board =
+          (await rawDocument())[UserFields.board]! as Map<String, Object?>;
+      final cell = BoardCell.fromData(
+        (board['jamsil_lg']! as Map).cast<String, Object?>(),
+      );
+      expect(cell.count, 3, reason: '있던 2개에 하나가 얹힌다');
+      expect(cell.tier, BadgeTier.regular);
+      expect(cell.lastStampedOn, '2026-08-25');
+    });
+
+    test('같은 경기를 다시 써도 개수가 오르지 않는다', () async {
+      await seedDocument('lg');
+      await store.writeStamp(uid, stamp);
+
+      expect(
+        await store.writeStamp(uid, stamp),
+        StampWriteOutcome.alreadyStamped,
+      );
+
+      final board =
+          (await rawDocument())[UserFields.board]! as Map<String, Object?>;
+      expect(
+        BoardCell.fromData(
+          (board['jamsil_lg']! as Map).cast<String, Object?>(),
+        ).count,
+        3,
+      );
+    });
+
+    test('도장이 없던 칸은 첫 도장에서 count 1 로 생긴다', () async {
+      await seedDocument('lg');
+
+      await store.writeStamp(
+        uid,
+        const StampWrite(
+          stadiumId: 'sajik',
+          gameId: 'g-sajik-1',
+          homeTeamId: 'lotte',
+          gameDate: '2026-08-26',
+        ),
+      );
+
+      final board =
+          (await rawDocument())[UserFields.board]! as Map<String, Object?>;
+      expect(board.keys, unorderedEquals(<String>['jamsil_lg', 'sajik_lotte']));
+      expect(
+        BoardCell.fromData(
+          (board['sajik_lotte']! as Map).cast<String, Object?>(),
+        ).count,
+        1,
+      );
+    });
+  });
+
+  group('도장 쓰기 경로 — 오프라인 큐잉의 전제 (4.2)', () {
+    // 이 단계가 `runTransaction` 을 **의도적으로 피한** 자리다: 트랜잭션은
+    // 서버에 닿아야 끝나므로 통신이 없는 구장에서는 완료되지 않는다. 그
+    // 선택은 `fake_cloud_firestore` 로는 지켜지지 않는다 — 그 대역은
+    // 트랜잭션도 멀쩡히 돌려주므로, 구현을 트랜잭션으로 되돌려도 위 그룹이
+    // 전부 초록불이다. 그래서 여기서는 스파이를 끼워 **무엇이 불렸는지**를
+    // 재고(`runTransaction` 은 스파이에 없어서 곧바로 던진다), 아직 서버에
+    // 닿지 못한 구간에서 오류 없이 기다리다 복구되면 끝난다는 것을 잰다.
+    const stamp = StampWrite(
+      stadiumId: 'jamsil',
+      gameId: 'g-jamsil-1',
+      homeTeamId: 'lg',
+      gameDate: '2026-08-25',
+    );
+
+    Map<String, dynamic> userData() => <String, dynamic>{
+      UserFields.nickname: '원정러',
+      UserFields.favoriteTeamId: 'lg',
+      UserFields.profileThemeKey: 'lg',
+      UserFields.joinedAt: Timestamp.fromDate(joinedAt),
+      UserFields.board: <String, dynamic>{},
+    };
+
+    test('도장 쓰기는 배치로 가고 트랜잭션을 타지 않는다', () async {
+      final db = _WriteSpyFirestore(userData: userData());
+      final store = FirestoreUserDataStore(db);
+
+      await store.writeStamp(uid, stamp);
+
+      expect(db.calls, [
+        'get:jamsil_g-jamsil-1',
+        'get:$uid',
+        'batch',
+        'batch.set:jamsil_g-jamsil-1',
+        'batch.update:$uid',
+        'batch.commit',
+      ]);
+    });
+
+    test('이미 있는 도장이면 사용자 문서를 읽지도, 배치를 열지도 않는다', () async {
+      final db = _WriteSpyFirestore(
+        userData: userData(),
+        stampData: <String, dynamic>{StampFields.stadiumId: 'jamsil'},
+      );
+      final store = FirestoreUserDataStore(db);
+
+      expect(
+        await store.writeStamp(uid, stamp),
+        StampWriteOutcome.alreadyStamped,
+      );
+      expect(db.calls, ['get:jamsil_g-jamsil-1']);
+    });
+
+    test('쓰기가 아직 서버에 닿지 못해도 오류 없이 기다리다가 복구되면 끝난다', () async {
+      final gate = Completer<void>();
+      final db = _WriteSpyFirestore(userData: userData(), gate: gate);
+      final store = FirestoreUserDataStore(db);
+
+      var settled = false;
+      final write = store.writeStamp(uid, stamp).then((_) => settled = true);
+      await pumpEventQueue();
+      expect(settled, isFalse, reason: '서버 왕복 전이라 아직 끝나지 않아야 재현이 된다');
+
+      gate.complete(); // "복구" — 큐에 있던 배치가 이제 나간다.
+      await write;
+      expect(settled, isTrue);
+    });
+  });
+
   group('좋아요 쓰기 경로 — 오프라인 큐잉의 전제', () {
     // 2.4 구현자가 남긴 사실: `runTransaction`·`update` 는 서버에 닿아야
     // 끝나므로 통신이 없는 실행에서 완료되지 않는다. 반면 평범한 `set`·
@@ -230,24 +385,43 @@ void main() {
   _snapshotSourceTests();
 }
 
-/// Firestore 스파이 — 좋아요 쓰기가 실제로 어떤 메서드를 부르는지 기록한다.
+/// Firestore 스파이 — 좋아요·도장 쓰기가 실제로 어떤 메서드를 부르는지
+/// 기록한다.
 ///
 /// [DocumentReference.update] 와 [FirebaseFirestore.runTransaction] 은 일부러
-/// 구현하지 않는다 — 좋아요 경로가 그 쪽으로 새면 `noSuchMethod` 가 곧바로
-/// 던져서 위 시험이 그 자리에서 드러낸다.
+/// 구현하지 않는다 — 두 쓰기 경로가 그 쪽으로 새면 `noSuchMethod` 가 곧바로
+/// 던져서 위 시험이 그 자리에서 드러낸다. 그 둘이 오프라인에서 완료되지 않는
+/// 호출이라, "구장에서 오프라인으로 쓰는 경로"의 계약이 곧 이 미구현이다.
+///
+/// 읽기는 [userData]·[stampData] 로 시험이 정한다 — 도장 쓰기가 개수를 세러
+/// 두 문서를 먼저 읽기 때문이다.
 class _WriteSpyFirestore implements FirebaseFirestore {
-  _WriteSpyFirestore({this.gate});
+  _WriteSpyFirestore({this.gate, this.userData, this.stampData});
 
-  /// null 이 아니면 [_SpyLikeDoc.set]/[_SpyLikeDoc.delete] 가 이 완료를
-  /// 기다린 뒤에야 끝난다 — "쓰기가 아직 서버에 닿지 못한 구간"의 대역이다.
+  /// null 이 아니면 쓰기(좋아요의 `set`·`delete`, 도장 배치의 `commit`)가 이
+  /// 완료를 기다린 뒤에야 끝난다 — "쓰기가 아직 서버에 닿지 못한 구간"의
+  /// 대역이다.
   final Completer<void>? gate;
 
-  /// 불린 순서 — `'set:<id>'` / `'delete:<id>'`.
+  /// `users/{uid}` 문서의 내용 (null 이면 문서 없음).
+  final Map<String, dynamic>? userData;
+
+  /// 도장 문서의 내용 (null 이면 아직 없는 도장).
+  final Map<String, dynamic>? stampData;
+
+  /// 불린 순서 — `'get:<id>'` / `'set:<id>'` / `'delete:<id>'` /
+  /// `'batch'` / `'batch.set:<id>'` / `'batch.update:<id>'` / `'batch.commit'`.
   final List<String> calls = [];
 
   @override
   CollectionReference<Map<String, dynamic>> collection(String collectionPath) =>
       _SpyCollection(this, collectionPath);
+
+  @override
+  WriteBatch batch() {
+    calls.add('batch');
+    return _SpyBatch(this);
+  }
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -262,8 +436,9 @@ class _SpyCollection implements CollectionReference<Map<String, dynamic>> {
 
   @override
   DocumentReference<Map<String, dynamic>> doc([String? path]) {
-    if (_path == kUsersCollection) return _SpyUserDoc(_db);
-    return _SpyLikeDoc(_db, path!);
+    if (_path == kUsersCollection) return _SpyUserDoc(_db, path!);
+    if (_path == kStampsCollection) return _SpyDoc(_db, path!, _db.stampData);
+    return _SpyDoc(_db, path!, null);
   }
 
   @override
@@ -271,38 +446,83 @@ class _SpyCollection implements CollectionReference<Map<String, dynamic>> {
 }
 
 // ignore: subtype_of_sealed_class
-class _SpyUserDoc implements DocumentReference<Map<String, dynamic>> {
-  _SpyUserDoc(this._db);
-
-  final _WriteSpyFirestore _db;
+class _SpyUserDoc extends _SpyDoc {
+  _SpyUserDoc(_WriteSpyFirestore db, String id) : super(db, id, db.userData);
 
   @override
   CollectionReference<Map<String, dynamic>> collection(String collectionPath) =>
-      _SpyCollection(_db, collectionPath);
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+      _SpyCollection(db, collectionPath);
 }
 
 // ignore: subtype_of_sealed_class
-class _SpyLikeDoc implements DocumentReference<Map<String, dynamic>> {
-  _SpyLikeDoc(this._db, this.id);
+class _SpyDoc implements DocumentReference<Map<String, dynamic>> {
+  _SpyDoc(this.db, this.id, this._data);
 
-  final _WriteSpyFirestore _db;
+  final _WriteSpyFirestore db;
+  final Map<String, dynamic>? _data;
 
   @override
   final String id;
 
   @override
+  Future<DocumentSnapshot<Map<String, dynamic>>> get([GetOptions? options]) async {
+    db.calls.add('get:$id');
+    return _SpySnapshot(_data);
+  }
+
+  @override
   Future<void> set(Map<String, dynamic> data, [SetOptions? options]) async {
-    _db.calls.add('set:$id');
-    final gate = _db.gate;
+    db.calls.add('set:$id');
+    final gate = db.gate;
     if (gate != null) await gate.future;
   }
 
   @override
   Future<void> delete() async {
-    _db.calls.add('delete:$id');
+    db.calls.add('delete:$id');
+    final gate = db.gate;
+    if (gate != null) await gate.future;
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+// ignore: subtype_of_sealed_class
+class _SpySnapshot implements DocumentSnapshot<Map<String, dynamic>> {
+  _SpySnapshot(this._data);
+
+  final Map<String, dynamic>? _data;
+
+  @override
+  bool get exists => _data != null;
+
+  @override
+  Map<String, dynamic>? data() => _data;
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _SpyBatch implements WriteBatch {
+  _SpyBatch(this._db);
+
+  final _WriteSpyFirestore _db;
+
+  @override
+  void set<T>(
+    DocumentReference<T> document,
+    T data, [
+    SetOptions? options,
+  ]) => _db.calls.add('batch.set:${document.id}');
+
+  @override
+  void update<T>(DocumentReference<T> document, T data) =>
+      _db.calls.add('batch.update:${document.id}');
+
+  @override
+  Future<void> commit() async {
+    _db.calls.add('batch.commit');
     final gate = _db.gate;
     if (gate != null) await gate.future;
   }

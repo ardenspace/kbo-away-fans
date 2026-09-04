@@ -364,6 +364,9 @@ void main() {
     });
 
     test('같은 경기 도장을 두 번 써도 문서는 하나다 (결정적 id)', () async {
+      // 도장 쓰기는 사용자 문서의 칸 요약도 함께 갱신하므로(4.2) 문서가
+      // 먼저 있어야 한다 — 온보딩을 마치기 전에는 쓸 자리가 없다.
+      await store.createProfile('u1', _newProfile);
       await store.writeStamp('u1', _stamp);
       await store.writeStamp('u1', _stamp);
 
@@ -374,6 +377,7 @@ void main() {
     });
 
     test('칸으로 걸러 읽으면 그 칸의 도장만 나온다', () async {
+      await store.createProfile('u1', _newProfile);
       await store.writeStamp('u1', _stamp);
       await store.writeStamp(
         'u1',

@@ -14,6 +14,7 @@ import 'dart:async';
 
 import 'package:kbo_away_fans/backend/auth.dart';
 import 'package:kbo_away_fans/backend/auth_kakao.dart';
+import 'package:kbo_away_fans/backend/errors.dart';
 import 'package:kbo_away_fans/backend/user_data.dart';
 import 'package:kbo_away_fans/backend/user_data_firestore.dart'
     show awaitServerConfirmation;
@@ -54,6 +55,36 @@ class FakeUserDataStore implements UserDataStore {
 
   /// 도장 조회 호출 횟수.
   int stampReads = 0;
+
+  /// [writeStamp] 호출 횟수 — 이미 있는 도장에 대고 부른 것도 센다.
+  /// 4.2 가 "이미 받은 경기에서는 쓰기도 다시 시도하지 않는다"를 잴 때 쓴다.
+  int stampWrites = 0;
+
+  /// **서버로 실제로 나간** 도장 쓰기의 문서 id — 순서대로.
+  ///
+  /// [stampWrites] 와 다른 것은 이미 있는 도장이 여기 쌓이지 않기 때문이다.
+  /// "오프라인에서 찍은 도장이 복구 후 **한 번만** 올라간다"를 재는 자리다.
+  final List<String> stampUploads = [];
+
+  /// null 이 아니면 [writeStamp] 가 이것을 던진다 — 도장 쓰기가 실패한 실행의
+  /// 대역(다음 트리거가 다시 시도하는지를 잰다).
+  Object? stampWriteFailure;
+
+  /// true 인 동안 도장 쓰기의 **서버 확인만** 미룬다 — 로컬 반영은 즉시다
+  /// (Firestore 의 로컬 쓰기 큐가 그렇게 동작한다). [goOnline] 이 큐를 비운다.
+  bool offline = false;
+
+  /// 서버 확인을 기다리는 쓰기들.
+  final List<Completer<void>> _pendingAcks = [];
+
+  /// 통신이 돌아왔다 — 큐에 쌓인 쓰기의 서버 확인을 한꺼번에 내보낸다.
+  void goOnline() {
+    offline = false;
+    for (final ack in _pendingAcks) {
+      if (!ack.isCompleted) ack.complete();
+    }
+    _pendingAcks.clear();
+  }
 
   /// 좋아요 목록 조회 호출 횟수 — 3.2 가 "카드마다 읽지 않는다"를 잴 때 쓴다.
   int likeReads = 0;
@@ -171,7 +202,11 @@ class FakeUserDataStore implements UserDataStore {
   }
 
   /// 스냅샷 스트림 정리 — 테스트의 tearDown 에서 부른다.
+  ///
+  /// 오프라인 큐에 걸린 쓰기도 함께 푼다: 대역을 오프라인인 채로 두고 끝낸
+  /// 시험이 영영 완료되지 않는 Future 를 남기지 않게 한다.
   Future<void> dispose() async {
+    goOnline();
     for (final controller in _profileStreams.values) {
       if (!controller.isClosed) await controller.close();
     }
@@ -190,10 +225,90 @@ class FakeUserDataStore implements UserDataStore {
     return records;
   }
 
+  /// 도장 문서와 칸 요약을 **한 원자 단위로** 쓴다 — 실 구현과 같은 순서다
+  /// (이미 있으면 아무것도 쓰지 않고, 없으면 둘을 함께 쓴다).
+  ///
+  /// [offline] 이 켜져 있으면 로컬 반영은 즉시 하고 **서버 확인만** 미룬다 —
+  /// Firestore 의 로컬 쓰기 큐가 하는 일이 그것이다. 그래서 이 대역에서도
+  /// "오프라인에서 찍은 도장이 판정한 사람에게 곧바로 보이고, 복구 뒤에 한 번
+  /// 올라간다"를 그대로 잰다.
   @override
-  Future<void> writeStamp(String uid, StampWrite stamp) async {
+  Future<StampWriteOutcome> writeStamp(String uid, StampWrite stamp) async {
+    stampWrites++;
+    final data = _accept(stamp.toData(), StampFields.all);
+    final failure = stampWriteFailure;
+    if (failure != null) throw failure;
+
     final byId = stamps.putIfAbsent(uid, () => {});
-    byId[stamp.documentId] = _accept(stamp.toData(), StampFields.all);
+    if (byId.containsKey(stamp.documentId)) {
+      return StampWriteOutcome.alreadyStamped;
+    }
+
+    final document = documents[uid];
+    if (document == null) {
+      // 실 구현의 배치는 없는 문서에 update 를 걸 수 없어 Firestore 의
+      // `not-found` 로 실패하고, 계층 경계의 `guardBackend` 가 그것을 도메인
+      // 오류로 옮긴다 — 온보딩을 마치기 전에는 도장을 쓸 자리가 없다.
+      // 이 대역도 같은 어휘로 실패해야 부르는 쪽(4.2 의 도장 쓰기)이 실제와
+      // 같은 갈래를 지난다.
+      throw const BackendUnknownError(code: 'not-found');
+    }
+
+    final board = Map<String, Object?>.from(
+      (document[UserFields.board] as Map?)?.cast<String, Object?>() ??
+          const <String, Object?>{},
+    );
+    final cellId = stamp.cellId;
+    final previous = board[cellId];
+    final cell = BoardCell.forCount(
+      count: previous == null
+          ? 1
+          : BoardCell.fromData(
+                  (previous as Map).cast<String, Object?>(),
+                ).count +
+                1,
+      lastStampedOn: stamp.gameDate,
+    );
+
+    byId[stamp.documentId] = data;
+    board[cellId] = cell.toData();
+    documents[uid] = {
+      ...document,
+      ..._acceptBoardPatch(stamp.boardPatchData(cell), board),
+    };
+    stampUploads.add(stamp.documentId);
+    _emitProfile(uid);
+
+    if (offline) {
+      final ack = Completer<void>();
+      _pendingAcks.add(ack);
+      await ack.future;
+    }
+    return StampWriteOutcome.created;
+  }
+
+  /// 칸 요약 갱신 payload 를 규칙처럼 받아 든다 — 점 경로(`board.{cellId}`)와
+  /// `updatedAt` 둘만 허용하고, 점 경로는 이미 합쳐 둔 [board] 로 편다.
+  Map<String, Object?> _acceptBoardPatch(
+    Map<String, Object?> patch,
+    Map<String, Object?> board,
+  ) {
+    final result = <String, Object?>{UserFields.board: board};
+    for (final entry in patch.entries) {
+      if (entry.key.startsWith('${UserFields.board}.')) continue;
+      if (entry.key == UserFields.updatedAt) {
+        result[UserFields.updatedAt] = entry.value is ServerTimestamp
+            ? kFakeServerNow
+            : entry.value;
+        continue;
+      }
+      throw ArgumentError.value(
+        entry.key,
+        'boardPatchData',
+        '계약 밖 필드 — 규칙이 쓰기를 통째로 거부한다',
+      );
+    }
+    return result;
   }
 
   @override

@@ -190,6 +190,21 @@ const Set<String> kBoardCellIds = {
   'gwangju_kia',
 };
 
+/// 도장 문서 id — `{stadiumId}_{gameId}`.
+///
+/// 짓는 자리를 여기 하나로 둔다. [StampWrite.documentId] 가 이 함수를 쓰고,
+/// 도장을 쓰기 **전에** "이 경기의 도장이 이미 있는가"를 물어야 하는 자리
+/// (4.2 의 판정 게이트)도 같은 함수를 쓴다 — 그 자리에는 홈팀·날짜가 아직
+/// 없어서 [StampWrite] 를 지을 수 없는데, 거기서 문자열을 다시 조립하면
+/// id 체계를 아는 자리가 둘이 된다.
+///
+/// 규칙(`firestore.rules` 의 `stampId == d.stadiumId + '_' + d.gameId`)이
+/// 이 형태만 받으므로, 다른 조합으로는 문서가 만들어지지 않는다.
+String stampDocumentIdOf({
+  required String stadiumId,
+  required String gameId,
+}) => '${stadiumId}_$gameId';
+
 /// 구장과 그날 홈팀으로 칸 id 를 만든다. 판에 없는 짝이면 [ArgumentError].
 String boardCellIdOf({required String stadiumId, required String homeTeamId}) {
   final id = '${stadiumId}_$homeTeamId';
@@ -672,11 +687,26 @@ class StampWrite {
   final String gameDate;
 
   /// 문서 id — `{stadiumId}_{gameId}`. 같은 경기에 두 번 써도 같은 문서다.
-  String get documentId => '${stadiumId}_$gameId';
+  String get documentId =>
+      stampDocumentIdOf(stadiumId: stadiumId, gameId: gameId);
 
   /// 이 도장이 채우는 배지 판의 칸.
   String get cellId =>
       boardCellIdOf(stadiumId: stadiumId, homeTeamId: homeTeamId);
+
+  /// 이 도장이 사용자 문서에 얹는 **칸 요약 갱신 payload** — 도장 문서와
+  /// 같은 원자 단위로 나간다 ([UserDataStore.writeStamp]).
+  ///
+  /// 키가 점 경로(`board.{cellId}`)인 것은 칸 하나만 갱신하기 위해서다. 판
+  /// 전체를 다시 쓰면 두 기기가 동시에 쓸 때 서로의 칸을 덮고, `board` 를
+  /// map 으로 둔 이유가 사라진다(decisions.md 2026-09-01 [M]).
+  ///
+  /// `updatedAt` 을 함께 얹는 것은 이 쓰기가 사용자 문서를 실제로 바꾸기
+  /// 때문이다 — 계약이 그 필드를 "마지막 수정 시각"이라고 적고 있다.
+  Map<String, Object?> boardPatchData(BoardCell cell) => {
+    '${UserFields.board}.$cellId': cell.toData(),
+    UserFields.updatedAt: const ServerTimestamp(),
+  };
 
   /// 쓰기 payload. 계약을 어기면 여기서 [ArgumentError] 로 막힌다.
   Map<String, Object?> toData() {
@@ -768,10 +798,24 @@ class LikeWrite {
 // 접근 경계
 // ---------------------------------------------------------------------------
 
+/// 도장 쓰기가 실제로 한 일.
+///
+/// 부르는 쪽이 둘을 갈라야 하는 까닭은 두 가지다. 하나는 이 값이 **판정을
+/// 다시 돌릴지**를 정하기 때문이고(이미 있는 도장은 다시 판정할 이유가
+/// 없다 — decisions.md 2026-09-04 [S]), 다른 하나는 도장이 **이번에**
+/// 찍혔는지가 연출의 조건이기 때문이다(4.4).
+enum StampWriteOutcome {
+  /// 도장 문서와 칸 요약을 이 호출이 함께 썼다.
+  created,
+
+  /// 같은 경기의 도장이 이미 있어 **아무것도 쓰지 않았다.**
+  alreadyStamped,
+}
+
 /// 사용자 데이터 경계 — 사용자 문서·도장·좋아요 읽기/쓰기의 단일 경로.
 ///
 /// 구현은 실패를 `guardBackend` 로 감싸 도메인 오류만 던진다. 도장 쓰기는
-/// 문서와 칸 요약을 같은 트랜잭션에서 갱신한다 (4.2).
+/// 문서와 칸 요약을 **한 원자 단위**로 갱신한다 (4.2).
 abstract class UserDataStore {
   /// 사용자 문서. 없으면 null (= 온보딩이 끝나지 않은 계정).
   Future<UserProfile?> readProfile(String uid);
@@ -807,8 +851,19 @@ abstract class UserDataStore {
   /// 도장 목록. [cellId] 를 주면 그 칸의 도장만 (= 칸 상세).
   Future<List<StampRecord>> readStamps(String uid, {String? cellId});
 
-  /// 도장을 쓴다. 문서 id 가 결정적이라 같은 경기의 재시도는 멱등하다.
-  Future<void> writeStamp(String uid, StampWrite stamp);
+  /// 도장을 쓰고 그 칸의 요약을 **같은 원자 단위로** 갱신한다.
+  ///
+  /// 같은 경기의 도장이 이미 있으면 아무것도 쓰지 않고
+  /// [StampWriteOutcome.alreadyStamped] 를 돌려준다 — 문서 id 가 결정적이라
+  /// 도장 문서 자체는 덮어써도 하나지만, 칸 요약의 개수는 그렇지 않다.
+  /// "이미 있으면 손대지 않는다"가 개수를 실제 도장과 붙들어 두는 자리다.
+  ///
+  /// **오프라인에서도 받아 준다.** 구장에서 통신이 끊긴 채 도장을 받는 것이
+  /// 이 경로의 흔한 모습이므로, 구현은 오프라인에서 완료되지 못하는 방식
+  /// (Firestore 트랜잭션)을 쓰지 않는다 — 대신 로컬에 곧바로 반영하고 서버
+  /// 확인만 복구 뒤로 미룬다. 그래서 이 Future 는 **서버가 받았을 때** 끝나고,
+  /// 오프라인 구간에서는 오래 걸려도 실패가 아니다.
+  Future<StampWriteOutcome> writeStamp(String uid, StampWrite stamp);
 
   /// 좋아요 목록.
   Future<List<LikeRecord>> readLikes(String uid);
