@@ -48,11 +48,33 @@ const String kLikesCollection = 'likes';
 
 /// 서버가 문서 유무를 확인해 주기를 기다리는 상한.
 ///
-/// 넘으면 로컬 캐시만 보고 말한 "문서 없음"이라도 그대로 올려보낸다 — 영영
-/// 답하지 않는 실행(비행기 모드 그대로 켠 앱)에서 사람이 대기 화면에 갇히지
-/// 않게 하는 바닥이다. 인증 쪽 `kAppCheckActivationTimeout` 과 같은 판단이고
-/// 같은 길이다: 사람이 보는 화면을 붙잡는 기다림에는 상한이 있다.
+/// 넘으면 그 기다림을 끝낸다 — 영영 답하지 않는 실행(비행기 모드 그대로 켠 앱)
+/// 에서 사람이 대기 화면에 갇히지 않게 하는 바닥이다. 인증 쪽
+/// `kAppCheckActivationTimeout` 과 같은 판단이고 같은 길이다: 사람이 보는
+/// 화면을 붙잡는 기다림에는 상한이 있다.
+///
+/// 끝내는 방법은 그때까지 받은 것에 따라 둘이다.
+///  - 붙잡아 둔 값이 있으면(로컬 캐시만 보고 말한 "문서 없음") 그것을 그대로
+///    올려보낸다.
+///  - **값이 하나도 없으면 [kProfileConfirmTimeoutCode] 오류를 올려보낸다.**
+///    이 갈래가 온라인의 주된 모습이다 — 문서 리스너는 로컬 캐시에 문서가
+///    없으면 초기 스냅샷을 아예 올리지 않으므로(SDK 의 `shouldRaiseInitialEvent`)
+///    기기를 바꿔 처음 로그인한 사람에게는 붙잡을 값조차 오지 않는다.
+///
+/// 상한은 여기서 끝나고 사람을 그 판단에 가두지 않는다 — 뒤늦게 온 진짜 답은
+/// 그대로 위로 흐르고 화면이 그 값으로 수렴한다.
 const Duration kProfileServerConfirmGrace = Duration(seconds: 5);
+
+/// 상한 안에 아무 답도 오지 않은 실행이 받는 오류의 코드.
+///
+/// 도메인을 네트워크로 잡은 것은 실제로 일어난 일이 그것이어서다: 서버에
+/// 물었는데 시간 안에 닿지 못했다. 이 확정이 위 계층에서 뜻하는 바는 "서버를
+/// 읽지 못했다"이고, 그러면 이미 서 있는 규칙 — 서버를 읽지 못하면 캐시가
+/// 정하고, 캐시가 비면 온보딩 — 이 그대로 적용된다. 반대로 "문서가 없다"로
+/// 확정하면 캐시에 팀이 있는 사람까지 온보딩으로 내려가고, 그 뒤를 받아 내는
+/// 물러서기의 읽기도 같은 통신 사정에서 실패해 안내로 끝난다
+/// (decisions.md 2026-09-04 [M]).
+const String kProfileConfirmTimeoutCode = 'profile-confirm-timeout';
 
 /// 이 스냅샷이 문서의 유무를 실제로 **답하는가**.
 ///
@@ -70,6 +92,20 @@ bool tellsProfileExistence(DocumentSnapshot<Object?> snapshot) =>
 /// 이유로 화면을 영원히 붙잡지 않는다. 한 번 답을 받은 뒤로는 뒤엣값을 그대로
 /// 흘린다(상한은 **첫 답**에만 걸린다).
 ///
+/// **붙잡아 둘 값조차 오지 않은 실행도 상한에서 끝난다.** 그때는 내보낼 값이
+/// 없으므로 [kProfileConfirmTimeoutCode] 오류를 내보낸다 — 붙잡아 둔 값을
+/// 푸는 일만 하면, 값이 하나도 흐르지 않은 실행에서는 풀어 줄 것이 없어
+/// 상한이 지나도 아래로 아무것도 흐르지 않는다. 그 실행이 곧 온라인에서
+/// 기기를 바꿔 처음 로그인한 사람이다(아래 문단). 상한이 무는 구간과 사람이
+/// 갇히는 구간을 어긋나게 두지 않는 자리다.
+///
+/// 상한이 지난 뒤에 온 값은 그대로 흐른다 — 확정은 갈래를 정하는 바닥이지
+/// 사람을 옛 판단에 가두는 자물쇠가 아니다.
+///
+/// 원본이 값 없이 **닫히면** 오류를 얹지 않고 함께 닫는다: 더 기다릴 것이
+/// 없다는 사실을 스트림이 이미 말했고, 거기에 상한 오류를 더하면 정상적으로
+/// 끝난 구독이 실패한 구독으로 보인다.
+///
 /// **오류도 답이다.** 그 자체가 위 계층이 갈래를 정하는 신호이므로 붙잡지 않고
 /// 그대로 흘리고, 그 뒤로는 상한을 다시 세우지 않는다(뒤엣값도 붙잡지 않는다).
 /// 붙잡아 두었던 값은 오류와 함께 버린다 — 확인받을 길이 사라진 값을 답으로
@@ -80,12 +116,13 @@ bool tellsProfileExistence(DocumentSnapshot<Object?> snapshot) =>
 /// 쪽이든 상한 없는 구간이 생기지 않아야 한다
 /// (decisions.md 2026-09-04 [M]).
 ///
-/// **이 장치가 실제로 값을 붙잡는 구간은 좁다.** 온라인에서 Firestore 문서
-/// 리스너는 로컬 캐시에 그 문서가 없으면 초기 스냅샷을 아예 올리지 않고 서버
-/// 확인을 기다린다(SDK 의 `shouldRaiseInitialEvent`) — 붙잡을 값 자체가 오지
-/// 않는다. 그래서 여기서 붙잡는 일이 실제로 나는 것은 대체로 **오프라인**
-/// 갈래이고, 거기서 무는 대가는 온보딩 전 최대 [kProfileServerConfirmGrace] 의
-/// 대기 화면이다. 이 장치의 쓸모를 그보다 크게 보지 않는 것이 맞다.
+/// **값을 붙잡는 구간과 값이 아예 오지 않는 구간은 다르다.** 온라인에서
+/// Firestore 문서 리스너는 로컬 캐시에 그 문서가 없으면 초기 스냅샷을 아예
+/// 올리지 않고 서버 확인을 기다린다(SDK 의 `shouldRaiseInitialEvent`) —
+/// 붙잡을 값 자체가 오지 않는다. 그래서 여기서 값을 **붙잡는** 일이 실제로
+/// 나는 것은 대체로 오프라인 갈래이고, 온라인에서 기기를 바꾼 사람은 값이
+/// 하나도 오지 않는 갈래에 든다. 두 갈래 모두 상한에서 끝나며, 무는 대가는
+/// 어느 쪽이든 최대 [kProfileServerConfirmGrace] 의 대기 화면이다.
 Stream<T> awaitServerConfirmation<T>(
   Stream<T> source, {
   required bool Function(T value) isConfirmed,
@@ -105,9 +142,26 @@ Stream<T> awaitServerConfirmation<T>(
     if (!controller.isClosed) controller.add(withheld);
   }
 
+  /// 상한이 다 됐다 — 붙잡아 둔 것이 있으면 내보내고, 없으면 "서버를 읽지
+  /// 못했다"로 끝낸다. 뒤엣값은 더 붙잡지 않는다.
+  void closeGrace() {
+    if (answered) return;
+    if (hasWithheld) {
+      releaseWithheld();
+      return;
+    }
+    answered = true;
+    if (!controller.isClosed) {
+      controller.addError(
+        const BackendNetworkError(code: kProfileConfirmTimeoutCode),
+        StackTrace.current,
+      );
+    }
+  }
+
   controller = StreamController<T>(
     onListen: () {
-      deadline = Timer(grace, releaseWithheld);
+      deadline = Timer(grace, closeGrace);
       subscription = source.listen(
         (value) {
           if (answered || isConfirmed(value)) {
@@ -195,7 +249,12 @@ class FirestoreUserDataStore implements UserDataStore {
   /// 문서가 없으므로 서버 왕복 전에 "없음"이 먼저 오는데, 그것을 답으로
   /// 올려보내면 이미 팀을 고른 사람이 온보딩으로 내려가고 거기서 팀을 누르면
   /// 자기 팀을 바꾸게 된다. 그래서 그 한 갈래만 [kProfileServerConfirmGrace]
-  /// 까지 붙잡아 둔다 — 상한을 넘으면 그대로 내보낸다.
+  /// 까지 붙잡아 둔다.
+  ///
+  /// **그 상한은 값이 하나도 오지 않는 실행에서도 끝난다** — 거기서는 내보낼
+  /// 값이 없으므로 [kProfileConfirmTimeoutCode] 오류가 흐르고, 위 계층은 그것을
+  /// "서버를 읽지 못했다"로 받아 캐시로 갈래를 정한다. 온라인에서 기기를 바꿔
+  /// 처음 로그인한 사람이 바로 그 실행이다(초기 스냅샷 자체가 오지 않는다).
   @override
   Stream<UserProfile?> watchProfile(String uid) => guardBackendStream(
         awaitServerConfirmation(

@@ -16,6 +16,11 @@
 ///     초록불이었다. 상한의 **동작**은 시험이 인수로 준 값으로만 재고 있어,
 ///     실제로 사람을 붙잡는 값은 아무도 보지 않는다.
 ///  4) 구독을 끊었을 때 상한 타이머가 남는지도 아무도 재지 않았다.
+///  5) **값이 하나도 오지 않은 실행**에서 상한이 하는 일이 없었다. 상한
+///     타이머가 붙잡아 둔 값을 풀어 주기만 하면, 풀어 줄 것이 없는 실행에서는
+///     상한이 지나도 아래로 아무것도 흐르지 않는다 — 그리고 온라인에서 기기를
+///     바꿔 처음 로그인한 사람이 정확히 그 실행이다(초기 스냅샷 자체가 오지
+///     않는다). 상한이 무는 구간과 사람이 갇히는 구간이 서로 배타적이었다.
 ///
 /// 1·2·3 을 소스 대조로 잡는 것은 `backend_wiring_sync_test.dart` 의 App Check
 /// 배선과 같은 처리다 — 실행으로는 닿을 수 없는 배선이라 소스가 유일한 증거다.
@@ -25,6 +30,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kbo_away_fans/backend/errors.dart';
 import 'package:kbo_away_fans/backend/user_data_firestore.dart';
 
 void main() {
@@ -126,6 +132,109 @@ void main() {
       await pumpEventQueue();
 
       expect(seen, ['모름']);
+      expect(closed, isTrue);
+    });
+  });
+
+  group('값이 하나도 오지 않은 실행도 상한에서 끝난다', () {
+    test('상한이 지나면 "서버를 읽지 못했다"가 흐른다', () async {
+      // 온라인에서 문서 리스너는 로컬 캐시에 문서가 없으면 초기 스냅샷을
+      // 아예 올리지 않는다(SDK 의 `shouldRaiseInitialEvent`). 기기를 바꿔
+      // 처음 로그인한 사람이 바로 그 실행이라, 붙잡아 둘 값조차 없는 이
+      // 갈래가 이 상한 장치의 주 대상이다. 여기서 아무것도 내보내지 않으면
+      // 위 계층이 영영 로딩으로 남고 사람은 끝나지 않는 대기 화면에 갇힌다.
+      final source = StreamController<String>();
+      addTearDown(source.close);
+      final seen = <String>[];
+      final errors = <Object>[];
+      final subscription = awaitServerConfirmation(
+        source.stream,
+        isConfirmed: (value) => value != '모름',
+        grace: const Duration(milliseconds: 20),
+      ).listen(seen.add, onError: errors.add);
+      addTearDown(subscription.cancel);
+
+      await Future<void>.delayed(const Duration(milliseconds: 60));
+
+      expect(seen, isEmpty);
+      expect(
+        errors,
+        hasLength(1),
+        reason: '붙잡아 둔 값이 없으면 상한 타이머가 아무것도 하지 않는다 — '
+            '그 실행은 값도 오류도 없이 영원히 이어진다',
+      );
+      expect(
+        errors.single,
+        isA<BackendNetworkError>().having(
+          (error) => error.code,
+          'code',
+          kProfileConfirmTimeoutCode,
+        ),
+        reason: '"서버가 없다고 답했다"가 아니라 "서버를 읽지 못했다"로 확정한다 — '
+            '앞엣것으로 확정하면 문서가 있는 사람이 온보딩으로 내려간다',
+      );
+    });
+
+    test('상한이 지난 뒤에 온 진짜 답으로 수렴한다', () async {
+      // 상한은 갈래를 정하는 바닥이지 사람을 옛 판단에 가두는 자물쇠가 아니다.
+      final source = StreamController<String>();
+      addTearDown(source.close);
+      final seen = <String>[];
+      final errors = <Object>[];
+      final subscription = awaitServerConfirmation(
+        source.stream,
+        isConfirmed: (value) => value != '모름',
+        grace: const Duration(milliseconds: 20),
+      ).listen(seen.add, onError: errors.add);
+      addTearDown(subscription.cancel);
+
+      await Future<void>.delayed(const Duration(milliseconds: 60));
+      expect(errors, hasLength(1));
+
+      source.add('lg');
+      await pumpEventQueue();
+
+      expect(seen, ['lg'], reason: '상한 뒤에 도착한 답이 위 계층에 닿지 않았다');
+    });
+
+    test('상한 안에 답이 오면 오류는 나지 않는다', () async {
+      final source = StreamController<String>();
+      addTearDown(source.close);
+      final seen = <String>[];
+      final errors = <Object>[];
+      final subscription = awaitServerConfirmation(
+        source.stream,
+        isConfirmed: (value) => value != '모름',
+        grace: const Duration(milliseconds: 40),
+      ).listen(seen.add, onError: errors.add);
+      addTearDown(subscription.cancel);
+
+      source.add('lg');
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+
+      expect(seen, ['lg']);
+      expect(errors, isEmpty, reason: '답을 받은 뒤에도 상한이 오류를 냈다');
+    });
+
+    test('원본이 값 없이 닫히면 오류 대신 그대로 닫힌다', () async {
+      // 답이 오지 않은 채 스트림이 **끝난** 실행이다. 상한이 아직 남아 있어도
+      // 더 기다릴 것이 없으므로, 상한 오류를 뒤늦게 얹지 않는다.
+      final source = StreamController<String>();
+      final seen = <String>[];
+      final errors = <Object>[];
+      var closed = false;
+      final subscription = awaitServerConfirmation(
+        source.stream,
+        isConfirmed: (value) => value != '모름',
+        grace: const Duration(milliseconds: 20),
+      ).listen(seen.add, onError: errors.add, onDone: () => closed = true);
+      addTearDown(subscription.cancel);
+
+      await source.close();
+      await Future<void>.delayed(const Duration(milliseconds: 60));
+
+      expect(seen, isEmpty);
+      expect(errors, isEmpty);
       expect(closed, isTrue);
     });
   });

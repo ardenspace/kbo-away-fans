@@ -15,12 +15,31 @@ import 'dart:async';
 import 'package:kbo_away_fans/backend/auth.dart';
 import 'package:kbo_away_fans/backend/auth_kakao.dart';
 import 'package:kbo_away_fans/backend/user_data.dart';
+import 'package:kbo_away_fans/backend/user_data_firestore.dart'
+    show awaitServerConfirmation;
 
 /// 서버 시각 대역 — [ServerTimestamp] 가 이 값으로 확정된다고 본다.
 final DateTime kFakeServerNow = DateTime.utc(2026, 9, 1, 12);
 
 /// 메모리 사용자 데이터 저장소.
 class FakeUserDataStore implements UserDataStore {
+  FakeUserDataStore({this.profileConfirmGrace});
+
+  /// null 이 아니면 [watchProfile] 이 **실 구현과 같은 상한 장치**를 거친다
+  /// ([awaitServerConfirmation]) — 서버가 그 시간 안에 아무 답도 주지 않은
+  /// 실행을 재는 자리다.
+  ///
+  /// 기본값이 null 인 것은 이 대역이 상한 타이머를 늘 들고 있으면, "아직
+  /// 답하지 않는 서버"([holdProfiles])를 세운 채 끝나는 위젯 시험이 전부
+  /// `A Timer is still pending` 으로 실패하기 때문이다. 상한을 재려는 시험만
+  /// 값을 준다.
+  ///
+  /// 술어를 `(_) => true` 로 두는 것은 이 대역이 흘리는 값이 스냅샷이 아니라
+  /// 이미 해석된 [UserProfile]? 이라 출처를 물을 자리가 없어서다 — 이 대역이
+  /// 흉내 내는 것은 "값이 하나도 오지 않는 구간"([holdProfiles])이고, 그
+  /// 구간이 상한에서 어떻게 끝나는지가 재려는 성질이다.
+  final Duration? profileConfirmGrace;
+
   /// uid → 사용자 문서 본문 (서버에 실제로 남은 모습).
   final Map<String, Map<String, Object?>> documents = {};
 
@@ -73,7 +92,13 @@ class FakeUserDataStore implements UserDataStore {
     );
     // 구독이 붙은 뒤에 첫 스냅샷을 흘린다 (스트림은 언제나 비동기 전달이다).
     scheduleMicrotask(() => _emitProfile(uid));
-    return controller.stream;
+    final grace = profileConfirmGrace;
+    if (grace == null) return controller.stream;
+    return awaitServerConfirmation(
+      controller.stream,
+      isConfirmed: (_) => true,
+      grace: grace,
+    );
   }
 
   /// 스냅샷 스트림에 오류를 흘린다 — **서버를 읽지 못한 실행**의 대역.

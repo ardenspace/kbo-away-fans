@@ -777,8 +777,14 @@ abstract class UserDataStore {
   /// **null(= 문서 없음)은 확인된 답일 때만 흐른다.** 구현이 서버에 물어보는
   /// 중인 구간에는 아무것도 흘리지 않는다 — "아직 모른다"를 "문서가 없다"로
   /// 흘리면 이미 팀을 고른 사람이 온보딩 대상으로 보이고, 거기서 고른 팀이
-  /// 서버의 원본을 덮는 경로가 열린다. 그 기다림에는 상한이 있다
-  /// (`user_data_firestore.dart` 의 `kProfileServerConfirmGrace`).
+  /// 서버의 원본을 덮는 경로가 열린다.
+  ///
+  /// **그 기다림에는 상한이 있고, 넘으면 값이 아니라 오류가 흐른다**
+  /// (`user_data_firestore.dart` 의 `kProfileServerConfirmGrace` ·
+  /// `kProfileConfirmTimeoutCode`). 오류를 흘리는 것은 실제로 일어난 일이
+  /// "문서가 없다"가 아니라 "서버를 읽지 못했다"이기 때문이다 — 구독자는 그것을
+  /// 문서 유무의 답으로 읽지 않는다. 상한이 지난 뒤에 진짜 답이 오면 그 값이
+  /// 그대로 이어 흐른다.
   Stream<UserProfile?> watchProfile(String uid);
 
   /// 첫 문서를 만든다 (2.4 — 재로그인이 덮지 않는다).
