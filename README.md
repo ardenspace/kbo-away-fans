@@ -33,11 +33,14 @@ git hook은 클론으로 전파되지 않으므로 위처럼 저장소 내 훅 �
 
 - `check-hardcoded-values.sh` — 토큰 밖 raw 디자인 값.
 - `check-registry-sync.sh` — 공유 폴더 ↔ REGISTRY.md 로스터 동기화.
-- `check-no-location-upload.sh` — `lib/backend/` 업로드 payload 에 위도·경도로 읽히는
-  필드가 없는지 (기기 위치는 서버에 올리지 않는다는 데이터 소유권 결정의 강제).
-- `check-firebase-import-boundary.sh` — 백엔드 SDK import(`firebase_*` ·
-  `cloud_firestore` · `cloud_functions` · `google_sign_in` · 카카오)가
-  `lib/backend/`·`lib/analytics/` 밖으로 새지 않는지.
+- `check-no-location-upload.sh` — 기기 위치는 서버에 올리지 않는다는 데이터 소유권
+  결정의 강제. 두 방향을 본다: `lib/backend/` 에 위도·경도로 읽히는 필드가 없는지,
+  그리고 좌표를 다루는 `lib/location/` 이 업로드 계층(`lib/backend/`)을 import 하지
+  않는지.
+- `check-firebase-import-boundary.sh` — SDK import 가 전용 계층 밖으로 새지 않는지.
+  백엔드 SDK(`firebase_*` · `cloud_firestore` · `cloud_functions` ·
+  `google_sign_in` · 카카오)는 `lib/backend/`·`lib/analytics/` 안에만, 위치 권한
+  플러그인(`permission_handler`)은 `lib/location/location.dart` 안에만.
 
 Claude Code 세션에서는 `.claude/settings.json`의 PostToolUse 훅이 편집 직후에도 검사를
 돌리지만 범위가 다르다 — `check-hardcoded-values.sh`와 `check-no-location-upload.sh`

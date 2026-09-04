@@ -4,12 +4,15 @@
 ///   (사이클 1이 `lib/analytics/analytics.dart`·`lib/weather/weather.dart` 에
 ///   세운 규칙과 같다 — 비 UI 계층은 최상위 폴더 하나에 파일 하나, 화면은 SDK
 ///   타입을 직접 만지지 않는다). 이 경계를 처음 세우는 자리가 이 파일이다
-///   (step 2.5 전에는 저장소에 위치 관련 코드가 하나도 없었다).
+///   (step 2.5 전에는 저장소에 위치 관련 코드가 하나도 없었다). 서술로만 두지
+///   않는다 — `scripts/hooks/check-firebase-import-boundary.sh` 가 이 파일 밖의
+///   `permission_handler` import 를 잡아 커밋을 막는다.
 /// - 이 단계(2.5)가 다루는 것은 **권한 요청**뿐이다. 실제 좌표를 읽는 자리
 ///   (구장 근처 판정 — 4.1, 홈 상단 현재 위치 표시 — 5.2)는 이 계층이 내보내는
 ///   권한 상태 뒤에서 다음 단계가 짓는다. 그래서 이 파일은 좌표를 들고 있지
 ///   않고, 권한 상태 세 갈래만 안다 — 기기 위치를 서버에 올리지 않는다는
-///   저장소의 약속(`lib/backend/CLAUDE.md`)이 이 계층에서부터 지켜진다.
+///   저장소의 약속(`lib/backend/CLAUDE.md`·`lib/location/CLAUDE.md`)이 이
+///   계층에서부터 지켜진다.
 library;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
