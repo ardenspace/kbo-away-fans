@@ -104,6 +104,23 @@ void main() {
     expect(_FakeAppCheck.activateCalls, 1);
   });
 
+  test('사람을 붙잡는 상한이 실제로 사람이 견딜 길이다', () {
+    // 상한이 **있는지**는 `kakao_app_check_stall_probe_test.dart` 가 재지만,
+    // 그 탐침은 넉넉한 시간(10초)을 밀어 보므로 값이 얼마인지는 말하지 못한다 —
+    // 5초를 120초로 바꿔도 저 탐침만 빼면 전체가 초록불이었다. 이 상수는
+    // "얼마면 켜지는가"가 아니라 "얼마부터 사람이 앱이 죽었다고 읽는가"의
+    // 값이므로(`app_check.dart` 의 주석), 그 길이 자체를 여기서 못 박는다.
+    // 짝인 서버 상한 `kProfileServerConfirmGrace` 에 같은 모양의 시험이 이미
+    // 서 있다 (`probe_profile_watch_wiring_test.dart`).
+    expect(kAppCheckActivationTimeout, greaterThan(Duration.zero));
+    expect(
+      kAppCheckActivationTimeout,
+      lessThanOrEqualTo(const Duration(seconds: 10)),
+      reason: '이 값이 곧 스플래시가 걷히지 않는 최대 시간이고, 카카오 로그인 버튼이 '
+          '잠긴 채 스피너만 도는 최대 시간이다 — 늘리면 그만큼 사람이 앉아 있는다',
+    );
+  });
+
   _releaseBranchStandsInSource();
 }
 
