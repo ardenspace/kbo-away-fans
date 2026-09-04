@@ -75,6 +75,11 @@
 /// 둘째 탭이 수정 경로로 들어가 원본을 지운다. 그래서 "이 선택은 문서를 모르는
 /// 채 골랐다"는 사실을 [SelectedTeamNotifier.select] 이 선택과 함께 태워
 /// 보낸다 — 고른 계정을 태우는 것과 같은 결속이다.
+///
+/// **저장하지 못한 선택은 화면에서도 물러난다.** 서버 쓰기가 실패하면 화면은
+/// 누르기 직전의 값으로 돌아가고(변경 모드는 원본이 아는 팀, 온보딩은 팀 없음)
+/// 실패 안내가 함께 뜬다 — 되돌리지 않으면 사람은 그 세션 내내 저장되지 않은
+/// 팀을 보다가 다음 콜드 스타트에서 옛 팀을 아무 설명 없이 다시 만난다.
 library;
 
 import 'dart:async';
@@ -349,12 +354,22 @@ class SelectedTeamNotifier extends Notifier<AsyncValue<String?>> {
   /// 스냅샷이 판단을 뒤집어, 온보딩이라고 믿고 누른 둘째 탭이 수정 경로로
   /// 들어가 원본을 지운다. 고른 사람([owner])을 태우는 것과 같은 결속이고 같은
   /// 까닭이다 — 선택은 **눌린 순간의 사정**으로 판정되어야 한다.
+  ///
+  /// **서버에 남기지 못한 선택은 화면에서도 물러난다.** 첫 줄에서 화면을 옮기는
+  /// 것은 서버를 기다리지 않기 위해서지 실패를 감추기 위해서가 아니다. 실패를
+  /// 이미 아는 자리에서 되돌리지 않으면 사람은 그 세션 내내 저장되지 않은 팀을
+  /// 보다가 다음 콜드 스타트에서 옛 팀을 아무 설명 없이 다시 만난다. 되돌릴
+  /// 값은 누르기 직전의 상태다 — 변경 모드에서는 원본이 아는 팀이고, 온보딩
+  /// 에서는 "팀 없음"이다. 실패 안내(`TeamSelectScreen.saveFailureNotice`)와
+  /// 짝이다.
   Future<void> select(String teamId, {bool isChange = false}) async {
     assert(kTeamIds.contains(teamId), '알 수 없는 teamId: $teamId');
     final owner = ref.read(authStateProvider).value;
     // 스냅샷이 지금 이 계정의 문서를 보여 주고 있는가 — 눌린 순간의 사정이다.
     final documentSeen =
         owner != null && ref.read(userProfileProvider).value?.uid == owner.uid;
+    // 되돌릴 자리 — 아직 아무것도 바뀌지 않은 지금의 화면이다.
+    final rollback = state;
     state = AsyncData(teamId);
     final task = _queue.then(
       // 앞선 선택이 실패했더라도 줄은 이어진다 — 한 번의 통신 실패가 그
@@ -367,7 +382,27 @@ class SelectedTeamNotifier extends Notifier<AsyncValue<String?>> {
     // 아무것도 지키지 않게 된다. 이 future 의 오류는 두 자리가 받는다: 바로
     // 아래 `await task`(부르는 쪽으로 던진다)와, 다음 선택의 `onError` 갈래.
     _queue = task;
-    await task;
+    try {
+      await task;
+    } on Object {
+      _rollbackFailedSelection(teamId, rollback);
+      rethrow;
+    }
+  }
+
+  /// 저장하지 못한 선택을 화면에서 물린다.
+  ///
+  /// **지금 화면이 그 선택일 때만 물린다.** 줄에 선 뒤 선택이 이미 화면을
+  /// 옮겼으면 그것이 더 새로운 사실이고, 앞 선택의 실패로 그것을 지우면 성공한
+  /// 선택이 실패한 선택 때문에 사라진다.
+  ///
+  /// 되돌릴 자리가 **로딩**이면 "팀 없음"으로 내린다 — 대기 화면으로 되돌리면
+  /// 게이트가 스피너를 다시 그리고, 그 구간을 끝낼 기다림은 이미 지나갔다.
+  void _rollbackFailedSelection(String teamId, AsyncValue<String?> rollback) {
+    if (state.value != teamId) return;
+    state = rollback.hasValue || rollback.hasError
+        ? rollback
+        : const AsyncData<String?>(null);
   }
 
   /// 한 번의 선택을 원본과 사본에 남긴다 — 줄 안에서 도는 몸통.

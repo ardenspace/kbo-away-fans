@@ -458,6 +458,59 @@ void main() {
     expect(store.documents, isEmpty);
   });
 
+  testWidgets('서버에 남기지 못한 첫 선택은 온보딩으로 되돌아온다', (tester) async {
+    // 안내는 뜨지만 화면이 고른 팀의 홈에 남으면, 사람은 자기 선택이 남았다고
+    // 믿은 채 그 세션을 보내고 다음 콜드 스타트에서 온보딩을 다시 만난다.
+    SharedPreferences.setMockInitialValues({});
+    await tester.pumpWidget(app());
+    await tester.pumpAndSettle();
+
+    store.profileWriteFailure = const BackendNetworkError(code: 'unavailable');
+    final hanwha = find.text('한화 이글스', skipOffstage: false);
+    await tester.ensureVisible(hanwha);
+    await tester.pumpAndSettle();
+    await tester.tap(hanwha);
+    await tester.pumpAndSettle();
+
+    expect(find.text(TeamSelectScreen.saveFailureNotice), findsOneWidget);
+    expect(
+      find.byType(TeamSelectScreen),
+      findsOneWidget,
+      reason: '서버에 남지 않은 팀의 홈이 그대로 떠 있다',
+    );
+    expect(find.byType(HomeScreen), findsNothing);
+    expect(store.documents, isEmpty);
+    expect(await const SelectedTeamStore().read(uid), isNull);
+  });
+
+  testWidgets('서버에 남기지 못한 변경은 홈의 테마도 옛 팀으로 되돌린다', (tester) async {
+    // 되돌릴 값을 아는 갈래다 — 서버와 캐시가 모두 lg 를 들고 있다.
+    SharedPreferences.setMockInitialValues({});
+    await const SelectedTeamStore().write(uid, 'lg');
+    store.documents[uid] = serverDocument('lg');
+    await tester.pumpWidget(app());
+    await tester.pumpAndSettle();
+
+    store.profileWriteFailure = const BackendNetworkError(code: 'unavailable');
+    await tester.tap(find.byTooltip('응원 팀 바꾸기'));
+    await tester.pumpAndSettle();
+    final samsung = find.text('삼성 라이온즈', skipOffstage: false);
+    await tester.ensureVisible(samsung);
+    await tester.pumpAndSettle();
+    await tester.tap(samsung);
+    await tester.pumpAndSettle();
+
+    expect(find.text(TeamSelectScreen.saveFailureNotice), findsOneWidget);
+    expect(store.documents[uid]![UserFields.favoriteTeamId], 'lg');
+    expect(await const SelectedTeamStore().read(uid), 'lg');
+    final scope = tester.widget<TeamThemeScope>(find.byType(TeamThemeScope));
+    expect(
+      scope.theme.primary,
+      TeamThemes.byId[teamsDoc.byId('lg')!.themeKey]!.primary,
+      reason: '저장하지 못한 팀의 색이 홈에 남았다',
+    );
+  });
+
   testWidgets('팀 변경은 서버 왕복을 기다리지 않고 화면을 닫는다', (tester) async {
     // Firestore 쓰기의 Future 는 서버에 닿아야 끝난다. 그것을 기다렸다가 화면을
     // 닫으면 통신이 나쁜 자리에서 팀을 눌러도 변경 화면이 그대로 남아 선택이

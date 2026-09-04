@@ -684,6 +684,86 @@ void main() {
     });
   });
 
+  group('저장하지 못한 선택은 화면에도 남지 않는다', () {
+    // 실패 안내(`TeamSelectScreen.saveFailureNotice`)는 뜨지만, 실패를 이미
+    // 아는 자리에서 화면을 아는 값으로 되돌리지 않으면 고른 팀이 그 세션 내내
+    // 남는다 — 다음 콜드 스타트에서 옛 팀이 아무 설명 없이 돌아온다. 되돌릴
+    // 값을 아는 갈래(변경 모드)와 없는 갈래(온보딩)가 다르다.
+    test('변경 모드의 실패는 화면을 원본이 아는 팀으로 되돌린다', () async {
+      await seedCache('lg');
+      store.documents[uid] = _serverDocument('lg');
+      final container = makeContainer();
+      expect(await settledTeamId(container), 'lg');
+
+      store.profileWriteFailure = const BackendNetworkError(code: 'unavailable');
+      await expectLater(
+        container
+            .read(selectedTeamIdProvider.notifier)
+            .select('doosan', isChange: true),
+        throwsA(isA<BackendNetworkError>()),
+      );
+      await pumpEventQueue();
+
+      expect(
+        container.read(selectedTeamIdProvider).value,
+        'lg',
+        reason: '서버에 닿지 못한 팀이 화면에 남았다',
+      );
+      expect(store.documents[uid]![UserFields.favoriteTeamId], 'lg');
+      expect(await cachedTeamId(), 'lg');
+    });
+
+    test('온보딩의 실패는 화면을 팀 없음으로 되돌린다', () async {
+      // 되돌릴 값이 없는 갈래다 — 아무 팀도 없던 자리로 돌아가야 사람이 다시
+      // 고를 수 있다.
+      SharedPreferences.setMockInitialValues({});
+      final container = makeContainer();
+      expect(await settledTeamId(container), isNull);
+
+      store.profileWriteFailure = const BackendNetworkError(code: 'unavailable');
+      await expectLater(
+        container.read(selectedTeamIdProvider.notifier).select('kt'),
+        throwsA(isA<BackendNetworkError>()),
+      );
+      await pumpEventQueue();
+
+      expect(
+        container.read(selectedTeamIdProvider).value,
+        isNull,
+        reason: '문서도 사본도 없는데 화면만 고른 팀에 남았다',
+      );
+      expect(store.documents, isEmpty);
+      expect(await cachedTeamId(), isNull);
+    });
+
+    test('뒤 선택이 이미 옮긴 화면은 앞 선택의 실패가 되돌리지 않는다', () async {
+      // 줄에 선 두 선택 중 앞엣것만 실패한 실행이다. 되돌리기가 지금 화면을
+      // 보지 않으면, 성공한 뒤 선택의 팀이 앞 선택의 실패에 밀려 사라진다.
+      SharedPreferences.setMockInitialValues({});
+      final failing = _FailFirstCreateStore();
+      addTearDown(failing.dispose);
+      final container = ProviderContainer(
+        overrides: [
+          authServiceProvider.overrideWithValue(auth),
+          userDataStoreProvider.overrideWithValue(failing),
+        ],
+      );
+      addTearDown(container.dispose);
+      container.listen(selectedTeamIdProvider, (_, _) {});
+      await pumpEventQueue();
+
+      final notifier = container.read(selectedTeamIdProvider.notifier);
+      final first = notifier.select('lg');
+      final second = notifier.select('kia');
+      await expectLater(first, throwsA(isA<BackendNetworkError>()));
+      await second;
+      await pumpEventQueue();
+
+      expect(container.read(selectedTeamIdProvider).value, 'kia');
+      expect(failing.documents[uid]![UserFields.favoriteTeamId], 'kia');
+    });
+  });
+
   test('로그인하지 않은 실행의 선택은 권한 오류로 드러난다', () async {
     SharedPreferences.setMockInitialValues({});
     auth = FakeAuthService();
@@ -707,6 +787,18 @@ class _GatedCreateStore extends FakeUserDataStore {
   @override
   Future<bool> createProfile(String uid, NewUserProfile profile) async {
     await gate.future;
+    return super.createProfile(uid, profile);
+  }
+}
+
+/// 첫 쓰기만 실패하는 저장소 — 통신이 한 번 끊겼다 이어진 실행의 대역이다.
+class _FailFirstCreateStore extends FakeUserDataStore {
+  int _creates = 0;
+
+  @override
+  Future<bool> createProfile(String uid, NewUserProfile profile) async {
+    _creates++;
+    if (_creates == 1) throw const BackendNetworkError(code: 'unavailable');
     return super.createProfile(uid, profile);
   }
 }
