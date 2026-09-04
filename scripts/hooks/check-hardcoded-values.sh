@@ -22,6 +22,7 @@ patterns=(
   '(BorderRadius|Radius)\.circular\([^)]*[0-9]'
   'SizedBox\([^)]*: *[0-9]'
   'fontSize: *[0-9]'
+  'strokeWidth: *[0-9]'
   'Curves\.[a-zA-Z]'                                 # raw 커브 — motion.* 토큰 경유 강제
 )
 regex=$(IFS='|'; echo "${patterns[*]}")

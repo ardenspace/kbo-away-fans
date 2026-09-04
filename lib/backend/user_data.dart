@@ -937,6 +937,16 @@ class LikedPlaceIds extends AsyncNotifier<Set<String>> {
     }
     // 쓰기가 성공한 뒤에만 반영한다 — 실패하면 이 집합은 그대로 남고, 화면
     // 쪽 [LikeButton] 이 자기 모습을 되돌린다.
+    //
+    // **읽기를 못한 상태("못 읽었다")는 성공한 쓰기로도 지우지 않는다.**
+    // `state.hasValue` 가 false 라는 것은 이 세션에서 신뢰할 수 있는 좋아요
+    // 집합을 한 번도 확정하지 못했다는 뜻이다(전형적으로 [build] 의 읽기가
+    // 실패해 `AsyncError` 로 굳은 상태) — 거기서 `state.value ?? const {}`
+    // 로 빈 집합을 지어 쓰면, 방금 쓴 항목 하나만 담긴 `AsyncData` 가 "이
+    // 사람의 좋아요는 이것뿐"이라는 완성된 얼굴로 좋아요 탭에 뜬다. 실제로는
+    // 서버를 여전히 읽지 못한 상태이므로 그 오류를 그대로 지킨다 — 쓰기 자체는
+    // 이미 서버에 반영됐고, 다음 성공한 읽기가 진짜 목록을 가져온다.
+    if (!state.hasValue) return;
     final current = state.value ?? const <String>{};
     state = AsyncData(
       liked

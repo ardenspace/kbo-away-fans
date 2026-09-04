@@ -11,9 +11,11 @@ import '../../content/models.dart';
 import '../../design/tokens.dart';
 import '../../ui/shared/category_chip.dart';
 import '../../ui/shared/category_labels.dart';
+import '../../ui/shared/empty_state_notice.dart';
 import '../../ui/shared/map_links.dart';
 import '../../ui/shared/place_card.dart';
 import '../../ui/shared/place_detail_sheet.dart';
+import '../../ui/shared/place_like_wiring.dart';
 import '../../ui/shared/scratch_card.dart';
 import '../../ui/shared/team_theme_scope.dart';
 import '../../ui/shared/weather_backdrop.dart';
@@ -45,8 +47,9 @@ class StadiumPlacesScreen extends ConsumerStatefulWidget {
     this.initialIndoorOnly = false,
   });
 
-  /// 좋아요 쓰기에 실패했을 때의 안내.
-  static const String likeFailureNotice = '좋아요를 반영하지 못했어요. 잠시 뒤 다시 시도해 주세요.';
+  /// 좋아요 쓰기에 실패했을 때의 안내 — `place_like_wiring.dart` 의 단일
+  /// 문구를 그대로 가리킨다(좋아요 탭과 같은 실패 문구를 두 번 짓지 않는다).
+  static const String likeFailureNotice = kPlaceLikeFailureNotice;
 
   /// 대상 구장 id (common.defs stadiumId).
   final String stadiumId;
@@ -198,13 +201,18 @@ class _StadiumPlacesScreenState extends ConsumerState<StadiumPlacesScreen> {
                     }
                     final place = filtered[index];
                     return PlaceCard(
+                      // 장소 id 로 키를 준다 — 필터·긁기 카드 변화로 목록
+                      // 순서가 바뀌어도 자리가 아니라 정체성으로 짝짓는다
+                      // (좋아요 탭이 세운 규칙과 같다, `LikesTabScreen` 문서
+                      // 참조).
+                      key: ValueKey('places-${place.id}'),
                       name: place.name,
                       categoryLabel: categoryLabelOf(place.category),
                       shoutoutSource: place.shoutout,
                       onTap: () => _showDetailSheet(place, likedIds),
                       liked: likedIds.contains(place.id),
-                      onLikeChanged: (liked) => _toggleLike(place, liked),
-                      onLikeFailed: _handleLikeFailed,
+                      onLikeChanged: (liked) => togglePlaceLike(ref, place, liked),
+                      onLikeFailed: (error) => notifyPlaceLikeFailed(context),
                     );
                   },
                 ),
@@ -234,32 +242,8 @@ class _StadiumPlacesScreenState extends ConsumerState<StadiumPlacesScreen> {
           launchNaverMapRoute(name: place.name, lat: place.lat, lng: place.lng),
       onShare: () => _share(place),
       liked: likedIds.contains(place.id),
-      onLikeChanged: (liked) => _toggleLike(place, liked),
-      onLikeFailed: _handleLikeFailed,
-    );
-  }
-
-  /// 좋아요를 누르거나(true) 취소한다 — 경기·날짜와 무관하게 언제나 부를 수
-  /// 있다([LikedPlaceIds] 는 장소 slug 만 알고 경기를 모른다).
-  Future<void> _toggleLike(Place place, bool liked) {
-    return ref
-        .read(likedPlaceIdsProvider.notifier)
-        .toggle(
-          place.id,
-          LikeWrite(
-            placeId: place.id,
-            stadiumId: place.stadiumId,
-            category: place.category,
-          ),
-          liked,
-        );
-  }
-
-  /// 좋아요 쓰기 실패 안내 — [LikeButton] 이 되돌린 뒤에 부른다.
-  void _handleLikeFailed(Object error) {
-    if (!mounted) return;
-    ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-      const SnackBar(content: Text(StadiumPlacesScreen.likeFailureNotice)),
+      onLikeChanged: (liked) => togglePlaceLike(ref, place, liked),
+      onLikeFailed: (error) => notifyPlaceLikeFailed(context),
     );
   }
 
@@ -351,18 +335,13 @@ class _StadiumPlacesScreenState extends ConsumerState<StadiumPlacesScreen> {
     );
   }
 
-  /// 필터 결과 0건의 명시적 빈 상태.
+  /// 필터 결과 0건의 명시적 빈 상태 — 좋아요 탭의 빈 상태와 구조([EmptyStateNotice])
+  /// 만 같고 문구는 다르다(필터를 풀면 사라지는 일시적 0건이지 "하나도
+  /// 좋아요하지 않았다"가 아니다).
   Widget _emptyState() {
-    return Padding(
-      padding: const EdgeInsets.all(SpaceTokens.lg),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: const [
-          Text('이 조건에 맞는 장소가 아직 없어요', style: TextTokens.sectionTitle),
-          SizedBox(height: SpaceTokens.sm),
-          Text('다른 카테고리를 고르거나 실내 필터를 풀어 보세요.', style: TextTokens.bodyMuted),
-        ],
-      ),
+    return const EmptyStateNotice(
+      title: '이 조건에 맞는 장소가 아직 없어요',
+      message: '다른 카테고리를 고르거나 실내 필터를 풀어 보세요.',
     );
   }
 }

@@ -40,11 +40,12 @@ enum AuthProviderId {
 /// 없다"는 그때의 전제가 3.4(마이페이지)에서 깨진다 — 마이페이지가 가입한
 /// 계정의 대표 이메일을 보여줘야 한다. 그래서 여기서 필드를 하나 더 든다.
 /// **카카오는 여전히 이 값을 주지 않는다** — 이메일을 받으려면 비즈니스
-/// 채널이 필요한 추가 동의 항목이 붙기 때문이다(그 갈래는 화면이
-/// [kKakaoUidPrefix] 로 가려 제공자 표시로 대신한다). 구글·애플은 계정이 서는
-/// 순간 Firebase 문서에 이메일이 영구히 남으므로(애플의 "두 번째 로그인부터
-/// 이름을 안 준다"는 [displayName] 이야기이지 이메일이 아니다) null 은 사실상
-/// 카카오 계정에서만 나온다.
+/// 채널이 필요한 추가 동의 항목이 붙기 때문이다. 화면은 제공자 종류를 따로
+/// 가리지 않고 **[email] 이 null 이면** 제공자 표시 문구로 대신한다
+/// (`ProfileTabScreen.noEmailProviderLabel`) — 구글·애플은 계정이 서는 순간
+/// Firebase 문서에 이메일이 영구히 남으므로(애플의 "두 번째 로그인부터 이름을
+/// 안 준다"는 [displayName] 이야기이지 이메일이 아니다) null 은 사실상 카카오
+/// 계정에서만 나온다.
 @immutable
 class AuthUser {
   const AuthUser({required this.uid, this.displayName, this.email});
@@ -73,14 +74,6 @@ class AuthUser {
   @override
   String toString() => 'AuthUser($uid)';
 }
-
-/// 카카오 계정 uid 의 접두어 — `functions/kakao.js` 가 `kakao:{카카오 사용자 id}`
-/// 로 uid 를 결정적으로 짓는다(`lib/backend/REGISTRY.md` 참조). 이메일을 주지
-/// 않는 제공자를 가려내는 유일한 신호라 여기 둔다 — [AuthUser] 에 제공자
-/// 종류를 따로 담는 필드를 두지 않는 것은, 지금 이메일 유무를 가르는 문제
-/// 하나를 위해 SDK 안쪽 신호(`providerData`)를 새로 노출할 값이 없기
-/// 때문이다(`.wellbegun/decisions.md` 참조).
-const String kKakaoUidPrefix = 'kakao:';
 
 /// 인증 경계 — 로그인·로그아웃·세션 상태.
 ///

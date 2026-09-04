@@ -167,7 +167,9 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody> {
                       ? const SizedBox(
                           width: SpaceTokens.lg,
                           height: SpaceTokens.lg,
-                          child: CircularProgressIndicator(strokeWidth: 2),
+                          child: CircularProgressIndicator(
+                            strokeWidth: ProfileTokens.spinnerStrokeWidth,
+                          ),
                         )
                       : Text(
                           ProfileTabScreen.signOutLabel,
@@ -242,7 +244,9 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody> {
                   ? const SizedBox(
                       width: SpaceTokens.lg,
                       height: SpaceTokens.lg,
-                      child: CircularProgressIndicator(strokeWidth: 2),
+                      child: CircularProgressIndicator(
+                        strokeWidth: ProfileTokens.spinnerStrokeWidth,
+                      ),
                     )
                   : const Text(ProfileTabScreen.nicknameSaveLabel),
             ),

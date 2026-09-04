@@ -695,4 +695,9 @@ abstract final class ProfileTokens {
 
   /// 선택된 스와치의 테두리 굵기.
   static const double colorSwatchSelectedBorderWidth = 3;
+
+  /// 마이페이지의 작은 진행 스피너(저장 중 버튼 안) 굵기 — 빗줄기 굵기
+  /// ([RainTokens.strokeWidth])와 뜻이 다른 값이라 따로 둔다. 같은 상수를
+  /// 재사용하면 빗줄기를 굵게 만들 때 스피너가 따라 굵어진다.
+  static const double spinnerStrokeWidth = 2;
 }

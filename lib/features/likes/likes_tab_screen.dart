@@ -9,9 +9,11 @@ import '../../content/models.dart';
 import '../../design/tokens.dart';
 import '../../ui/shared/category_labels.dart';
 import '../../ui/shared/content_fallback.dart';
+import '../../ui/shared/empty_state_notice.dart';
 import '../../ui/shared/map_links.dart';
 import '../../ui/shared/place_card.dart';
 import '../../ui/shared/place_detail_sheet.dart';
+import '../../ui/shared/place_like_wiring.dart';
 import '../places/place_map_screen.dart';
 import 'liked_places.dart';
 
@@ -36,9 +38,17 @@ import 'liked_places.dart';
 ///   소비자(카드·상세 시트)는 여전히 `likedPlaceIdsProvider.value ?? const {}`
 ///   로 읽어 오류를 빈 집합으로 접어 두므로 그쪽 동작은 그대로다. 이 화면만
 ///   `AsyncValue` 를 그대로 보고 오류(못 읽음)와 빈 데이터(하나도 없음)를
-///   갈라 각자의 얼굴([ContentFallback] vs [_emptyState])을 보여준다
+///   갈라 각자의 얼굴([ContentFallback] vs [EmptyStateNotice])을 보여준다
 ///   (decisions.md 의 supersede 결정).
 /// - 콘텐츠에서 사라진 좋아요 장소는 [groupLikedPlaces] 가 조용히 걸러낸다.
+/// - **목록의 [PlaceCard] 는 장소 id 로 키를 받는다.** 같은 카테고리 안에서
+///   앞 카드의 좋아요를 풀면 그 카드가 목록에서 빠지며 뒤 카드가 한 칸
+///   당겨지는데, 키가 없으면 Flutter 가 자리로 위젯을 짝지어 뒤 카드의
+///   element 가 앞 카드의(막 꺼진) 지역 상태를 물려받는다(3.2 [LikeButton]
+///   의 `didUpdateWidget` 은 `liked` 값이 실제로 달라질 때만 지역 상태를
+///   따라가므로, 자리로 짝지어진 새 위젯의 `liked` 가 우연히 이전 값과 같으면
+///   갱신되지 않는다). 장소 id 키가 그 오짝을 막는다
+///   (`test/features/likes/likes_tab_seam_probe_test.dart`).
 class LikesTabScreen extends ConsumerWidget {
   const LikesTabScreen({super.key});
 
@@ -51,10 +61,6 @@ class LikesTabScreen extends ConsumerWidget {
 
   /// 빈 상태의 설명 한 줄.
   static const String emptyMessage = '추천 탭에서 마음에 드는 곳에 하트를 눌러보세요.';
-
-  /// 좋아요 쓰기 실패 안내 — `StadiumPlacesScreen.likeFailureNotice` 와 같은
-  /// 모양(정적 문구 + 스낵바)을 그대로 따른다.
-  static const String likeFailureNotice = '좋아요를 반영하지 못했어요. 잠시 뒤 다시 시도해 주세요.';
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -98,8 +104,14 @@ class LikesTabScreen extends ConsumerWidget {
       return const ContentFallback(loading: true);
     }
 
-    final grouped = groupLikedPlaces(placesDoc.places, likedAsync.value!);
-    if (grouped.isEmpty) return _emptyState();
+    final likedIds = likedAsync.value!;
+    final grouped = groupLikedPlaces(placesDoc.places, likedIds);
+    if (grouped.isEmpty) {
+      return const EmptyStateNotice(
+        title: LikesTabScreen.emptyTitle,
+        message: LikesTabScreen.emptyMessage,
+      );
+    }
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(
@@ -120,33 +132,22 @@ class LikesTabScreen extends ConsumerWidget {
           ),
           for (final place in entry.value) ...[
             PlaceCard(
+              // 장소 id 로 키를 준다 — 해제로 목록이 줄어 뒤 카드가 한 칸
+              // 당겨질 때 자리가 아니라 정체성으로 짝지어지게 한다(클래스
+              // 문서의 "목록의 PlaceCard 는 장소 id 로 키를 받는다" 참조).
+              key: ValueKey('likes-place-${place.id}'),
               name: place.name,
               categoryLabel: categoryLabelOf(place.category),
               shoutoutSource: place.shoutout,
               onTap: () => _showDetailSheet(context, ref, place),
-              liked: true,
-              onLikeChanged: (liked) => _toggleLike(ref, place, liked),
-              onLikeFailed: (error) => _handleLikeFailed(context),
+              liked: likedIds.contains(place.id),
+              onLikeChanged: (liked) => togglePlaceLike(ref, place, liked),
+              onLikeFailed: (error) => notifyPlaceLikeFailed(context),
             ),
             const SizedBox(height: SpaceTokens.md),
           ],
         ],
       ],
-    );
-  }
-
-  /// 진짜로 좋아요가 하나도 없는 자리의 명시적 빈 상태.
-  Widget _emptyState() {
-    return const Padding(
-      padding: EdgeInsets.all(SpaceTokens.lg),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(LikesTabScreen.emptyTitle, style: TextTokens.sectionTitle),
-          SizedBox(height: SpaceTokens.sm),
-          Text(LikesTabScreen.emptyMessage, style: TextTokens.bodyMuted),
-        ],
-      ),
     );
   }
 
@@ -156,6 +157,8 @@ class LikesTabScreen extends ConsumerWidget {
     final stadium = contentDataOf(
       ref.read(stadiumsProvider),
     )?.byId(place.stadiumId);
+    final liked =
+        ref.read(likedPlaceIdsProvider).value?.contains(place.id) ?? true;
     PlaceDetailSheet.show(
       context,
       name: place.name,
@@ -166,34 +169,9 @@ class LikesTabScreen extends ConsumerWidget {
       onDirections: () =>
           launchNaverMapRoute(name: place.name, lat: place.lat, lng: place.lng),
       onShare: () => _share(place),
-      liked: true,
-      onLikeChanged: (liked) => _toggleLike(ref, place, liked),
-      onLikeFailed: (error) => _handleLikeFailed(context),
-    );
-  }
-
-  /// 좋아요를 누르거나(true) 취소한다(false) — [likedPlaceIdsProvider] 하나만
-  /// 고친다. 이 위젯이 그 provider 를 직접 구독하므로, 성공한 뒤 집합이
-  /// 바뀌면 이 화면이 다시 그려져 해제한 장소가 목록에서 즉시 빠진다.
-  Future<void> _toggleLike(WidgetRef ref, Place place, bool liked) {
-    return ref
-        .read(likedPlaceIdsProvider.notifier)
-        .toggle(
-          place.id,
-          LikeWrite(
-            placeId: place.id,
-            stadiumId: place.stadiumId,
-            category: place.category,
-          ),
-          liked,
-        );
-  }
-
-  /// 좋아요 쓰기 실패 안내 — [LikeButton] 이 되돌린 뒤에 부른다.
-  void _handleLikeFailed(BuildContext context) {
-    if (!context.mounted) return;
-    ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-      const SnackBar(content: Text(LikesTabScreen.likeFailureNotice)),
+      liked: liked,
+      onLikeChanged: (liked) => togglePlaceLike(ref, place, liked),
+      onLikeFailed: (error) => notifyPlaceLikeFailed(context),
     );
   }
 

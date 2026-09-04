@@ -28,3 +28,5 @@
 | `StampBadge` | 칸 하나 — 빈 상태·획득·등급 세 모습(도장 개수 하나로 갈린다). 등급 링은 `BadgeTierTokens` 값을 `BadgeTierRingPainter` 가 그대로 그린다 | `lib/ui/shared/stamp_badge.dart` | 판 안, 도장 획득 연출, 칸 상세 |
 | `LikeButton` | 좋아요 토글 — 낙관적 반영 + 실패 시 되돌림 + `onFailed` 통지, 응답 대기 중 연타 무시 | `lib/ui/shared/like_button.dart` | 장소 카드·상세 시트 등 좋아요가 붙는 모든 곳 |
 | `SocialSignInButton` | 제공자별 로그인 버튼 (구글·카카오·애플) 한 모양 — 몸통은 팔레트 한 벌이고 아이콘·문구가 제공자를 가르며, 진행 중(`busy`)이면 아이콘 자리가 스피너가 된다 | `lib/ui/shared/social_sign_in_button.dart` | 로그인 화면 |
+| `place_like_wiring` | 장소 좋아요 배선의 단일 구현 — 실패 안내 문구(`kPlaceLikeFailureNotice`) + `likedPlaceIdsProvider` 토글 호출(`togglePlaceLike`) + 실패 스낵바(`notifyPlaceLikeFailed`). 3.3 통합 검증에서 추천 목록과 좋아요 탭이 복제했던 것을 승격했다 | `lib/ui/shared/place_like_wiring.dart` | 장소 좋아요를 누르고 실패를 알려야 하는 모든 화면(4.x 도장 판·칸 상세 포함) |
+| `EmptyStateNotice` | 목록이 정상적으로 비어 있는 자리의 구조(제목+설명 한 줄) — 문구는 호출부가 각자 준다(`ContentFallback` 과 달리 "못 얻었다"가 아니라 "얻었는데 하나도 없다") | `lib/ui/shared/empty_state_notice.dart` | 필터·조회 결과가 정상적으로 0건인 모든 목록 화면 |
