@@ -91,4 +91,84 @@ void main() {
 
     expect(find.text('내정보 뿌리'), findsOneWidget);
   });
+
+  group('뒤로 가기 우선순위 — 보고 있는 탭의 스택부터 소비한다', () {
+    testWidgets('탭 안에 민 화면이 있으면 시스템 뒤로가기가 그것부터 닫는다', (tester) async {
+      await tester.pumpWidget(MaterialApp(home: MainTabScaffold(tabs: tabs())));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('홈 뿌리'));
+      await tester.pumpAndSettle();
+      expect(find.text('홈 상세'), findsOneWidget);
+
+      final handled = await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+
+      expect(
+        handled,
+        isTrue,
+        reason: '탭 스택에 닫을 route 가 있었으니 시스템 뒤로가기가 그것을 소비해야 한다',
+      );
+      expect(tester.takeException(), isNull);
+      expect(find.text('홈 상세'), findsNothing);
+      expect(
+        find.text('홈 뿌리'),
+        findsOneWidget,
+        reason: '탭이 바뀌지 않고 그 탭의 뿌리로만 한 겹 되돌아온다',
+      );
+    });
+
+    testWidgets('탭 스택이 뿌리 하나뿐이면 시스템 뒤로가기가 소비하지 않고, 화면도 그대로다', (
+      tester,
+    ) async {
+      await tester.pumpWidget(MaterialApp(home: MainTabScaffold(tabs: tabs())));
+      await tester.pumpAndSettle();
+
+      // 민 화면이 하나도 없는 뿌리 상태 — 소비할 route 가 없다.
+      final handled = await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+
+      expect(
+        handled,
+        isFalse,
+        reason: '탭 스택이 비어 있으니(뿌리 하나뿐) 소비할 route 가 없어 시스템에 넘겨야 한다'
+            ' (앱 종료 등 그 다음 처리는 이 컴포넌트의 책임이 아니다)',
+      );
+      expect(tester.takeException(), isNull, reason: '빈 스택에 뒤로가기가 와도 안전해야 한다');
+      expect(find.text('홈 뿌리'), findsOneWidget);
+      expect(find.byType(BottomNavigationBar), findsOneWidget);
+
+      // 다시 눌러도(연타) 여전히 안전하다 — 소비할 게 계속 없다.
+      final handledAgain = await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      expect(handledAgain, isFalse);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('보이지 않는 탭의 스택은 뒤로가기에 반응하지 않는다', (tester) async {
+      await tester.pumpWidget(MaterialApp(home: MainTabScaffold(tabs: tabs())));
+      await tester.pumpAndSettle();
+
+      // 홈에서 한 겹 들어간 채로 배지 탭으로 옮긴다 — 지금 보고 있는 탭은 배지.
+      await tester.tap(find.text('홈 뿌리'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('배지'));
+      await tester.pumpAndSettle();
+      expect(find.text('배지 뿌리'), findsOneWidget);
+
+      // 배지는 뿌리 하나뿐이라 소비할 게 없다 — 꺼진 홈의 스택이 대신
+      // 소비되면 안 된다(보이지 않는 곳에서 화면이 사라지는 것을 막는 가드).
+      final handled = await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+
+      expect(handled, isFalse);
+      expect(find.text('배지 뿌리'), findsOneWidget);
+
+      // 홈으로 돌아오면 아까 민 화면이 그대로다 — 꺼져 있던 동안 아무도
+      // 대신 pop 하지 않았다는 증거.
+      await tester.tap(find.text('홈'));
+      await tester.pumpAndSettle();
+      expect(find.text('홈 상세'), findsOneWidget);
+    });
+  });
 }
