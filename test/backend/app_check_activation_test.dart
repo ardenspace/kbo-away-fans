@@ -116,8 +116,10 @@ void main() {
     expect(
       kAppCheckActivationTimeout,
       lessThanOrEqualTo(const Duration(seconds: 10)),
-      reason: '이 값이 곧 스플래시가 걷히지 않는 최대 시간이고, 카카오 로그인 버튼이 '
-          '잠긴 채 스피너만 도는 최대 시간이다 — 늘리면 그만큼 사람이 앉아 있는다',
+      reason: '이 값이 곧 카카오 로그인 버튼 셋이 잠긴 채 스피너만 도는 최대 시간이다 '
+          '— 스플래시를 걷는 상한은 이것이 아니라 `kBootInitTimeout` 이고(둘 다 '
+          '5초이지만 부팅 타이머가 먼저 시작해 이 상한은 부팅 경로에서 걸리지도 '
+          '않는다), 늘리면 그만큼 사람이 로그인 화면 앞에 앉아 있는다',
     );
   });
 
