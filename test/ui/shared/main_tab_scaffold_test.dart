@@ -145,6 +145,59 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
+    testWidgets(
+      '두 탭 모두에 화면을 밀어 올린 채 보고 있는 탭만 뒤로가기로 닫힌다 — '
+      '꺼진 탭의 스택은 그대로다',
+      (tester) async {
+        // `enabled` 는 이 route 의 PopScope.canPop 만 정할 뿐, pop 콜백 자체는
+        // IndexedStack 이 살려 둔 핸들러 전부에 전달된다(Flutter 프레임워크
+        // 사실 — `enabled` 와 무관). 그래서 "보고 있는 탭만 스택을 소비한다"는
+        // 성질은 **양쪽 탭 모두에 소비할 route 가 있어야만** 드러난다 — 한쪽이
+        // 뿌리 하나뿐이면(소비할 게 없으면) 시스템이 아예 pop 을 시도하지 않아
+        // 가드 유무와 무관하게 같은 결과가 나온다(실측: 위 "보이지 않는 탭"
+        // 시험은 그래서 이 가드를 재지 못한다).
+        await tester.pumpWidget(
+          MaterialApp(home: MainTabScaffold(tabs: tabs())),
+        );
+        await tester.pumpAndSettle();
+
+        // 홈에 한 겹 밀어 올린다.
+        await tester.tap(find.text('홈 뿌리'));
+        await tester.pumpAndSettle();
+        expect(find.text('홈 상세'), findsOneWidget);
+
+        // 배지로 옮겨 배지에도 한 겹 밀어 올린다 — 지금 보고 있는 탭은 배지.
+        await tester.tap(find.text('배지'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('배지 뿌리'));
+        await tester.pumpAndSettle();
+        expect(find.text('배지 상세'), findsOneWidget);
+
+        // 시스템 뒤로가기 한 번 — 두 탭 다 소비할 route 가 있다.
+        final handled = await tester.binding.handlePopRoute();
+        await tester.pumpAndSettle();
+
+        expect(handled, isTrue);
+        expect(tester.takeException(), isNull);
+        expect(
+          find.text('배지 상세'),
+          findsNothing,
+          reason: '보고 있는 배지 탭은 뒤로가기로 한 겹 닫혀야 한다',
+        );
+        expect(find.text('배지 뿌리'), findsOneWidget);
+
+        // 홈으로 돌아가 본다 — 가드가 없으면 이 자리에서 '홈 상세'가 사라져
+        // 있다(꺼져 있던 탭까지 함께 pop 됐다는 뜻).
+        await tester.tap(find.text('홈'));
+        await tester.pumpAndSettle();
+        expect(
+          find.text('홈 상세'),
+          findsOneWidget,
+          reason: '보고 있지 않던 홈 탭의 스택은 뒤로가기 한 번에 영향받지 않아야 한다',
+        );
+      },
+    );
+
     testWidgets('보이지 않는 탭의 스택은 뒤로가기에 반응하지 않는다', (tester) async {
       await tester.pumpWidget(MaterialApp(home: MainTabScaffold(tabs: tabs())));
       await tester.pumpAndSettle();
