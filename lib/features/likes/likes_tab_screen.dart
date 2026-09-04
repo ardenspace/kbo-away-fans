@@ -40,6 +40,15 @@ import 'liked_places.dart';
 ///   `AsyncValue` 를 그대로 보고 오류(못 읽음)와 빈 데이터(하나도 없음)를
 ///   갈라 각자의 얼굴([ContentFallback] vs [EmptyStateNotice])을 보여준다
 ///   (decisions.md 의 supersede 결정).
+/// - **이 화면은 분석 이벤트를 남기지 않는다 — 누락이 아니라 의도다.**
+///   `StadiumPlacesScreen` 은 시트를 열 때 `logPlaceTap`, 지도로 갈 때
+///   `logMapOpen` 을 남기지만, `lib/analytics/analytics.dart` 가 정의한 성공
+///   지표는 "추천 탭 → 지도 진입" 하나뿐이고 그 이벤트의 파라미터는
+///   `stadium_id`·`category` 뿐이라 어느 탭에서 눌렀는지 가릴 칸이 없다. 이
+///   화면이 같은 이름으로 같은 이벤트를 쏘면 "추천에서 왔다"와 "좋아요
+///   목록에서 왔다"는 서로 다른 두 퍼널이 한 지표에 섞여, 그 지표가 정작
+///   무엇을 재는지 알 수 없게 된다. 그래서 이 파일은 `analytics.dart` 를
+///   import 하지 않는다(2026-09-04 [S]).
 /// - 콘텐츠에서 사라진 좋아요 장소는 [groupLikedPlaces] 가 조용히 걸러낸다.
 /// - **목록의 [PlaceCard] 는 장소 id 로 키를 받는다.** 같은 카테고리 안에서
 ///   앞 카드의 좋아요를 풀면 그 카드가 목록에서 빠지며 뒤 카드가 한 칸
@@ -83,6 +92,11 @@ class LikesTabScreen extends ConsumerWidget {
     PlacesDocument? placesDoc,
   ) {
     // 좋아요 자체를 못 읽은 자리 — "하나도 없다"와 다른 얼굴 + 재시도.
+    // 이 검사가 아래 로딩 검사보다 **앞에** 있는 것은 순서 실수가 아니다:
+    // 사람이 재시도 버튼을 누른 동안(`invalidate` 직후 `hasError` 와
+    // `isLoading` 이 함께 참인 창)에도 이 화면은 실패 얼굴을 그대로 유지한다
+    // — 그 창에서 스피너로 바꿔치기하면 실패→로딩→(다시 실패 또는 성공)로
+    // 화면이 한 번 더 깜빡인다.
     if (likedAsync.hasError) {
       return ContentFallback(
         loading: false,

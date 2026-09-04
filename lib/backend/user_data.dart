@@ -958,8 +958,20 @@ class LikedPlaceIds extends AsyncNotifier<Set<String>> {
 
 /// [LikedPlaceIds] 의 주입 지점 — 장소 카드·상세 시트가 좋아요 상태를 읽고
 /// 바꾸는 유일한 자리다.
+///
+/// 자동 재시도는 끈다 — `authStateProvider`·`userProfileProvider` 와 같은
+/// 판단이되 까닭은 하나 더 있다: 좋아요 탭(3.3)은 이 provider 가 오류로
+/// 굳으면 사람이 누르는 재시도 버튼을 이미 보여준다
+/// (`LikesTabScreen.loadFailureTitle` 의 `onRetry`). 자동 재시도가 그 뒤에서
+/// 계속 다시 세우면, 사람이 재시도 버튼을 누르지도 않았는데 요청이 최대
+/// 11회(riverpod 기본 재시도의 최초 시도 1 + 재시도 10)까지 나가고 그 마지막
+/// 대기가 6.4초라, 화면의 실패 얼굴과 뒤에서 도는 요청이 서로 어긋난다.
+/// 다시 세우는 시점을 사람의 행동(재시도 버튼)에 맞춘다.
 final AsyncNotifierProvider<LikedPlaceIds, Set<String>> likedPlaceIdsProvider =
-    AsyncNotifierProvider<LikedPlaceIds, Set<String>>(LikedPlaceIds.new);
+    AsyncNotifierProvider<LikedPlaceIds, Set<String>>(
+      LikedPlaceIds.new,
+      retry: (retryCount, error) => null,
+    );
 
 // ---------------------------------------------------------------------------
 // 읽기 도우미

@@ -51,10 +51,7 @@ import '../team_select/selected_team.dart';
 /// 팀이 정해진 뒤의 위치 권한 안내 게이트 — 대부분의 렌더는 곧장 [MainTabsRoot]
 /// (step 3.1 이전에는 홈 화면 하나였다).
 class OnboardingLocationGate extends ConsumerStatefulWidget {
-  const OnboardingLocationGate({super.key, required this.teamId});
-
-  /// 이 계정이 응원하는 팀 — 그대로 [HomeScreen] 에 넘긴다.
-  final String teamId;
+  const OnboardingLocationGate({super.key});
 
   @override
   ConsumerState<OnboardingLocationGate> createState() =>

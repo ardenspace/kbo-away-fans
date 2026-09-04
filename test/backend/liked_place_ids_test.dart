@@ -22,6 +22,7 @@
 /// `settledTeamId` 와 같은 이유).
 library;
 
+import 'package:fake_async/fake_async.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kbo_away_fans/backend/auth.dart';
@@ -122,6 +123,30 @@ void main() {
     // 직접 보는 소비자(좋아요 탭)는 "못 읽었다"와 "하나도 없다"를 가를 수
     // 있어야 한다.
     expect(container.read(likedPlaceIdsProvider).hasError, isTrue);
+  });
+
+  test('읽기가 계속 실패해도 자동 재시도 없이 readLikes 는 정확히 한 번만 불린다', () {
+    final failing = _FailingLikesStore();
+    addTearDown(failing.dispose);
+
+    fakeAsync((async) {
+      final container = makeContainer(backend: failing);
+
+      // riverpod 기본 재시도(`ProviderContainer.defaultRetry`)가 다 쓰는
+      // 시간(최대 10회, 마지막 대기가 6.4초 — 합쳐 40초를 넘지 않는다)보다
+      // 넉넉히 지난다. `likedPlaceIdsProvider` 의 `retry: (_, __) => null`
+      // 이 없으면 이 창 안에서 재시도가 여러 번 돌아 `likeReads` 가 11
+      // 언저리까지 올라간다.
+      async.elapse(const Duration(minutes: 1));
+      async.flushMicrotasks();
+
+      expect(container.read(likedPlaceIdsProvider).hasError, isTrue);
+      expect(
+        failing.likeReads,
+        1,
+        reason: '사람이 재시도 버튼을 누르지 않는 한 readLikes 는 세션당 한 번이어야 한다',
+      );
+    });
   });
 
   test('토글로 누르면 서버에 문서가 남고, 다시 읽지 않고도 집합에 반영된다', () async {

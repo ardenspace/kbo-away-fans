@@ -217,7 +217,7 @@ class _SignedInGate extends ConsumerWidget {
     return switch (ref.watch(selectedTeamIdProvider)) {
       AsyncData(:final value) => value == null
           ? const TeamSelectScreen()
-          : OnboardingLocationGate(teamId: value),
+          : const OnboardingLocationGate(),
       AsyncError() => const TeamSelectScreen(),
       _ => _gateLoading,
     };

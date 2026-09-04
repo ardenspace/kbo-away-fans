@@ -273,7 +273,7 @@ cycle: 2
    - `flutter test test/features/badges/` → exit 0 (가짜 백엔드의 읽기 호출 수를 세어 판 렌더가 사용자 문서 1건만 읽는지 단언, 도장 0개·다수 두 경우에서 동일)
    - `flutter test test/ui/shared/` → exit 0
    - `flutter analyze` → exit 0
-4. **Registries to read:** `lib/ui/shared/REGISTRY.md`, `lib/backend/REGISTRY.md`, decisions.md 의 판 읽기 패턴 L 결정
+4. **Registries to read:** `lib/ui/shared/REGISTRY.md`, `lib/backend/REGISTRY.md`, decisions.md 의 판 읽기 패턴 L 결정, **그리고 decisions.md 2026-09-04 [M] "상세 시트 조립은 지금 승격하지 않는다"** — 이 단계가 `PlaceDetailSheet` 를 세 번째로 여는 자리라면 그 결정이 정한 시점에 닿은 것이므로, 조립을 공용으로 승격하고 같은 커밋에서 로스터를 갱신한다
 5. **Verification tier:** fresh
 6. **Discretion scope:** 판의 배치와 칸 상세 화면의 레이아웃, 정렬 순서.
 
