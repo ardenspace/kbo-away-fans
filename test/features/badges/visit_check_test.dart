@@ -174,6 +174,56 @@ List<({String owner, String line})> _byTopLevelOwner(String source) {
   return out;
 }
 
+/// `lib/location/` 의 Dart 소스 전부를 경로→내용 표로 읽어 온다.
+///
+/// 겹 1 파수꾼이 **파일 하나가 아니라 폴더 전체**를 보게 하는 자리다. 5.2
+/// (홈 상단 현재 위치)가 이 폴더에 파일을 하나 더 두면 그 파일도 같은 단언을
+/// 지나야 한다 — round 4 이전에는 `visit_check.dart` 만 읽어서, 그 옆에 파일을
+/// 하나 두는 것만으로 아래 단언 전부가 시야 밖이 되었다.
+Map<String, String> _locationSources() {
+  final files =
+      Directory('lib/location')
+          .listSync()
+          .whereType<File>()
+          .where((file) => file.path.endsWith('.dart'))
+          .toList()
+        ..sort((a, b) => a.path.compareTo(b.path));
+  // `expect` 를 쓰지 않는 것은 이 함수가 group 몸통(테스트 밖)에서 불리기
+  // 때문이다 — 거기서 부르면 OutsideTestException 으로 파일 로딩이 죽는다.
+  if (files.isEmpty) {
+    throw StateError('lib/location/ 에서 Dart 파일을 하나도 찾지 못했다');
+  }
+  return {for (final file in files) file.path: file.readAsStringSync()};
+}
+
+/// 이 폴더가 `geolocator` 를 들이는 **모든 별칭**.
+///
+/// 별칭이 없는 import(`import 'package:geolocator/geolocator.dart';`)는
+/// `Geolocator` 를 접두어 없이 세워 이 파수꾼의 표지 자체를 지우므로, 그런
+/// import 가 하나라도 있으면 여기서 바로 빨간불이 된다. `deferred as` 도 같은
+/// 모양으로 받는다.
+Set<String> _geolocatorPrefixes(Map<String, String> sources) {
+  final directive = RegExp(
+    '''^import\\s+['"]package:geolocator/[^'"]*['"]([^;]*);''',
+    multiLine: true,
+  );
+  final alias = RegExp(r'(?:\bdeferred\b\s+)?\bas\s+([A-Za-z_$][A-Za-z0-9_$]*)');
+  final prefixes = <String>{};
+  for (final entry in sources.entries) {
+    for (final match in directive.allMatches(entry.value)) {
+      final tail = alias.firstMatch(match.group(1)!);
+      expect(
+        tail,
+        isNotNull,
+        reason:
+            '${entry.key} 이 geolocator 를 별칭 없이 들인다 — `Geolocator` 가 접두어 없이 서면 이 파수꾼의 표지가 지워진다',
+      );
+      prefixes.add(tail!.group(1)!);
+    }
+  }
+  return prefixes;
+}
+
 /// 테스트용 경기 픽스처 (next_away_game_test.dart 와 같은 모양).
 Game _game({
   required String id,
@@ -644,23 +694,61 @@ void main() {
   // 공개 표면으로 실어 내보내는 조합. 그쪽은 결과 타입 파수꾼(위 group)과
   // `check-no-location-upload.sh` 의 검사 4)(값을 담아 둘 자리 금지)가 각각
   // 다른 각도에서 받는다.
+  //
+  // round 4 가 이 파수꾼의 시야를 두 번 넓혔다. (a) 보는 자리가
+  // `visit_check.dart` **파일 하나**여서, `lib/location/` 에 파일이 하나 더
+  // 생기는 순간(5.2 가 그 자리다) 시야 밖이었다 — 이제 폴더 전체를 본다.
+  // (b) 재는 것이 `geo.` 라는 **별칭 하나**여서, 기존 import 를 그대로 두고
+  // `import 'package:geolocator/geolocator.dart' as gps;` 를 하나 더 들인 뒤
+  // 공개 함수에서 `gps.Geolocator.getCurrentPosition()` 을 부르면 아무것도
+  // 보지 못했다(round 4 지휘자 재현 — 훅 4종·시험 전부 초록불) — 이제
+  // 이 폴더가 geolocator 를 들이는 **모든** 별칭을 소스에서 읽어 쓴다.
+  // 짝으로 `part` 지시자도 여기서 잰다: Dart 의 `_` 는 파일이 아니라
+  // 라이브러리 가시성이라, part 파일 하나면 `_readDeviceFix` 가 공개 이름으로
+  // 다시 나갈 수 있는데 그 파일은 geolocator 를 import 하지 않아 겹 2 의
+  // 훅에도 걸리지 않는다.
   group('좌표를 얻는 통로는 이 라이브러리 안에서만 보인다 (겹 1, 소스 대조)', () {
-    final source = File('lib/location/visit_check.dart').readAsStringSync();
+    final locationSources = _locationSources();
+    final source = locationSources['lib/location/visit_check.dart']!;
 
-    test('플러그인을 만지는 줄은 전부 private 선언 안에 있다', () {
-      // 이 시험은 `geo.` 를 플러그인 호출의 표지로 쓴다 — 표지 자체가 살아
-      // 있는지 먼저 못 박아 둔다(접두어가 바뀌면 아래 단언이 조용히 빈
-      // 목록을 보게 된다).
+    test('이 폴더는 part 파일을 쓰지 않는다 (파일 하나가 라이브러리 하나다)', () {
       expect(
-        source,
-        contains("import 'package:geolocator/geolocator.dart' as geo;"),
-        reason: 'geolocator 를 `geo` 로 들이는 줄이 이 파수꾼의 표지다',
+        locationSources.keys,
+        contains('lib/location/visit_check.dart'),
+        reason: '폴더 훑기가 판정 파일 자체를 놓치면 아래 단언들이 조용히 빈 목록을 본다',
       );
 
       final offenders = [
-        for (final entry in _byTopLevelOwner(source))
-          if (entry.line.contains('geo.') && !entry.owner.startsWith('_'))
-            '${entry.owner}: ${entry.line.trim()}',
+        for (final entry in locationSources.entries)
+          for (final line in entry.value.split('\n'))
+            if (RegExp(r'''^\s*part\s+('|"|of\s)''').hasMatch(line))
+              '${entry.key}: ${line.trim()}',
+      ];
+
+      expect(
+        offenders,
+        isEmpty,
+        reason: 'part 파일은 같은 라이브러리 안에 들어와 `_` 통로를 공개 이름으로 다시 내보낼 수 있다',
+      );
+    });
+
+    test('플러그인을 만지는 줄은 전부 private 선언 안에 있다 (폴더 전체)', () {
+      // 이 파수꾼의 표지는 별칭 **하나**가 아니라 이 폴더가 geolocator 를
+      // 들이는 별칭 **전부**다. 표지가 살아 있는지 먼저 못 박아 둔다(하나도
+      // 못 찾으면 아래 단언이 조용히 빈 목록을 보게 된다).
+      final prefixes = _geolocatorPrefixes(locationSources);
+      expect(
+        prefixes,
+        isNotEmpty,
+        reason: 'geolocator 를 별칭으로 들이는 줄이 이 파수꾼의 표지다',
+      );
+
+      final offenders = [
+        for (final entry in locationSources.entries)
+          for (final owned in _byTopLevelOwner(entry.value))
+            for (final prefix in prefixes)
+              if (owned.line.contains('$prefix.') && !owned.owner.startsWith('_'))
+                '${entry.key} — ${owned.owner}: ${owned.line.trim()}',
       ];
 
       expect(offenders, isEmpty, reason: '기기 좌표를 읽는 자리가 라이브러리 밖에서 불릴 수 있다');
@@ -678,6 +766,61 @@ void main() {
         '_readDeviceFix',
         'stadiumVisitCheckerProvider',
       }, reason: '측위 함수를 들고 도는 자리가 늘면 통로가 늘어난다');
+    });
+
+    // round 4 가 세운 파수꾼이다. 위 셋은 좌표를 **얻는** 자리만 보고 있어서,
+    // 좌표를 **건네받는 자리를 부르는 쪽이 끼워 넣는** 갈래가 통째로 열려
+    // 있었다: `check` 에 `void Function(String)? spy` 인자를 하나 더하고
+    // `spy?.call('${fix.lat},${fix.lng}')` 한 줄을 넣으면, 그 판정기를 읽는
+    // 어느 feature 든(그쪽은 backend·analytics·http 를 전부 쓸 수 있다) 실
+    // 좌표를 그대로 받아 간다 — 훅 4종·시험 34개가 전부 초록불이었다
+    // (round 4 구현자 재현). 같은 모양의 사촌이 둘 더 있다:
+    // 공개 메서드를 하나 더해 `_readFix()` 를 그대로 부르기, 그리고 순수 판정
+    // 함수에 같은 인자를 더해 `check` 에서 넘겨주기.
+    //
+    // 그래서 **밖에서 값을 건네받거나 밖으로 내주는 서명 자체**를 소스로 못
+    // 박는다. 좌표는 이 두 서명을 지나서만 이 라이브러리에 들어오고, 통로를
+    // 쥔 `_readFix` 는 아래 세 줄에서만 이름으로 불린다.
+    test('좌표 통로를 이름으로 쓰는 줄은 이 셋뿐이다 (소스 대조)', () {
+      final lines = [
+        for (final owned in _byTopLevelOwner(source))
+          if (owned.line.contains('_readFix')) owned.line.trim(),
+      ];
+
+      expect(lines, [
+        '}) : _readFix = readFix;',
+        'final DeviceFixReader _readFix;',
+        'fix: await _readFix(),',
+      ], reason: '통로를 부르는 줄이 늘거나 모양이 바뀌면 그 자리가 곧 좌표를 붙잡는 자리다');
+    });
+
+    test('실 좌표를 보는 두 서명이 그대로다 (소스 대조)', () {
+      // 부르는 쪽이 무언가를 **끼워 넣을 수 있는** 자리는 이 둘뿐이다:
+      // 판정기의 유일한 공개 메서드와, 그것이 좌표를 넣어 부르는 순수 판정
+      // 함수. 여기에 인자가 하나 더 생기면 그 인자가 곧 좌표의 출구다.
+      expect(
+        source,
+        contains(
+          '  Future<StadiumVisitResult> check({\n'
+          '    required List<StadiumVisitCandidate> candidates,\n'
+          '    required DateTime now,\n'
+          '  }) async {\n',
+        ),
+        reason: '판정기가 밖에 내미는 것은 "판정을 한 번 돌린다"는 능력뿐이다',
+      );
+      expect(
+        source,
+        contains(
+          'StadiumVisitResult judgeStadiumVisit({\n'
+          '  required LocationPermissionStatus permission,\n'
+          '  required List<StadiumVisitCandidate> candidates,\n'
+          '  required DateTime now,\n'
+          '  required DeviceFix? fix,\n'
+          '  double radiusMeters = kStadiumVisitRadiusMeters,\n'
+          '}) {\n',
+        ),
+        reason: '순수 판정 함수는 좌표를 받아 결과만 돌려준다 — 받아 갈 자리를 더 두지 않는다',
+      );
     });
 
     test('판정기가 그 통로를 쥐는 자리는 private 필드다 (소스 대조)', () {

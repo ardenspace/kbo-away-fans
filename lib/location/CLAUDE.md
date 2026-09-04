@@ -41,41 +41,69 @@
 - **기기가 어디에 있었는지는 서버로 올리지 않는다** (되돌리기 비용 XL 의 제품
   결정, `.wellbegun/decisions.md` 2026-09-01). 좌표는 이 계층 안에서 판정에만
   쓰고 결과(어느 구장·어느 경기)만 백엔드로 넘긴다. 그래서 이 폴더는
-  **업로드 계층 둘(`lib/backend/`·`lib/analytics/`)을 import 하지 않는다** —
-  업로드 계층에 닿을 수 있는 길을 만들지 않으면 좌표가 payload 로 흘러갈 길도
-  없다. 백엔드로 넘길 결과가 있으면 이 폴더가 아니라 부르는 쪽(feature)이 두
-  계층을 잇는다. `scripts/hooks/check-no-location-upload.sh` 가 이 폴더의
-  `import`·`export` 를 잡는다(step 2.5, PostToolUse + pre-commit). 그 검사가
-  `lib/backend/` 에서처럼 `lat`·`lng` 같은 **이름**을 막지 않는 것은 이
-  폴더에서는 좌표가 정당하기 때문이다 — 여기서 막는 것은 이름이 아니라 나가는
-  길이다.
+  **허용 목록에 있는 것만 import 한다** — 값을 밖으로 낼 수 있는 계층이나
+  패키지에 닿을 길을 아예 만들지 않으면 좌표가 payload 로 흘러갈 길도 없다.
+  백엔드로 넘길 결과가 있으면 이 폴더가 아니라 부르는 쪽(feature)이 두 계층을
+  잇는다. `scripts/hooks/check-no-location-upload.sh` 가 이 폴더의
+  `import`·`export`·`part` 를 잡는다(step 2.5, PostToolUse + pre-commit).
+  **거부 목록이 아니라 허용 목록인 데는 까닭이 있다:** 2.5 는 `lib/backend/`
+  만, round 3 은 `lib/analytics/` 까지 막았는데 round 4 가 그 둘 밖에서 같은
+  힘을 가진 계층 둘(`lib/content/content_providers.dart`·
+  `lib/weather/weather.dart`)을 찾아냈다 — 이름을 하나씩 늘리는 방식은 다섯
+  번째 계층이 생길 때 또 샌다. 그 검사가 `lib/backend/` 에서처럼 `lat`·`lng`
+  같은 **이름**을 막지 않는 것은 이 폴더에서는 좌표가 정당하기 때문이다 —
+  여기서 막는 것은 이름이 아니라 나가는 길이다.
 
   **이 폴더가 하는 약속의 정확한 문장은 "앱의 코드가 좌표를 서버로 보내지
   않으며, 그렇게 하려면 눈에 띄는 의도적 변경이 필요하다" 이다**
   (`.wellbegun/decisions.md` 2026-09-04 `[L]`). 4.1 이 실제로 좌표를 들여온
-  뒤로 그 약속을 지키는 겹은 다섯이다. **겹마다 무엇이 그것을 지키는지 따로
-  적는다** — 뭉뚱그려 "다섯 다 검사나 시험이 지킨다"라고 쓰면 안 된다(4.1 의
-  fresh 검증 round 3 이 REJECT 한 까닭이 그 한 문장이었고, 그때 실제로 그러한
-  겹은 다섯 중 하나뿐이었다):
+  뒤로 그 약속을 지키는 겹은 다섯이다. **겹마다 무엇이 그것을 지키는지, 그리고
+  무엇은 지키지 않는지 따로 적는다** — 뭉뚱그려 "다섯 다 검사나 시험이
+  지킨다"라고 쓰면 안 된다(4.1 의 fresh 검증 round 3·4 가 REJECT 한 까닭이
+  그런 문장이었다):
 
   1. 좌표를 얻는 통로가 `visit_check.dart` 안의 private 함수 하나이고
      판정기(`StadiumVisitChecker`)도 그것을 private 필드로만 쥔다.
      **지키는 것:** Dart 의 `_` 가시성(구조)과
-     `test/features/badges/visit_check_test.dart` 의 겹 1 파수꾼 셋(플러그인
-     호출 줄이 전부 private 선언 안에 있는가 · 측위 함수를 이름으로 부르는
-     최상위 선언이 둘뿐인가 · 판정기가 값을 두는 자리가 둘뿐인가).
+     `test/features/badges/visit_check_test.dart` 의 겹 1 파수꾼 여섯 —
+     이 폴더에 `part` 가 없는가 · **폴더 전체**에서 geolocator 를 들이는
+     **모든 별칭**을 만지는 줄이 private 선언 안에 있는가(별칭 없는 import 자체가
+     빨간불이다) · 측위 함수를 이름으로 부르는 최상위 선언이 둘뿐인가 ·
+     `_readFix` 를 이름으로 쓰는 줄이 셋뿐인가 · 밖에서 값을 건네받는 두
+     서명(`StadiumVisitChecker.check`·`judgeStadiumVisit`)이 소스 그대로인가 ·
+     판정기가 값을 두는 자리가 둘뿐인가.
+     **막지 않는 것:** 새 private 통로를 하나 더 두는 것 자체와, 두 서명을
+     그대로 둔 채 private 헬퍼끼리 좌표를 주고받는 것(그쪽은 겹 3·4 가 받는다).
   2. 그 밖의 길인 플러그인 직접 호출은 import 가 같은 파일로 못 박혀 있다.
-     **지키는 것:** `scripts/hooks/check-firebase-import-boundary.sh`.
-  3. 이 폴더가 업로드 계층 둘도, 값을 내보낼 수 있는 패키지도 import 하지
-     못하고 콘솔에 찍지도 못해 안에서도 보낼 곳이 없다.
-     **지키는 것:** `check-no-location-upload.sh` 의 검사 2)·3)·5).
-     **막지 않는 것:** `dart:core`·`dart:async`·`package:flutter/foundation`
-     (언어의 바닥과, `dart:io` 를 막으면서 대체로 지목한 자리), 그리고
-     `print` 를 변수에 담아 부르는 우회(직접 호출만 잡는다).
-  4. 이 폴더에 최상위 변수도, 클래스 안의 `static` 저장소도 둘 수 없어 좌표를
-     남겨 둘 자리가 없다(`const`·`static const` 와, 타입 인자가 홑 식별자인
-     읽기 전용 provider 만 통과한다).
+     **지키는 것:** `scripts/hooks/check-firebase-import-boundary.sh` — 그
+     import 를 다른 파일에 두는 것도, `export` 로 재수출하는 것도 exit 2 다
+     (뒤엣것은 폴더 밖에서 `Geolocator` 를 접두어 없이 부를 수 있게 되는
+     갈래이고, `check-no-location-upload.sh` 의 검사 3) 도 함께 받는다).
+  3. 이 폴더가 import 할 수 있는 것은 **허용 목록 여섯**뿐이고
+     (`dart:math` · `package:flutter_riverpod` · `package:geolocator` ·
+     권한 플러그인 · `../content/kst.dart` · 같은 폴더의 파일),
+     `export`·`part` 는 쓰지 않으며, 콘솔에 찍지도 못한다.
+     **지키는 것:** `check-no-location-upload.sh` 의 검사 2)·3)·5) 와, 허용
+     목록의 유일한 폴더 밖 문(`lib/content/kst.dart`)에 `export` 가 없다는 짝
+     검사. 이 방향은 round 4 가 뒤집었다 — 거부 목록이던 동안
+     `lib/content/content_providers.dart` 의 `httpClientProvider` 와
+     `lib/weather/weather.dart` 의 `WeatherService.effectAt(lat:, lng:)` 이
+     열려 있었고, 그 둘로 실 좌표가 외부 서버에 도착하는데 훅 4종·시험
+     660개가 전부 초록불이었다.
+     **막지 않는 것:** `dart:core` — import 없이 서는 유일한 라이브러리이고
+     거기 `print` 가 있다. 검사 5) 는 이름을 그대로 부르는 줄만 잡으므로
+     `final logger = print; logger('...');` 는 잡지 못한다(실측 확인). 그리고
+     `kst.dart` 짝 검사는 그 파일의 `export` 만 보므로, 허용 목록의 패키지
+     다섯이 새 버전에서 무언가를 더 재수출하면 보지 못한다.
+  4. 이 폴더에 최상위 변수도, 클래스 안의 `static` 저장소도, 좌표를 쌓을 수
+     있는 인스턴스 필드도 둘 수 없다. 통과하는 것은 `const`·`static const`,
+     "담을 수 없는 타입"(변하지 않는 dart:core 기본형 + 이 폴더가 스스로
+     선언한 타입)의 `final` 필드, 함수 타입의 `final` 필드, 그리고 그런 타입
+     인자를 받는 읽기 전용 provider 뿐이다.
      **지키는 것:** 같은 스크립트의 검사 4).
+     **막지 않는 것:** 함수 몸통 안의 지역 변수와 클로저 캡처(그 자리를 보게
+     하면 정당한 지역 변수가 전부 걸린다 — 그쪽은 겹 1 의 파수꾼이 받는다),
+     그리고 게터(값을 담지 못하고, 읽을 저장소가 이 검사에 먼저 걸린다).
   5. 경계를 넘는 값(`StadiumVisitResult`)에 좌표가 없고, 그 **값을 두는 자리
      집합 자체**를 소스에서 읽어 표와 대조한다 — 그 타입에 좌표 필드나
      `static` 필드나 좌표 게터를 하나 더하면 빨간불이다.
@@ -83,12 +111,15 @@
      파수꾼 둘.
 
   이 목록의 "지키는 것"은 전부 위반을 실제로 만들어 빨간불(시험) 또는 exit 2
-  (훅)를 확인한 것이다. 각 겹이 서술뿐이던 동안 무엇이 열려 있었는지는
-  `.wellbegun/decisions.md` 2026-09-04 `[M]`·`[S]`·`[L]` 과 그 뒤의 round 3
-  줄에 남아 있다 — 그중 가장 무거웠던 것은 겹 3 이었다: `lib/analytics/` 가
-  두 번째 업로드 계층인데 검사가 `lib/backend/` 만 보고 있어서, 이 폴더에서
-  분석 이벤트의 파라미터 **값**에 실 좌표를 실어 구글 서버로 보내고 훅
-  4종·`flutter analyze`·시험 657개가 전부 초록불이었다.
+  (훅)를 확인한 것이고, "막지 않는 것"도 실제로 우회를 써 보고 초록불인 것을
+  확인한 자리다. 각 겹이 서술뿐이던 동안 무엇이 열려 있었는지는
+  `.wellbegun/decisions.md` 2026-09-04 `[M]`·`[S]`·`[L]` 과 그 뒤의 round
+  3·4 줄에 남아 있다.
+
+  **검사를 넓혀야 할 때.** 겹 3·4 가 허용 목록이라, 이 폴더에 새 import 나 새
+  모양의 provider 가 필요해지면 검사가 먼저 커밋을 막는다. 그때 할 일은 우회가
+  아니라 `check-no-location-upload.sh` 의 허용 목록을 의도적으로 넓히고 ADR 을
+  남기는 것이다 — **그 눈에 띔이 이 검사의 목적이다.**
 
   **하지 않는 약속:** "좌표를 알아내는 것이 구조적으로 불가능하다"고 적지
   않는다. `StadiumVisitChecker.check` 는 후보 지점을 부르는 쪽이 지어서 넣고

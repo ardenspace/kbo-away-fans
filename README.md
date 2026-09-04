@@ -35,18 +35,27 @@ git hook은 클론으로 전파되지 않으므로 위처럼 저장소 내 훅 �
 - `check-registry-sync.sh` — 공유 폴더 ↔ REGISTRY.md 로스터 동기화.
 - `check-no-location-upload.sh` — 기기 위치는 서버에 올리지 않는다는 데이터 소유권
   결정의 강제. 다섯 방향을 본다: `lib/backend/` 에 위도·경도로 읽히는 필드가 없는지,
-  그리고 좌표를 다루는 `lib/location/` 이 (1) 업로드 계층 둘(`lib/backend/`·
-  `lib/analytics/`)을, (2) 값을 밖으로 내보낼 수 있는 패키지(`package:http`·
-  `dart:io`·`dart:isolate`·`shared_preferences`·`package:flutter/services.dart`
-  와 그것을 재수출하는 `material`·`widgets`·`cupertino` 등)를 import 하지
-  않는지, (3) 그 폴더에 값을 담아 둘 자리(최상위 변수 · 클래스 안의 `static`
-  저장소)를 두지 않았는지, (4) 좌표를 콘솔에 찍지 않는지(`print`·`debugPrint`
-  직접 호출).
-  (3) 이 허용하는 것은 `const`·`static const` 와, 타입 인자가 **홑 식별자**인
-  읽기 전용 provider 뿐이다 — `Provider<LocationPermissionGateway>` 는 통과하고
-  `Provider<List<DeviceFix>>` 는 통과하지 못한다(변경 가능한 통이 곧 좌표를
-  담아 둘 자리다). 선언이 80칸을 넘겨 `dart format` 이 `=` 뒤에서 자른 모양은
-  통과한다.
+  그리고 좌표를 다루는 `lib/location/` 이 (1) **허용 목록 안의 것만** import
+  하는지, (2) `export`·`part` 를 쓰지 않는지, (3) 그 폴더에 값을 담아 둘
+  자리(최상위 변수 · 클래스 안의 `static` 저장소 · 좌표를 쌓을 수 있는 인스턴스
+  필드)를 두지 않았는지, (4) 좌표를 콘솔에 찍지 않는지(`print`·`debugPrint*` ·
+  `Zone.current.print` 같은 점 뒤 호출).
+  (1) 의 허용 목록은 그 폴더가 **오늘 실제로 쓰는 것** 여섯뿐이다(`dart:math` ·
+  `package:flutter_riverpod` · `package:geolocator` · `package:permission_handler` ·
+  `../content/kst.dart` · 같은 폴더의 파일). 거부 목록이 아니라 허용 목록인 것은
+  거부 목록이 세 번 샜기 때문이다 — `lib/backend/` 만 막던 검사가 `lib/analytics/`
+  를 놓쳤고, 그 둘을 막은 검사가 `lib/content/content_providers.dart` 의
+  `httpClientProvider` 와 `lib/weather/weather.dart` 의 `effectAt(lat:, lng:)` 를
+  놓쳤다. 짝으로, 허용 목록의 유일한 폴더 밖 문인 `lib/content/kst.dart` 에
+  `export` 가 없는지도 함께 본다(Dart 의 import 는 전이되지 않지만 `export` 는
+  전이되므로, 그 한 줄이면 허용 목록에 이름을 몰래 더하는 것이 된다).
+  (3) 이 허용하는 것은 `const`·`static const`, "담을 수 없는 타입"(변하지 않는
+  dart:core 기본형과 그 폴더가 스스로 선언한 타입)의 `final` 필드, 함수 타입의
+  `final` 필드, 그리고 그런 타입 인자를 받는 읽기 전용 provider 뿐이다 —
+  `Provider<LocationPermissionGateway>`·`Provider<int>` 는 통과하고
+  `Provider<List<DeviceFix>>`·`Provider<StringBuffer>` 는 통과하지 못한다(변경
+  가능한 통이 곧 좌표를 담아 둘 자리다). 선언이 80칸을 넘겨 `dart format` 이
+  `=` 뒤에서 자른 모양은 통과한다.
 - `check-firebase-import-boundary.sh` — SDK import 가 전용 계층 밖으로 새지 않는지.
   백엔드 SDK(`firebase_*` · `cloud_firestore` · `cloud_functions` ·
   `google_sign_in` · 카카오)는 `lib/backend/`·`lib/analytics/` 안에만, 위치 권한
@@ -59,13 +68,21 @@ git hook은 클론으로 전파되지 않으므로 위처럼 저장소 내 훅 �
 이 검사 둘과 `lib/location/` 의 구조와 경계 시험의 파수꾼들이 함께 지키는
 약속은 **"앱의 코드가 기기 좌표를 서버로 보내지 않으며, 그렇게 하려면 눈에
 띄는 의도적 변경이 필요하다"** 이다(`.wellbegun/decisions.md` 2026-09-04
-`[L]`). 그 약속은 다섯 겹으로 서 있는데 **겹마다 지키는 것이 다르다** —
-겹 1(좌표 통로가 private)은 Dart 의 가시성과 소스 대조 시험이, 겹 2(플러그인
-import 를 파일 하나로)는 `check-firebase-import-boundary.sh` 가, 겹 3(내보낼
-수단 없음)과 겹 4(담아 둘 자리 없음)는 `check-no-location-upload.sh` 가,
-겹 5(경계를 넘는 타입에 좌표 없음)는 결과 타입 파수꾼이 지킨다. 겹별로 무엇이
-지키고 무엇은 지키지 않는지는 `lib/location/visit_check.dart` 첫 문단에 실측과
-함께 적혀 있다 — 뭉뚱그려 "다섯 다 검사가 지킨다"라고 쓰지 말 것.
+`[L]`). 그 약속은 다섯 겹으로 서 있는데 **겹마다 지키는 것이 다르고, 겹마다
+지키지 못하는 것도 있다** — 겹 1(좌표 통로가 private)은 Dart 의 가시성과
+`test/features/badges/visit_check_test.dart` 의 소스 대조 파수꾼 여섯이(폴더
+전체 · geolocator 의 모든 별칭 · `part` 금지 · 통로를 부르는 줄 · 밖에서 값을
+건네받는 두 서명 · 판정기의 필드 집합), 겹 2(플러그인 import 를 파일 하나로)는
+`check-firebase-import-boundary.sh` 가, 겹 3(내보낼 수단 없음)과 겹 4(담아 둘
+자리 없음)는 `check-no-location-upload.sh` 가, 겹 5(경계를 넘는 타입에 좌표
+없음)는 결과 타입 파수꾼이 지킨다.
+
+**지키지 못하는 것도 그 자리에 적혀 있다.** `dart:core` 는 import 없이 서므로
+막을 수 없고, 거기 있는 `print` 는 이름을 그대로 부르는 줄로만 잡히므로
+`final logger = print;` 로 우회된다(실측 확인). 겹 4 는 함수 몸통 안의 지역
+변수와 클로저 캡처를 보지 않는다. 겹별로 무엇이 지키고 무엇은 지키지 않는지는
+`lib/location/visit_check.dart` 첫 문단에 실측과 함께 적혀 있다 — 뭉뚱그려
+"다섯 다 검사가 지킨다"라고 쓰지 말 것.
 
 그보다 강한 문장 — 좌표를 알아내는 것이 구조적으로 불가능하다 — 은 이 앱이
 하지 않는 약속이다: 구장 방문 판정 API 는 "이 지점 반경 안에 있는가"를 묻는
