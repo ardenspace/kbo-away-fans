@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../design/tokens.dart';
 import '../../ui/shared/content_fallback.dart';
 import '../../ui/shared/main_tab_scaffold.dart';
+import '../likes/likes_tab_screen.dart';
 import '../places/recommend_tab_screen.dart';
 import '../team_select/selected_team.dart';
 import 'home_screen.dart';
@@ -17,11 +18,17 @@ import 'home_screen.dart';
 ///   얼어붙는 회귀를 그 자리에서 막는다).
 /// - **추천** 탭은 사이클 1 의 장소 화면([RecommendTabScreen] →
 ///   `StadiumPlacesScreen`)을 그대로 잇는다.
-/// - **배지**(4.3)·**좋아요**(3.3)·**마이페이지**(3.4)는 아직 화면이 없다.
-///   그 자리 표시([_ComingSoonTab])가 provider 를 하나도 구독하지 않는 것은
-///   의도다 — [MainTabScaffold] 는 [IndexedStack] 이라 다섯 탭이 전부 동시에
-///   살아 있으므로, 아직 없는 화면이 서버를 읽는 자리를 만들면 그 비용이
-///   탭을 열어 보지 않아도 항상 켜져 있게 된다.
+/// - **좋아요** 탭(3.3)은 [LikesTabScreen] — 그 위젯 문서에 적힌 대로
+///   [likedPlaceIdsProvider]·`placesProvider` 를 직접 구독한다. [IndexedStack]
+///   이 다섯 탭을 전부 동시에 살려 두므로, 이 탭이 채워진 뒤로는
+///   `likedPlaceIdsProvider` 의 세션당 1회 읽기가 "추천 목록을 열어 본
+///   사람"이 아니라 "로그인해 이 화면에 닿은 모든 사람"에서 일어난다 — 다만
+///   3.2 가 이미 이 provider 를 세션당 정확히 1회로 캐시해 두었으므로 늘어나는
+///   것은 그 1회가 일어나는 **시점**이지 **횟수**가 아니다.
+/// - **배지**(4.3)·**마이페이지**(3.4)는 아직 화면이 없다. 그 자리 표시
+///   ([_ComingSoonTab])가 provider 를 하나도 구독하지 않는 것은 의도다 —
+///   아직 없는 화면이 서버를 읽는 자리를 만들면 그 비용이 탭을 열어 보지
+///   않아도 항상 켜져 있게 된다.
 class MainTabsRoot extends StatelessWidget {
   const MainTabsRoot({super.key});
 
@@ -51,7 +58,7 @@ class MainTabsRoot extends StatelessWidget {
           label: '좋아요',
           icon: Icons.favorite_border_rounded,
           selectedIcon: Icons.favorite_rounded,
-          builder: (_) => const _ComingSoonTab(label: '좋아요'),
+          builder: (_) => const LikesTabScreen(),
         ),
         MainTab(
           label: '마이페이지',
