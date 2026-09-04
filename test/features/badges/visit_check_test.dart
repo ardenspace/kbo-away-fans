@@ -9,10 +9,15 @@
 ///
 /// 그리고 계약의 나머지 두 문장도 여기서 잰다:
 ///   - "판정에 쓰인 좌표는 어디에도 저장되지 않고 서버로 가지 않는다" —
-///     판정 결과가 좌표를 들고 나오지 않는다는 것을 값으로 확인한다(코드
-///     구조 쪽 보증은 `lib/location/visit_check.dart` 문서 참조).
+///     판정 결과가 좌표를 들고 나오지 않는다는 것을 값으로 확인하고, 그
+///     타입의 **필드 집합 자체**를 소스 텍스트로 못 박는다(문자열 시험
+///     하나만으로는 결과 타입에 좌표 필드를 더하는 변이가 그대로 통과한다 —
+///     `.wellbegun/decisions.md` 2026-09-04 `[S]`).
 ///   - "홈·원정을 구분하지 않는다" — 후보를 짓는 자리가 팀으로 거르지 않는다.
 library;
+
+import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -51,10 +56,15 @@ class _RecordingChecker {
   _RecordingChecker({
     this.permission = LocationPermissionStatus.granted,
     this.fix,
+    this.fixGate,
   });
 
   final LocationPermissionStatus permission;
   final DeviceFix? fix;
+
+  /// 있으면 측위가 이 신호를 기다린다 — 판정이 **도는 중**인 상태를 만들어
+  /// 겹침 방지를 잴 수 있게 한다.
+  final Completer<void>? fixGate;
 
   int permissionReads = 0;
   int fixReads = 0;
@@ -66,10 +76,39 @@ class _RecordingChecker {
     },
     readFix: () async {
       fixReads++;
+      await fixGate?.future;
       return fix;
     },
   );
 }
+
+/// 소스 텍스트에서 클래스 [name] 의 몸통을 잘라 온다 — 중괄호를 세는 거친
+/// 파서다(계약을 소스로 대조하는 `test/cross_layer_seams_test.dart` 의 선례와
+/// 같은 방식이고, 파싱이 어긋나면 조용히 통과하는 대신 빨간불이 된다).
+String _classBody(String source, String name) {
+  final head = source.indexOf('class $name {');
+  expect(head, isNonNegative, reason: '$name 을 소스에서 찾지 못했다');
+  final open = source.indexOf('{', head);
+  var depth = 0;
+  for (var i = open; i < source.length; i++) {
+    if (source[i] == '{') depth++;
+    if (source[i] == '}') {
+      depth--;
+      if (depth == 0) return source.substring(open + 1, i);
+    }
+  }
+  fail('$name 의 닫는 중괄호를 찾지 못했다');
+}
+
+/// 클래스 몸통이 **선언한 필드**를 이름→타입 표로 편다. 두 칸 들여쓴 `final`
+/// 줄만 보므로 메서드 안의 지역 변수(더 깊이 들여쓴다)는 섞이지 않는다.
+Map<String, String> _declaredFields(String body) => {
+  for (final match in RegExp(
+    r'^  final (.+) (\w+);$',
+    multiLine: true,
+  ).allMatches(body))
+    match.group(2)!: match.group(1)!,
+};
 
 /// 테스트용 경기 픽스처 (next_away_game_test.dart 와 같은 모양).
 Game _game({
@@ -199,8 +238,38 @@ void main() {
   });
 
   group('judgeStadiumVisit — 경계와 나머지 갈래', () {
-    test('반경 경계는 포함이다', () {
-      // 경계 바로 안(=1m 안쪽)은 방문, 바로 밖은 방문 아님.
+    test('반경 경계는 포함이다 — 거리가 반경과 **같으면** 방문이다', () {
+      // 왜 반경을 주입해서 재는가: 하버사인 거리는 부동소수라 "정확히 300m"인
+      // 좌표를 만들 수 없다(거리 값들의 간격이 위도 한 ulp 가 만드는 변화보다
+      // 훨씬 촘촘해서 어떤 좌표도 300.0 에 정확히 앉지 않는다). 그래서 좌표로
+      // 경계를 맞추는 대신 반경을 거리와 같은 값으로 준다 — 구장 한복판은
+      // 거리가 정확히 0.0 이므로 반경 0 이 곧 "경계 위"다. ±1m 로 재던 옛
+      // 시험은 `<=` 를 `<` 로 바꾸는 변이를 그대로 통과시켰다.
+      expect(
+        judgeStadiumVisit(
+          permission: LocationPermissionStatus.granted,
+          candidates: [_jamsilTonight()],
+          now: duringPregame,
+          fix: _northOf(0),
+          radiusMeters: 0,
+        ).reason,
+        StadiumVisitReason.visited,
+        reason: '거리 == 반경은 안이다 (<= 를 < 로 바꾸면 여기가 빨간불)',
+      );
+      expect(
+        judgeStadiumVisit(
+          permission: LocationPermissionStatus.granted,
+          candidates: [_jamsilTonight()],
+          now: duringPregame,
+          fix: _northOf(1),
+          radiusMeters: 0,
+        ).reason,
+        StadiumVisitReason.outsideRadius,
+        reason: '경계 밖으로 한 발짝만 나가도 밖이다',
+      );
+    });
+
+    test('판정은 실 반경 상수를 쓴다 — 안은 방문, 밖은 방문 아님', () {
       expect(
         judgeStadiumVisit(
           permission: LocationPermissionStatus.granted,
@@ -238,6 +307,95 @@ void main() {
           reason: '$now 는 창의 끝이라 포함이다',
         );
       }
+    });
+
+    test('시간 창은 KST 자정에서 잘리지 않는다', () {
+      // 20:00 시작 경기의 창은 다음 날 01:00 까지다. 달력 날짜로 후보를
+      // 거르면 자정을 넘긴 순간 창이 통째로 사라져, 창 안에 서 있는 사람이
+      // `noGameToday` 를 받는다(늦은 시작·연장·더블헤더 2차전의 자리).
+      final lateGame = StadiumVisitCandidate(
+        gameId: 'g-late',
+        stadiumId: 'jamsil',
+        startsAt: DateTime.parse('2026-08-25T20:00:00+09:00'),
+        lat: _jamsilLat,
+        lng: _jamsilLng,
+      );
+
+      expect(
+        judgeStadiumVisit(
+          permission: LocationPermissionStatus.granted,
+          candidates: [lateGame],
+          now: DateTime.parse('2026-08-26T00:30:00+09:00'),
+          fix: _northOf(0),
+        ).reason,
+        StadiumVisitReason.visited,
+        reason: '자정을 넘겼어도 경기 시각 기준 창 안이다',
+      );
+
+      // 창이 닫힌 뒤에는 판정할 경기가 없다 — 창을 넓힌 것이 아니라 날짜가
+      // 자르지 않게 한 것이라는 짝 단언이다.
+      expect(
+        judgeStadiumVisit(
+          permission: LocationPermissionStatus.granted,
+          candidates: [lateGame],
+          now: DateTime.parse('2026-08-26T02:00:00+09:00'),
+          fix: _northOf(0),
+        ).reason,
+        StadiumVisitReason.noGameToday,
+      );
+    });
+
+    test('창이 자정을 넘어도 그날 낮은 여전히 창 밖이다', () {
+      // 게이트가 창으로만 좁혀지면 `outsideTimeWindow` 가 영영 설 수 없다 —
+      // 그 갈래가 살아 있다는 것을 다섯 갈래와 별개로 못 박는다.
+      final lateGame = StadiumVisitCandidate(
+        gameId: 'g-late',
+        stadiumId: 'jamsil',
+        startsAt: DateTime.parse('2026-08-25T20:00:00+09:00'),
+        lat: _jamsilLat,
+        lng: _jamsilLng,
+      );
+
+      expect(
+        judgeStadiumVisit(
+          permission: LocationPermissionStatus.granted,
+          candidates: [lateGame],
+          now: DateTime.parse('2026-08-25T10:00:00+09:00'),
+          fix: _northOf(0),
+        ).reason,
+        StadiumVisitReason.outsideTimeWindow,
+      );
+    });
+
+    test('후보 게이트는 오늘 경기와 창이 지금을 덮는 경기를 함께 남긴다', () {
+      final lateYesterday = StadiumVisitCandidate(
+        gameId: 'g-late',
+        stadiumId: 'jamsil',
+        startsAt: DateTime.parse('2026-08-25T20:00:00+09:00'),
+        lat: _jamsilLat,
+        lng: _jamsilLng,
+      );
+      final todayNoon = StadiumVisitCandidate(
+        gameId: 'g-noon',
+        stadiumId: 'gocheok',
+        startsAt: DateTime.parse('2026-08-26T14:00:00+09:00'),
+        lat: _jamsilLat,
+        lng: _jamsilLng,
+      );
+      final farAway = StadiumVisitCandidate(
+        gameId: 'g-next-week',
+        stadiumId: 'sajik',
+        startsAt: DateTime.parse('2026-09-01T18:30:00+09:00'),
+        lat: _jamsilLat,
+        lng: _jamsilLng,
+      );
+
+      final kept = candidatesToJudge(
+        [lateYesterday, todayNoon, farAway],
+        DateTime.parse('2026-08-26T00:30:00+09:00'),
+      ).map((candidate) => candidate.gameId).toList();
+
+      expect(kept, ['g-late', 'g-noon']);
     });
 
     test('좌표를 얻지 못하면 판정하지 않고 그 이유가 남는다', () {
@@ -370,6 +528,40 @@ void main() {
       expect(printed, contains('jamsil'));
       expect(printed, isNot(contains('37.5')));
       expect(printed, isNot(contains('127.0')));
+    });
+
+    // 위 시험은 `toString()` 만 본다. 그것 하나로는 결과 타입에 좌표 필드를
+    // 더하고 판정에서 실어 보내는 변이가 그대로 통과한다(실측: 시험 22개와
+    // 훅 2종 전부 초록불). 그래서 경계를 넘는 타입의 **필드 집합 자체**를
+    // 소스에서 읽어 표와 대조한다 — `test/cross_layer_seams_test.dart` 가
+    // `firestore.rules` 를 읽어 Dart 상수와 대조하는 것과 같은 방식이다.
+    test('경계를 넘는 타입의 필드는 이 셋뿐이다 (소스 대조)', () {
+      final body = _classBody(
+        File('lib/location/visit_check.dart').readAsStringSync(),
+        'StadiumVisitResult',
+      );
+
+      expect(_declaredFields(body), {
+        'reason': 'StadiumVisitReason',
+        'stadiumId': 'String?',
+        'gameId': 'String?',
+      }, reason: '이 타입에 필드를 더하면 좌표가 계층 경계를 넘을 수 있다');
+    });
+
+    test('경계를 넘는 타입에는 좌표 어휘가 없다 (소스 대조)', () {
+      final body = _classBody(
+        File('lib/location/visit_check.dart').readAsStringSync(),
+        'StadiumVisitResult',
+      );
+
+      // `check-no-location-upload.sh` 가 `lib/backend/` 에서 막는 것과 같은
+      // 다섯 단어를, 이 폴더에서는 **경계를 넘는 타입 안에서만** 막는다
+      // (폴더 전체에서는 좌표가 정당하다).
+      expect(
+        RegExp(r'\b(lat|lng|latitude|longitude|coord)\b').hasMatch(body),
+        isFalse,
+        reason: '결과 타입이 좌표를 이름으로도 들고 나가지 않는다',
+      );
     });
   });
 
@@ -506,18 +698,15 @@ void main() {
       ],
     );
 
-    /// 콘텐츠 4종·시계·판정기를 갈아 끼운 채 트리거만 띄운다.
-    Future<ProviderContainer> pumpTrigger(
-      WidgetTester tester, {
-      required _RecordingChecker recorder,
+    /// 콘텐츠 4종·시계·판정기를 갈아 끼운 컨테이너.
+    ProviderContainer buildContainer(
+      _RecordingChecker recorder, {
       bool scheduleUnavailable = false,
-    }) async {
+    }) {
       final container = ProviderContainer(
         overrides: [
           clockProvider.overrideWithValue(() => duringPregame),
-          stadiumsProvider.overrideWith(
-            (ref) async => ContentFresh(stadiums),
-          ),
+          stadiumsProvider.overrideWith((ref) async => ContentFresh(stadiums)),
           scheduleProvider.overrideWith(
             (ref) async => scheduleUnavailable
                 ? const ContentUnavailable<ScheduleDocument>(
@@ -529,6 +718,19 @@ void main() {
         ],
       );
       addTearDown(container.dispose);
+      return container;
+    }
+
+    /// 그 컨테이너 위에 트리거만 띄운다.
+    Future<ProviderContainer> pumpTrigger(
+      WidgetTester tester, {
+      required _RecordingChecker recorder,
+      bool scheduleUnavailable = false,
+    }) async {
+      final container = buildContainer(
+        recorder,
+        scheduleUnavailable: scheduleUnavailable,
+      );
 
       await tester.pumpWidget(
         UncontrolledProviderScope(
@@ -559,9 +761,7 @@ void main() {
       await pumpTrigger(tester, recorder: recorder);
       expect(recorder.fixReads, 1);
 
-      tester.binding.handleAppLifecycleStateChanged(
-        AppLifecycleState.inactive,
-      );
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
       await tester.pumpAndSettle();
 
@@ -583,6 +783,34 @@ void main() {
       );
       expect(recorder.permissionReads, 0);
       expect(recorder.fixReads, 0);
+    });
+
+    test('이미 도는 판정이 있으면 측위를 두 번 요청하지 않는다', () async {
+      // 트리거가 둘(첫 프레임·포그라운드 복귀)이라 짧은 간격으로 두 번 불릴
+      // 수 있다. 그때 OS 에 측위를 두 번 묻지 않는 것이 `_running` 의 존재
+      // 이유인데, 그 줄을 지워도 저장소 전체가 초록불이었다(실측).
+      final gate = Completer<void>();
+      final recorder = _RecordingChecker(fix: _northOf(0), fixGate: gate);
+      final notifier = buildContainer(
+        recorder,
+      ).read(stadiumVisitProvider.notifier);
+
+      final first = notifier.run();
+      // 첫 판정이 측위를 기다리는 자리에 실제로 설 때까지 이벤트 루프를 돌린다.
+      for (var turn = 0; turn < 100 && recorder.fixReads == 0; turn++) {
+        await Future<void>.delayed(Duration.zero);
+      }
+      expect(recorder.fixReads, 1, reason: '첫 판정이 측위 중이어야 겹침을 잰다');
+
+      final second = notifier.run();
+      gate.complete();
+      await Future.wait([first, second]);
+
+      expect(recorder.fixReads, 1, reason: '겹쳐 도는 판정은 측위를 다시 묻지 않는다');
+
+      // 끝난 판정은 다음 트리거를 막지 않는다 — 겹침 방지가 영구 잠금이 아니다.
+      await notifier.run();
+      expect(recorder.fixReads, 2);
     });
   });
 }

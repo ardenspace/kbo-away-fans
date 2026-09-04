@@ -262,7 +262,7 @@ cycle: 2
    - `npm --prefix firebase test` → exit 0 (규칙: 남의 도장 쓰기 거부 케이스 포함)
    - `bash scripts/hooks/check-no-location-upload.sh` → exit 0
    - `flutter analyze` → exit 0
-4. **Registries to read:** 1.5 의 Firestore 계약 문서, `lib/backend/REGISTRY.md`, decisions.md 의 도장 id·요약 L 결정
+4. **Registries to read:** 1.5 의 Firestore 계약 문서, `lib/backend/REGISTRY.md`, decisions.md 의 도장 id·요약 L 결정, **그리고 decisions.md 2026-09-04 [S] "포그라운드 복귀마다 측위를 다시 요청하는 것을 4.2 로 넘긴다"** — 이 단계가 "이 경기의 도장은 이미 있다"를 아는 유일한 계층이므로, 이미 받은 경기에서 판정(과 측위)이 다시 돌지 않게 하는 자리가 여기다
 5. **Verification tier:** fresh
 6. **Discretion scope:** 배지 등급이 갈리는 임계 개수와 등급 이름, 요약 필드 표현, 트랜잭션 재시도 정책.
 

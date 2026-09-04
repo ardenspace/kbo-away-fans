@@ -43,7 +43,8 @@ git hook은 클론으로 전파되지 않으므로 위처럼 저장소 내 훅 �
   플러그인(`permission_handler`)은 `lib/location/location.dart` 안에만, 좌표
   플러그인(`geolocator`)은 `lib/location/visit_check.dart` 안에만. 좌표 쪽이
   파일 하나로 좁은 것은 기기의 좌표를 얻는 통로를 그 라이브러리 안에 가둬,
-  다른 계층이 좌표를 손에 넣을 방법 자체를 없애기 위해서다.
+  다른 계층이 좌표를 손에 넣을 방법 자체를 없애기 위해서다 — 그 통로는
+  private 함수 하나이고, 그것을 들고 도는 판정기도 private 필드로만 쥔다.
 
 Claude Code 세션에서는 `.claude/settings.json`의 PostToolUse 훅이 편집 직후에도 검사를
 돌리지만 범위가 다르다 — `check-hardcoded-values.sh`와 `check-no-location-upload.sh`

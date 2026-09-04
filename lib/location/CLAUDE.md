@@ -14,7 +14,10 @@
   `lib/location/location.dart` 에만, `geolocator` 는
   `lib/location/visit_check.dart` 에만. 뒤엣것이 더 좁은 데는 까닭이 있다:
   기기의 좌표를 얻는 통로(`_readDeviceFix`)를 그 라이브러리 안에 private 으로
-  가둬 두어야 다른 계층이 좌표를 손에 넣을 방법 자체가 없어진다.
+  가둬 두어야 다른 계층이 좌표를 손에 넣을 방법 자체가 없어진다. 그 통로를
+  들고 도는 `StadiumVisitChecker` 도 그것을 **private 필드**로만 쥔다 —
+  생성자로 넣을 수는 있어도(시험이 갈아 끼우는 이음매)
+  `stadiumVisitCheckerProvider` 를 읽은 쪽이 다시 꺼내 부를 수는 없다.
 - **SDK 예외를 밖으로 내보내지 않는다** (`lib/backend/CLAUDE.md` 의 같은 이름
   규칙의 짝). 이 폴더의 실패 계약은 오류 타입이 아니라 **값 하나**다: 권한
   조회는 던지지 않고, `kLocationPermissionTimeout` 안에 반드시 답하며,
@@ -41,11 +44,17 @@
   잡는다(step 2.5, PostToolUse + pre-commit). 그 검사가 `lib/backend/` 에서처럼
   `lat`·`lng` 같은 **이름**을 막지 않는 것은 이 폴더에서는 좌표가 정당하기
   때문이다 — 여기서 막는 것은 이름이 아니라 나가는 길이다. 4.1 이 실제로
-  좌표를 들여온 뒤로 이 폴더가 그 약속을 지키는 겹은 셋이다: (1) 좌표를 얻는
-  통로가 `visit_check.dart` 안의 private 함수 하나이고 그 밖에는 플러그인
-  직접 호출뿐인데 그 import 가 같은 파일로 못 박혀 있다, (2) 이 폴더가
-  `lib/backend/` 를 import 하지 않아 안에서도 보낼 곳이 없다, (3) 경계를 넘는
-  값(`StadiumVisitResult`)에 좌표가 없다. 좌표는 어디에도 적히지 않는다 —
+  좌표를 들여온 뒤로 이 폴더가 그 약속을 지키는 겹은 셋이고, 셋 다 훅이
+  아니라 **구조나 시험**이 지킨다: (1) 좌표를 얻는 통로가 `visit_check.dart`
+  안의 private 함수 하나이고 판정기(`StadiumVisitChecker`)도 그것을 private
+  필드로만 쥐며, 그 밖에는 플러그인 직접 호출뿐인데 그 import 가 같은 파일로
+  못 박혀 있다, (2) 이 폴더가 `lib/backend/` 를 import 하지 않아 안에서도
+  보낼 곳이 없다, (3) 경계를 넘는 값(`StadiumVisitResult`)에 좌표가 없고, 그
+  **필드 집합 자체**를 `test/features/badges/visit_check_test.dart` 의
+  파수꾼이 이 파일의 소스를 읽어 표와 대조한다 — 그 타입에 좌표 필드를 하나
+  더하면 빨간불이다. (1)·(3) 이 서술뿐이던 동안에는 어느 feature 든 판정기에서
+  실 좌표를 꺼내 쓸 수 있었고 결과 타입에 좌표를 실어 보낼 수 있었다
+  (`.wellbegun/decisions.md` 2026-09-04 `[M]`·`[S]`). 좌표는 어디에도 적히지 않는다 —
   캐시·`shared_preferences`·로그 어느 쪽으로도 흐르지 않고 판정이 끝나면
   버려진다.
 - **백그라운드 위치는 쓰지 않는다** (`.wellbegun/decisions.md` 2026-09-01 [L]).
