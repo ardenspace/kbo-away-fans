@@ -34,17 +34,29 @@ git hook은 클론으로 전파되지 않으므로 위처럼 저장소 내 훅 �
 - `check-hardcoded-values.sh` — 토큰 밖 raw 디자인 값.
 - `check-registry-sync.sh` — 공유 폴더 ↔ REGISTRY.md 로스터 동기화.
 - `check-no-location-upload.sh` — 기기 위치는 서버에 올리지 않는다는 데이터 소유권
-  결정의 강제. 두 방향을 본다: `lib/backend/` 에 위도·경도로 읽히는 필드가 없는지,
-  그리고 좌표를 다루는 `lib/location/` 이 업로드 계층(`lib/backend/`)을 import 하지
-  않는지.
+  결정의 강제. 네 방향을 본다: `lib/backend/` 에 위도·경도로 읽히는 필드가 없는지,
+  그리고 좌표를 다루는 `lib/location/` 이 (1) 업로드 계층(`lib/backend/`)을,
+  (2) 값을 밖으로 내보낼 수 있는 패키지(`package:http`·`dart:io`·
+  `shared_preferences` 등)를 import 하지 않는지, (3) 그 폴더에 최상위 변수를
+  두지 않았는지(`const` 와 읽기 전용 provider 선언만 통과한다 — 최상위 공개
+  변수 한 줄이면 판정에 쓴 좌표가 라이브러리 밖에서 읽힌다).
 - `check-firebase-import-boundary.sh` — SDK import 가 전용 계층 밖으로 새지 않는지.
   백엔드 SDK(`firebase_*` · `cloud_firestore` · `cloud_functions` ·
   `google_sign_in` · 카카오)는 `lib/backend/`·`lib/analytics/` 안에만, 위치 권한
   플러그인(`permission_handler`)은 `lib/location/location.dart` 안에만, 좌표
   플러그인(`geolocator`)은 `lib/location/visit_check.dart` 안에만. 좌표 쪽이
-  파일 하나로 좁은 것은 기기의 좌표를 얻는 통로를 그 라이브러리 안에 가둬,
-  다른 계층이 좌표를 손에 넣을 방법 자체를 없애기 위해서다 — 그 통로는
-  private 함수 하나이고, 그것을 들고 도는 판정기도 private 필드로만 쥔다.
+  파일 하나로 좁은 것은 기기의 좌표를 얻는 통로를 그 라이브러리 안에 가두기
+  위해서다 — 그 통로는 private 함수 하나이고, 그것을 들고 도는 판정기도
+  private 필드로만 쥔다.
+
+이 검사 둘과 `lib/location/` 의 구조가 함께 지키는 약속은 **"앱의 코드가 기기
+좌표를 서버로 보내지 않으며, 그렇게 하려면 눈에 띄는 의도적 변경이 필요하다"**
+이다(`.wellbegun/decisions.md` 2026-09-04 `[L]`). 그보다 강한 문장 — 좌표를
+알아내는 것이 구조적으로 불가능하다 — 은 이 앱이 하지 않는 약속이다: 구장 방문
+판정 API 는 "이 지점 반경 안에 있는가"를 묻는 신탁이라 반복 질의로 좌표가
+좁혀지고(측위 5회로 오차 0.03m), 위치 기반 참·거짓을 묻는 코드가 앱 안에 있는
+한 그 성질은 없앨 수 없다. 자세한 것은 `lib/location/visit_check.dart` 첫
+문단과 `test/probe/coord_oracle_probe_test.dart` 에 있다.
 
 Claude Code 세션에서는 `.claude/settings.json`의 PostToolUse 훅이 편집 직후에도 검사를
 돌리지만 범위가 다르다 — `check-hardcoded-values.sh`와 `check-no-location-upload.sh`

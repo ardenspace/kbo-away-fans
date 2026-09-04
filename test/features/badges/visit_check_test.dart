@@ -14,25 +14,47 @@
 ///     하나만으로는 결과 타입에 좌표 필드를 더하는 변이가 그대로 통과한다 —
 ///     `.wellbegun/decisions.md` 2026-09-04 `[S]`).
 ///   - "홈·원정을 구분하지 않는다" — 후보를 짓는 자리가 팀으로 거르지 않는다.
+///
+/// 그리고 계약 Goal 의 "앱이 열려 있을 때 위치를 한 번 받는다"는 트리거 위젯
+/// 자체가 아니라 **그 위젯이 앱 골격에 매달려 있는지**로 잰다(마지막 케이스).
+///
+/// **짝 파일:** `test/location/stadium_visit_fix_contract_test.dart` 는 실
+/// 측위 함수와 권한 조회를 플랫폼 인터페이스로 재고,
+/// `test/probe/coord_oracle_probe_test.dart` 는 이 판정 API 가 신탁으로 쓰이는
+/// **알려진 성질**을 값으로 붙잡아 둔다(초록불인 것이 맞다 —
+/// `.wellbegun/decisions.md` 2026-09-04 `[L]`).
 library;
 
 import 'dart:async';
 import 'dart:io';
 
-import 'package:flutter/widgets.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kbo_away_fans/backend/auth.dart';
+import 'package:kbo_away_fans/backend/user_data.dart';
 import 'package:kbo_away_fans/content/content_loader.dart';
 import 'package:kbo_away_fans/content/content_providers.dart';
 import 'package:kbo_away_fans/content/models.dart';
 import 'package:kbo_away_fans/features/badges/stadium_visit.dart';
+import 'package:kbo_away_fans/features/home/main_tabs_root.dart';
 import 'package:kbo_away_fans/features/home/next_away_game.dart';
 import 'package:kbo_away_fans/location/location.dart';
 import 'package:kbo_away_fans/location/visit_check.dart';
+import 'package:kbo_away_fans/weather/weather.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import '../../backend/fake_backend.dart';
 
 /// 잠실야구장 좌표(stadiums.json 과 같은 값의 근사) — 반경 계산의 기준점.
 const double _jamsilLat = 37.5121;
 const double _jamsilLng = 127.0719;
+
+/// 골격 시험이 쓰는 계정 — 로그인한 사람만 판정 트리거에 닿는다.
+const String _uid = 'google-uid';
+
+/// 이 시험이 보지 않는 콘텐츠 문서를 "못 읽었다"로 채우는 값.
+const ContentIssue _fixture = ContentIssue(ContentIssueKind.network, 'fixture');
 
 /// 위도 1도는 어디서나 약 111.32km — 정북으로 [meters] 만큼 옮긴 지점.
 DeviceFix _northOf(double meters) =>
@@ -811,6 +833,61 @@ void main() {
       // 끝난 판정은 다음 트리거를 막지 않는다 — 겹침 방지가 영구 잠금이 아니다.
       await notifier.run();
       expect(recorder.fixReads, 2);
+    });
+
+    testWidgets('앱 골격(MainTabsRoot)이 그 트리거를 실제로 달고 있다', (tester) async {
+      // 계약 Goal 의 "앱이 열려 있을 때 위치를 한 번 받는다"는 트리거 위젯이
+      // 있는 것만으로는 참이 되지 않는다 — 그 위젯이 사람이 닿는 골격에
+      // 매달려 있어야 참이다. 이 시험이 서기 전에는 `MainTabsRoot` 의
+      // `StadiumVisitTrigger(child: _tabs())` 를 `_tabs()` 로 되돌려도
+      // 저장소 전체 644개가 초록불이었다(실측).
+      SharedPreferences.setMockInitialValues({});
+      final auth = FakeAuthService(
+        signedIn: const AuthUser(uid: _uid, email: 'a@b.c'),
+      );
+      final store = FakeUserDataStore();
+      addTearDown(auth.dispose);
+      addTearDown(store.dispose);
+      await store.createProfile(
+        _uid,
+        const NewUserProfile(
+          nickname: '원정러',
+          favoriteTeamId: 'lg',
+          profileThemeKey: 'lg',
+        ),
+      );
+
+      final recorder = _RecordingChecker(fix: _northOf(0));
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authServiceProvider.overrideWithValue(auth),
+            userDataStoreProvider.overrideWithValue(store),
+            weatherEffectProvider.overrideWith(
+              (ref, point) async => WeatherEffect.none,
+            ),
+            clockProvider.overrideWithValue(() => duringPregame),
+            stadiumsProvider.overrideWith((ref) async => ContentFresh(stadiums)),
+            scheduleProvider.overrideWith((ref) async => ContentFresh(schedule)),
+            placesProvider.overrideWith(
+              (ref) async => const ContentUnavailable<PlacesDocument>(_fixture),
+            ),
+            teamsProvider.overrideWith(
+              (ref) async => const ContentUnavailable<TeamsDocument>(_fixture),
+            ),
+            stadiumVisitCheckerProvider.overrideWithValue(recorder.build()),
+          ],
+          child: const MaterialApp(home: MainTabsRoot()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byType(StadiumVisitTrigger),
+        findsOneWidget,
+        reason: '판정은 배지 탭이 아니라 앱을 여는 것 자체에 걸린다',
+      );
+      expect(recorder.fixReads, 1, reason: '골격이 뜨는 것만으로 판정이 한 번 돈다');
     });
   });
 }

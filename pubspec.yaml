@@ -68,6 +68,15 @@ dev_dependencies:
   # 허용"으로 바꾸는 것까지 — 시험이 전부 초록불이었다. `permission_handler` 가
   # 이미 끌어오는 패키지라 새로 받아 오는 것은 없다.
   permission_handler_platform_interface: ^4.4.0
+  # 같은 까닭으로 좌표 플러그인도 —
+  # `test/location/stadium_visit_fix_contract_test.dart` 가 플랫폼 인터페이스를
+  # 갈아 끼워 `visit_check.dart` 의 private 측위 함수(`_readDeviceFix`)를 **그
+  # 자체로** 돌린다. 그 자리가 서기 전에는 바깥 `.timeout` 을 지워도,
+  # `catch (_)` 를 좁혀 SDK 예외가 새게 해도 시험 644개가 전부 초록불이었다.
+  # 이 방식을 고른 것은 좌표를 얻는 새 공개 이음매를 만들지 않기 위해서다
+  # (decisions.md 2026-09-04 [S]). `geolocator` 가 이미 끌어오는 패키지라
+  # 새로 받아 오는 것은 없다.
+  geolocator_platform_interface: ^4.3.0
   # 같은 시험의 "플랫폼이 영영 답하지 않는 실행"을 재려면 시간을 밀어야 한다 —
   # 위젯 시험이 아니라 `tester.pump` 가 없다. `flutter_test` 가 이미 끌어오는
   # 패키지라 새로 받아 오는 것은 없다.
