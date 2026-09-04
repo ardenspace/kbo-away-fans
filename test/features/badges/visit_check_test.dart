@@ -422,6 +422,62 @@ Set<String> _geolocatorPrefixes(Map<String, String> sources) {
   return prefixes;
 }
 
+/// 밖에서 값을 건네받는 두 서명 — 이 둘을 지나서만 좌표가 이 계층에 들어온다.
+///
+/// 문자열로 두는 것은 파수꾼이 재는 것이 **서명의 모양 그대로**이기 때문이다:
+/// 인자가 하나 더 생기면 그 인자가 곧 좌표의 출구다.
+const String _checkSignature =
+    '  Future<StadiumVisitResult> check({\n'
+    '    required List<StadiumVisitCandidate> candidates,\n'
+    '    required DateTime now,\n'
+    '  }) async {\n';
+
+const String _judgeSignature =
+    'StadiumVisitResult judgeStadiumVisit({\n'
+    '  required LocationPermissionStatus permission,\n'
+    '  required List<StadiumVisitCandidate> candidates,\n'
+    '  required DateTime now,\n'
+    '  required DeviceFix? fix,\n'
+    '  double radiusMeters = kStadiumVisitRadiusMeters,\n'
+    '}) {\n';
+
+/// [needle] 이 나타나는 파일과 **횟수**를 표로 돌려준다 (0 인 파일은 빼고).
+///
+/// `contains` 하나로는 "폴더 어딘가에 있다"만 알 수 있어서, 사본이 하나 더
+/// 서는 것도 자리가 통째로 옮겨지는 것도 보이지 않는다.
+Map<String, int> _occurrences(Map<String, String> sources, String needle) {
+  final out = <String, int>{};
+  for (final entry in sources.entries) {
+    var count = 0;
+    var at = entry.value.indexOf(needle);
+    while (at >= 0) {
+      count++;
+      at = entry.value.indexOf(needle, at + needle.length);
+    }
+    if (count > 0) out[entry.key] = count;
+  }
+  return out;
+}
+
+/// [head] 로 시작하는 선언을 가진 **유일한** 파일의 내용을 돌려준다.
+///
+/// 겹 1 파수꾼이 파일 이름에 못 박히지 않게 하는 자리다. 5.2 가 이 폴더에
+/// 파일을 하나 더 두고 판정기를 그쪽으로 옮기면, 이름을 적어 둔 파수꾼은
+/// 조용히 옛 자리를 보거나 죽는다. 둘이 되면(사본이 하나 더 서면) 여기서
+/// 빨간불이다.
+String _sourceDeclaring(Map<String, String> sources, String head) {
+  final owners = [
+    for (final entry in sources.entries)
+      if (entry.value.contains(head)) entry.key,
+  ];
+  expect(
+    owners,
+    hasLength(1),
+    reason: '`$head` 을 선언하는 파일은 이 폴더에 하나여야 한다',
+  );
+  return sources[owners.single]!;
+}
+
 /// 테스트용 경기 픽스처 (next_away_game_test.dart 와 같은 모양).
 Game _game({
   required String id,
@@ -914,7 +970,6 @@ void main() {
   // 훅에도 걸리지 않는다.
   group('좌표를 얻는 통로는 이 라이브러리 안에서만 보인다 (겹 1, 소스 대조)', () {
     final locationSources = _locationSources();
-    final source = locationSources['lib/location/visit_check.dart']!;
 
     test('이 폴더는 part 파일을 쓰지 않는다 (파일 하나가 라이브러리 하나다)', () {
       expect(
@@ -976,17 +1031,19 @@ void main() {
       );
     });
 
-    test('그 통로를 이름으로 부르는 최상위 선언은 둘뿐이다', () {
+    test('그 통로를 이름으로 부르는 최상위 선언은 둘뿐이다 (폴더 전체)', () {
       final owners = {
-        for (final entry in _byTopLevelOwner(source))
-          if (entry.line.contains('_readDeviceFix')) entry.owner,
+        for (final entry in locationSources.entries)
+          for (final owned in _byTopLevelOwner(entry.value))
+            if (owned.line.contains('_readDeviceFix'))
+              '${entry.key} — ${owned.owner}',
       };
 
       // 선언 자신과, 그것을 판정기의 private 필드에 넣어 주는 provider.
       // 여기에 셋째가 생기면 그 자리가 곧 좌표를 얻는 새 통로다.
       expect(owners, {
-        '_readDeviceFix',
-        'stadiumVisitCheckerProvider',
+        'lib/location/visit_check.dart — _readDeviceFix',
+        'lib/location/visit_check.dart — stadiumVisitCheckerProvider',
       }, reason: '측위 함수를 들고 도는 자리가 늘면 통로가 늘어난다');
     });
 
@@ -1003,59 +1060,107 @@ void main() {
     // 그래서 **밖에서 값을 건네받거나 밖으로 내주는 서명 자체**를 소스로 못
     // 박는다. 좌표는 이 두 서명을 지나서만 이 라이브러리에 들어오고, 통로를
     // 쥔 `_readFix` 는 아래 세 줄에서만 이름으로 불린다.
-    test('좌표 통로를 이름으로 쓰는 줄은 이 셋뿐이다 (소스 대조)', () {
+    test('좌표 통로를 이름으로 쓰는 줄은 이 셋뿐이다 (폴더 전체, 소스 대조)', () {
       final lines = [
-        for (final owned in _byTopLevelOwner(source))
-          if (owned.line.contains('_readFix')) owned.line.trim(),
+        for (final entry in locationSources.entries)
+          for (final owned in _byTopLevelOwner(entry.value))
+            if (owned.line.contains('_readFix'))
+              '${entry.key}: ${owned.line.trim()}',
       ];
 
       expect(lines, [
-        '}) : _readFix = readFix;',
-        'final DeviceFixReader _readFix;',
-        'fix: await _readFix(),',
+        'lib/location/visit_check.dart: }) : _readFix = readFix;',
+        'lib/location/visit_check.dart: final DeviceFixReader _readFix;',
+        'lib/location/visit_check.dart: fix: await _readFix(),',
       ], reason: '통로를 부르는 줄이 늘거나 모양이 바뀌면 그 자리가 곧 좌표를 붙잡는 자리다');
     });
 
-    test('실 좌표를 보는 두 서명이 그대로다 (소스 대조)', () {
+    test('실 좌표를 보는 두 서명이 그대로다 (폴더 전체, 소스 대조)', () {
       // 부르는 쪽이 무언가를 **끼워 넣을 수 있는** 자리는 이 둘뿐이다:
       // 판정기의 유일한 공개 메서드와, 그것이 좌표를 넣어 부르는 순수 판정
       // 함수. 여기에 인자가 하나 더 생기면 그 인자가 곧 좌표의 출구다.
+      //
+      // 폴더 전체에서 **정확히 한 번씩** 선다는 것까지 잰다. 파일 하나만
+      // 보던 옛 판은 그 서명이 다른 파일로 옮겨지면 조용히 아무것도 찾지
+      // 못했고(파일 이름이 어긋나면 `!` 에서 죽지만, 5.2 가 판정을 옮기는
+      // 갈래는 그 이름을 함께 바꾼다), 같은 서명의 사본이 폴더 어딘가에 하나
+      // 더 서는 것도 보지 못했다.
       expect(
-        source,
-        contains(
-          '  Future<StadiumVisitResult> check({\n'
-          '    required List<StadiumVisitCandidate> candidates,\n'
-          '    required DateTime now,\n'
-          '  }) async {\n',
-        ),
+        _occurrences(locationSources, _checkSignature),
+        {'lib/location/visit_check.dart': 1},
         reason: '판정기가 밖에 내미는 것은 "판정을 한 번 돌린다"는 능력뿐이다',
       );
       expect(
-        source,
-        contains(
-          'StadiumVisitResult judgeStadiumVisit({\n'
-          '  required LocationPermissionStatus permission,\n'
-          '  required List<StadiumVisitCandidate> candidates,\n'
-          '  required DateTime now,\n'
-          '  required DeviceFix? fix,\n'
-          '  double radiusMeters = kStadiumVisitRadiusMeters,\n'
-          '}) {\n',
-        ),
+        _occurrences(locationSources, _judgeSignature),
+        {'lib/location/visit_check.dart': 1},
         reason: '순수 판정 함수는 좌표를 받아 결과만 돌려준다 — 받아 갈 자리를 더 두지 않는다',
       );
     });
 
-    test('판정기가 그 통로를 쥐는 자리는 private 필드다 (소스 대조)', () {
+    test('판정기가 그 통로를 쥐는 자리는 private 필드다 (폴더 전체, 소스 대조)', () {
       // `_readFix` 가 public 이면 `stadiumVisitCheckerProvider` 를 읽은 어느
       // feature 든 `ref.read(...).readFix()` 로 실 좌표를 얻는다.
+      //
+      // 클래스를 **폴더에서** 찾는다(그 클래스를 선언하는 파일이 정확히
+      // 하나라는 것까지 [_sourceDeclaring] 이 잰다) — 옛 판은
+      // `visit_check.dart` 하나에 못 박혀 있었다.
       expect(
-        _declaredStorage(_classBody(source, 'StadiumVisitChecker')),
+        _declaredStorage(
+          _classBody(
+            _sourceDeclaring(locationSources, 'class StadiumVisitChecker {'),
+            'StadiumVisitChecker',
+          ),
+        ),
         {
           'readPermission': 'final Future<LocationPermissionStatus> Function()',
           '_readFix': 'final DeviceFixReader',
         },
         reason: '판정기가 밖으로 내주는 것은 "판정을 한 번 돌린다"는 능력뿐이다',
       );
+    });
+
+    // round 7 이 세운 파수꾼이다. 위 다섯은 좌표를 **얻는 자리가 어디인지**
+    // 만 보고 있어서, **그 자리 안에서 좌표에 무엇을 하는지**는 아무 시험도
+    // 보지 않았다. round 7 의 검증자가 정확히 그 틈으로 실 좌표를 내보냈다:
+    // 최상위에 `void Function(double, double)? coordSink;` 를 하나 두고
+    // 이 함수 몸통에 `coordSink?.call(position.latitude, position.longitude);`
+    // 한 줄을 더한 뒤, 폴더 밖의 feature 파일이 그 자리를 `http.post` 로
+    // 채웠다. 첫 줄은 이제 훅의 검사 4) 가 이름 목록으로 받지만(그 갈래는
+    // 그쪽 실측에 있다), 둘째 줄이 들어간 **몸통 자체**는 여전히 아무도 보고
+    // 있지 않았다.
+    //
+    // **이 파수꾼이 재는 성질:** 기기에서 온 좌표를 만지는 줄이 이 함수의
+    // 몸통에 있는 이 목록 그대로다 — 플러그인을 부르고, 그 값으로
+    // [DeviceFix] 를 하나 지어 돌려주고, 무엇이 오든 null 로 접는 것.
+    // 여기에 줄이 하나 늘거나 모양이 바뀌면 빨간불이다.
+    //
+    // **재지 않는 것:** 이것은 소스 텍스트 대조라 같은 일을 하는 다른 표기를
+    // 막지 못한다(`visit_check.dart` 첫 문단의 "이 파수꾼들이 막는 것"과 같은
+    // 세기다). 그리고 주석은 [_byTopLevelOwner] 가 걷어 내므로 이 목록에
+    // 오지 않는다 — 주석을 고치는 것은 여기서 빨간불이 되지 않는다.
+    test('측위 함수의 몸통이 그대로다 (폴더 전체, 소스 대조)', () {
+      final body = [
+        for (final entry in locationSources.entries)
+          for (final owned in _byTopLevelOwner(entry.value))
+            if (owned.owner == '_readDeviceFix' && owned.line.trim().isNotEmpty)
+              owned.line,
+      ];
+
+      expect(body, [
+        'Future<DeviceFix?> _readDeviceFix() async {',
+        '  try {',
+        '    final position = await geo.Geolocator.getCurrentPosition(',
+        '      locationSettings: const geo.LocationSettings(',
+        '        accuracy: geo.LocationAccuracy.high,',
+        '        timeLimit: kLocationFixTimeout,',
+        '      ),',
+        '    ).timeout(kLocationFixTimeout);',
+        '    return DeviceFix(lat: position.latitude, lng: position.longitude);',
+        '  } catch (_) {',
+        '    return null;',
+        '  }',
+        '}',
+      ], reason: '좌표가 태어나는 자리에 줄이 하나 늘면 그 줄이 곧 좌표의 출구다');
     });
   });
 

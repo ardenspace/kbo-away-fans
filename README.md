@@ -55,23 +55,38 @@ git hook은 클론으로 전파되지 않으므로 위처럼 저장소 내 훅 �
   round 6 까지 `[ -f ]` 가드 뒤에 있어서 그 파일이 옮겨지면 **조용히**
   건너뛰어졌다(`git mv` 로 재현) — 이제 스크립트가 자기가 볼 세 자리
   (`lib/backend` · `lib/location` · `lib/content/kst.dart`)의 존재를 먼저
-  단언하고, 자리가 사라지면 침묵하는 대신 exit 2 로 드러난다.
-  (3) 이 허용하는 것은 `const`·`static const`, "담을 수 없는 타입"(변하지 않는
-  dart:core 기본형과 그 폴더가 스스로 선언한 class·enum·mixin 이름, 그리고 함수
-  타입 typedef)의 `final` 필드, 함수 타입의 `final` 필드, 그리고 그런 타입 인자를
-  받는 읽기 전용 provider 뿐이다 — `Provider<LocationPermissionGateway>`·
-  `Provider<int>` 는 통과하고 `Provider<List<DeviceFix>>`·`Provider<StringBuffer>`
-  는 통과하지 못한다(변경 가능한 통이 곧 좌표를 담아 둘 자리다). 이 검사는 줄이
+  단언하고, 자리가 사라지면 침묵하는 대신 exit 2 로 드러난다. round 7 이 같은
+  종류의 침묵을 한 겹 아래에서 하나 더 없앴다 — 검사 2)·3)·4) 와 그 짝 검사가
+  awk 출력을 stdout 으로만 받고 **종료 상태를 버리고 있어서**, awk 프로그램이
+  깨지면 stderr 에만 오류가 찍히고 훅은 그대로 exit 0 이었다(구문 오류를 넣고
+  실 정탐을 트리에 두어 재현). 이제 셋 다 awk 실패를 exit 2 로 드러낸다.
+  (3) 은 **두 자리를 서로 다른 방식으로 본다.** 최상위 선언은 **타입이 아니라
+  이름을 본다** — 그 폴더의 최상위 선언 이름 집합을 스크립트가 그대로 못 박고,
+  거기 없는 이름이 하나라도 서면 exit 2 다(갈래도 이름과 함께 못 박으므로 이름을
+  두고 모양만 바꾸는 변경도 걸린다). round 7 이 그 방향을 뒤집었다: 그 전에는
+  타입 표기를 문자 집합으로 기술하고 있어서 최상위
+  `void Function(double, double)? coordSink;` 와 `(double, double)? lastSpot;`
+  이 그냥 지나갔고, 그 자리로 실 좌표가 외부 서버에 도착하는데 훅 4종·analyze·
+  시험 665개가 전부 초록불이었다. 클래스 몸통의 선언은 여전히 타입을 보고,
+  통과하는 것은 `const`, "담을 수 없는 타입"(변하지 않는 dart:core 기본형과 그
+  폴더가 스스로 선언한 class·enum·mixin 이름, 그리고 함수 타입 typedef)이나 함수
+  타입의 `final` 필드, 메서드·생성자와 `=>` 몸통, 몸통 없는 게터 선언, enum
+  몸통의 첫 문장인 값 나열이다. 이 검사는 줄이
   아니라 **문장**을 본다 — 파일을 훑으며 주석과 문자열을 걷어 내고 괄호 밖의
   중괄호로 깊이를 세므로, 들여쓰기를 네 칸으로 바꾸거나 클래스를 한 줄로 쓰거나
   선언을 여러 줄로 쪼개도 같은 자리로 온다(round 5 이전에는 그 셋이 전부 검사를
-  지나갔다). round 6 이 이 검사의 **오탐 셋**을 풀었다 — 값 나열 뒤에 멤버가
-  오는 enum, `@override` 가 붙은 필드, 몸통 없는 게터 선언(`String get id;`)
-  이 전부 exit 2 였다. 셋 다 평범한 Dart 이고 `flutter analyze` 무지적인데
-  커밋과 CI 를 막았다. 이 검사가 **일부러** 거절하는 정당한 모양(타입을 적지
-  않은 `final`, `late` 필드, `final List<String>`, 타입 매개변수·레코드 타입
-  필드, 최상위 `final` 등)은 그 스크립트 헤더의 4) 에 **열린 목록**으로 적혀
-  있다 — round 6 의 거부 사유가 바로 그 목록이 "아래 둘"로 닫혀 있었던 것이다.
+  지나갔다). round 6·7 이 이 검사의 **오탐 다섯**을 풀었다 — 값 나열 뒤에 멤버가
+  오는 enum, `@override` 가 붙은 필드, 몸통 없는 게터 선언(`String get id;`),
+  타입을 명시한 읽기 전용 provider(`final Provider<T> x = Provider<T>(...)` —
+  이 저장소의 최상위 provider 18개 중 5개가 타입을 명시하고 그중 읽기 전용
+  `Provider<T>` 둘이 그 모양이다), `final` 앞에 수식어가
+  오는 필드(`static final int retryBudget = 3;` 등). 다섯 다 평범한 Dart 이고
+  `flutter analyze` 무지적인데 커밋과 CI 를 막았다. 이 검사가 **일부러** 거절하는
+  정당한 모양(타입을 적지 않은 `final`, `late` 필드, `final List<String>`, 타입
+  매개변수·레코드 타입 필드, 목록에 없는 최상위 이름 등)은 그 스크립트 헤더의
+  4) 에 **열린 목록**으로 적혀 있다 — round 6 의 거부 사유가 바로 그 목록이
+  "아래 둘"로 닫혀 있었던 것이고, round 7 의 거부 사유 중 하나가 최상위 변수의
+  허용 집합을 넷으로 못 박은 문장이 거짓이었던 것이다.
 - `check-firebase-import-boundary.sh` — SDK import 가 전용 계층 밖으로 새지 않는지.
   백엔드 SDK(`firebase_*` · `cloud_firestore` · `cloud_functions` ·
   `google_sign_in` · 카카오)는 `lib/backend/`·`lib/analytics/` 안에만, 위치 권한

@@ -79,17 +79,31 @@
 ///
 ///    *지키는 것:* Dart 의 `_` 가시성(구조)과, 그 구조가 그대로 서 있는지를
 ///    소스로 대조하는 `test/features/badges/visit_check_test.dart` 의 겹 1
-///    파수꾼 여섯 — (a) 이 폴더에 `part`·`part of` 가 없다(그래야 "파일 하나가
-///    라이브러리 하나"라는 전제가 선다), (b) **폴더 전체**에서, geolocator 를
-///    들이는 **모든 별칭**을 만지는 최상위 선언이 [_readDeviceFix]
-///    **하나뿐이다**(별칭 없는 import 자체가 빨간불이다 — 접두어가 없으면
-///    표지가 지워진다), (c) [_readDeviceFix] 를 이름으로 부르는 최상위 선언은
-///    그 함수 자신과 `stadiumVisitCheckerProvider` 둘뿐이다, (d) `_readFix` 를
-///    이름으로 쓰는 줄은 정확히 셋이다(필드 선언·생성자 초기화·
-///    [StadiumVisitChecker.check] 안의 호출), (e) 밖에서 값을 건네받는 두
-///    서명([StadiumVisitChecker.check] 와 [judgeStadiumVisit])이 소스 텍스트
-///    그대로다, (f) [StadiumVisitChecker] 가 값을 두는 자리는 `readPermission`
-///    과 `_readFix` 둘뿐이다.
+///    파수꾼 일곱. **일곱 다 폴더 전체를 본다** — round 7 에서 뒤의 넷을
+///    `visit_check.dart` 한 파일에서 폴더로 넓혔다(그 전에는 이 폴더에 파일이
+///    하나 더 생기는 순간 그 넷이 새 파일에 닿지 않았고, 5.2 가 그 자리다).
+///    (a) 이 폴더에 `part`·`part of` 가 없다(그래야 "파일 하나가 라이브러리
+///    하나"라는 전제가 선다), (b) geolocator 를 들이는 **모든 별칭**을 만지는
+///    최상위 선언이 [_readDeviceFix] **하나뿐이다**(별칭 없는 import 자체가
+///    빨간불이다 — 접두어가 없으면 표지가 지워진다), (c) [_readDeviceFix] 를
+///    이름으로 부르는 최상위 선언은 그 함수 자신과
+///    `stadiumVisitCheckerProvider` 둘뿐이다, (d) `_readFix` 를 이름으로 쓰는
+///    줄은 정확히 셋이다(필드 선언·생성자 초기화·[StadiumVisitChecker.check]
+///    안의 호출), (e) 밖에서 값을 건네받는 두 서명
+///    ([StadiumVisitChecker.check] 와 [judgeStadiumVisit])이 소스 텍스트
+///    그대로이고 폴더에서 **각각 한 번씩만** 선다, (f) [StadiumVisitChecker]
+///    가 값을 두는 자리는 `readPermission` 과 `_readFix` 둘뿐이다(그 클래스를
+///    선언하는 파일이 폴더에 하나라는 것까지 함께 잰다), (g) **[_readDeviceFix]
+///    의 몸통이 그대로다.**
+///
+///    (g) 가 round 7 에서 생겼다. 그 전까지 (a)~(f) 는 좌표를 **얻는 자리가
+///    어디인지**만 보고 있었고 **그 자리 안에서 좌표에 무엇을 하는지**는 아무
+///    시험도 보지 않았다 — round 7 의 검증자가 정확히 그 틈으로 실 좌표를
+///    내보냈다(최상위에 함수 타입 변수를 하나 두고 이 함수 몸통에서 그것을
+///    부르는 두 줄). 첫 줄은 이제 겹 4 의 훅이 이름 목록으로 받고, 둘째 줄이
+///    들어간 몸통을 (g) 가 받는다. (g) 가 재는 성질은 "기기에서 온 좌표를
+///    만지는 줄이 이 함수 몸통에 있는 그 목록 그대로다"이고, 재지 않는 것은
+///    같은 일을 하는 **다른 표기**다(소스 텍스트 대조의 세기다).
 ///
 ///    **round 5 가 (b) 를 두 곳 고쳤다.** 앞엣것이 검증자가 찾은 우회이고,
 ///    뒤엣것은 그것을 고치면서 함께 보인 두 걸음짜리 갈래다.
@@ -241,21 +255,60 @@
 ///    자신의 텍스트**만 보므로, 그 파일이 부르는 `lib/content/models.dart`
 ///    안쪽까지는 보지 않는다. 허용 목록의 패키지 다섯이 새 버전에서 무언가를
 ///    더 재수출하는 것도 이 검사들의 시야 밖이다.
-/// 4. **이 계층에는 값을 남겨 둘 자리가 없다.** 이 폴더에는 최상위 변수도,
-///    클래스 안의 `static` 저장소도, **좌표를 쌓을 수 있는 인스턴스 필드도**
-///    둘 수 없다.
+/// 4. **이 계층에는 값을 남겨 둘 자리가 없다.** 이 폴더에는 최상위 선언으로
+///    값을 담아 두는 자리도, 클래스 안의 `static` 저장소도, **좌표를 쌓을 수
+///    있는 인스턴스 필드도** 둘 수 없다.
 ///
-///    *지키는 것:* 같은 스크립트의 검사 4). 여기서도 허용 목록이다 —
-///    `const`·`static const`(컴파일 시각 값), **"담을 수 없는 타입"의 `final`
-///    필드**, 함수 타입(`... Function(...)`)의 `final` 필드(이 계층의 두
-///    이음매가 그 모양이다), 그리고 그런 타입 인자를 받는 읽기 전용 provider.
-///    "담을 수 없는 타입"은 값이 변하지 않는 dart:core 기본형
-///    (`bool`·`double`·`int`·`num`·`String`·`Duration`·`DateTime`)과 **이
-///    폴더가 스스로 선언한 class·enum·mixin 이름들**(그리고 함수 타입
-///    typedef 하나)의 합이다 — 그 셋을 허용해도 고리가 닫히는 까닭은 그
-///    타입의 필드가 다시 이 검사를 지나기 때문이고, 폴더 밖의 이름을
-///    막으므로 `Provider<StringBuffer>`·`Provider<List>` 같은 "홑 식별자인데
-///    변경 가능한 통"이 함께 닫힌다.
+///    *지키는 것:* 같은 스크립트의 검사 4). 그 검사는 **두 자리를 서로 다른
+///    방식으로 본다.**
+///
+///    · **최상위 선언은 타입이 아니라 이름을 본다** (round 7 에서 뒤집었다).
+///      이 폴더의 최상위 선언 이름 집합을 스크립트의 `LOC_TOP_NAMES` 가 그대로
+///      못 박고, 거기 없는 이름이 하나라도 서면 exit 2 다. 갈래(type·func·
+///      getter·setter·const·provider·var)도 이름과 함께 못 박으므로, 이름을
+///      그대로 두고 모양만 바꾸는 변경도 걸린다(실측: `const double
+///      kStadiumVisitRadiusMeters` 를 `double` 저장소로 바꾸면 const→var,
+///      `stadiumVisitCheckerProvider` 의 타입 인자를 `List<DeviceFix>` 로
+///      바꾸면 provider→var 로 떨어져 둘 다 exit 2).
+///
+///      **뒤집은 까닭.** round 6 이 오탐 셋을 고치자 round 7 이 정탐 둘을
+///      찾았다: 최상위 `void Function(double, double)? coordSink;` 와
+///      `(double, double)? lastSpot;` 이 그냥 지나갔다(옛 규칙의 타입 문자
+///      집합에 괄호가 없었다). 둘 다 표기 우회가 아니라 평범한 Dart 3 이고,
+///      검증자가 그 자리로 실 좌표를 외부 서버에 보내면서 훅 4종·
+///      `flutter analyze`·시험 665개가 전부 초록불인 것을 재현했다. 뿌리는
+///      하나다 — **타입 표기를 문자 집합으로 기술하는 한 다음 표기가 또
+///      남는다.** 같은 뿌리를 이 저장소는 round 4 에서 한 번 풀었고(import
+///      검사를 거부 목록에서 허용 목록으로 뒤집었다), 이름 목록은 그 방식이다.
+///      실측: 최상위에 좌표를 담을 자리를 13가지 표기로 지어 보았고 전부
+///      exit 2 다 — 홑 타입·제네릭·함수 타입·레코드·중첩 제네릭·typedef
+///      별칭·dynamic·Object·var·타입을 적지 않은 final·late·최상위 게터·
+///      최상위 세터. 이름을 읽지 못한 문장은 "?" 로 나가 목록과 어긋나므로
+///      **막히는 쪽으로 틀린다.**
+///
+///      대가도 적어 둔다: 이 폴더에 파일이나 헬퍼 클래스를 하나 더할 때마다
+///      그 목록을 함께 고쳐야 한다. 우회하지 말고 목록을 넓히고 ADR 을 남길
+///      것 — **그 눈에 띔이 이 검사의 목적이다.**
+///
+///    · **클래스·enum·mixin·extension 몸통의 선언은 타입을 본다.** 여기는
+///      이름으로 못 박기 어렵다(클래스가 여럿이고 필드는 늘어난다). 통과하는
+///      것은 `const`, "담을 수 없는 타입"이나 함수 타입(`... Function(...)`)의
+///      `final` 필드, 메서드·생성자와 `=>` 로 몸통을 쓰는 선언, 몸통 없는
+///      게터 선언, 그리고 enum 몸통의 첫 문장인 값 나열이다. 선언 앞의
+///      애노테이션과 `final` 앞의 수식어(`static`·`abstract`·`external`·
+///      `covariant`)는 걷어 낸 뒤 타입을 본다. "담을 수 없는 타입"은 값이
+///      변하지 않는 dart:core 기본형(`bool`·`double`·`int`·`num`·`String`·
+///      `Duration`·`DateTime`)과 **이 폴더가 스스로 선언한 class·enum·mixin
+///      이름들**(그리고 함수 타입 typedef)의 합이다 — 그것을 허용해도 고리가
+///      닫히는 까닭은 그 타입의 필드가 다시 이 검사를 지나기 때문이고, 폴더
+///      밖의 이름을 막으므로 `Provider<StringBuffer>`·`Provider<List>` 같은
+///      "홑 식별자인데 변경 가능한 통"이 함께 닫힌다.
+///
+///      **이 자리를 이 검사만 보고 있는 것이 아니다.** 경계를 넘는 세 타입
+///      ([StadiumVisitResult]·[StadiumVisitCandidate]·[StadiumVisitChecker])의
+///      **필드 집합 자체**는 겹 1·5 의 파수꾼이 소스에서 읽어 표와 대조한다.
+///      그래서 이 검사가 타입으로 거르는 넓은 자리와, 시험이 이름으로 못 박는
+///      좁은 자리가 함께 선다.
 ///
 ///    **round 5 가 이 검사를 줄에서 문장으로 옮겼다.** 옛 검사는 "열 0 의
 ///    선언 · 어느 깊이든 `static` · **두 칸** 들여쓴 클래스 몸통의 선언"만
@@ -269,10 +322,8 @@
 ///    class SpotLog2 { static final List<DeviceFix> seen = <DeviceFix>[]; }
 ///    ```
 ///
-///    뒤엣것은 "어느 깊이든 `static` 을 잡는다"는 문장까지 함께 깼다 — 그
-///    줄의 첫 토막이 `class` 라서 검사가 아예 닿지 않았다. `dart format` 을
-///    게이트로 세워 들여쓰기를 강제하는 길은 이 저장소에 없다(pre-commit 에도
-///    CI 에도 없고, 지금 트리는 포매터 버전 차이로
+///    `dart format` 을 게이트로 세워 들여쓰기를 강제하는 길은 이 저장소에
+///    없다(pre-commit 에도 CI 에도 없고, 지금 트리는 포매터 버전 차이로
 ///    `dart format --set-exit-if-changed` 에 74개 파일이 걸린다). 그래서
 ///    검사가 파일을 한 번 훑으며 주석과 문자열을 걷어 내고, 괄호 밖의
 ///    중괄호로 깊이를 세고, 괄호 밖의 `;` 와 `{` 에서 문장을 끊어 공백을
@@ -280,36 +331,46 @@
 ///    깊이**로 정해져서, 네 칸을 들여쓰든 여덟 칸을 들여쓰든 탭을 쓰든 한
 ///    줄로 쓰든 같은 자리로 온다(넷 다 실측으로 exit 2).
 ///
-///    같은 라운드에서 **이 라운드의 구현자가 스스로 공격해 찾은 구멍 둘**도
-///    막았다: `extension type Box(List<DeviceFix> v) {}` 의 표현 필드는
-///    헤더의 괄호 안에 있어 문장 분해가 닿지 않고, `typedef Bag =
-///    List<DeviceFix>;` 는 몸통이 아예 없다. 둘 다 "그 타입의 필드가 다시 이
-///    검사를 지난다"는 고리를 끊으므로, 허용 타입 집합에서 `extension type`
-///    과 함수 타입이 아닌 `typedef` 를 뺐다(실측: 뺀 뒤 `final Box b;`·
-///    `final Bag b;` 가 exit 2, 함수 타입 typedef 필드는 그대로 통과).
-///
-///    실측 정탐 25종이 exit 2 다: 최상위 `DeviceFix? lastSpot;`·
-///    `var lastSpot = 0.0;`·`final _spots = <DeviceFix>[];`·`StateProvider`·
-///    `FutureProvider`·`NotifierProvider`·`Provider<List<DeviceFix>>`·
+///    실측 정탐. round 7 이 이 폴더에 좌표를 담을 자리를 **51갈래**로 지어
+///    넣어 전부 exit 2 인 것을 다시 쟀다(짝으로 오탐 후보 19갈래가 전부
+///    exit 0 이다. BSD awk 와 ubuntu 의 mawk 가 70갈래 전부에서 같은 답을
+///    낸다 — CI 가 mawk 다). 최상위 쪽 13갈래는 위에 적었고,
+///    그중 몸통·provider 쪽은 `Provider<List<DeviceFix>>`·
 ///    `Provider<Map<String, DeviceFix>>`·`Provider<StringBuffer>`·
-///    `Provider<List>`, 두 칸 들여쓴 `static DeviceFix? lastSpot;`·
-///    `static final List<DeviceFix> spots = [];`, 인스턴스 필드
-///    `final List<DeviceFix> seen = [];`·`DeviceFix? last;`·
+///    `Provider<List>`·`StateProvider`·`FutureProvider`·`NotifierProvider`·
+///    타입 인자를 적지 않은 `Provider((ref) => ...)`, 두 칸 들여쓴
+///    `static DeviceFix? lastSpot;`·`static final List<DeviceFix> spots = [];`,
+///    인스턴스 필드 `final List<DeviceFix> seen = [];`·`DeviceFix? last;`·
 ///    `late DeviceFix last;`·`var count = 0;`·
-///    `final StringBuffer log = StringBuffer();`, round 4 의 검증자가
-///    라이브러리 밖에서 실 좌표를 읽어 낸 조합 그대로
-///    (`class SpotLog { final List<DeviceFix> seen = []; ... }` +
-///    `Provider<SpotLog>`), 그리고 round 5 의 표기 갈래 여덟 — 네 칸·여덟
-///    칸·탭 들여쓰기 · 한 줄 클래스(인스턴스·static 둘 다) · 토막 사이
-///    블록 주석 · `mixin` 몸통 · `abstract class` 안의 static ·
-///    `extension` 안의 static · 선언을 세 줄로 쪼갠 필드 ·
-///    `extension type` 표현 필드 · `typedef` 별칭 필드.
+///    `final StringBuffer log = StringBuffer();`·`final T value;`·
+///    `final (int, int) span;`·`final separator = ' / ';`·
+///    `@override final List<DeviceFix> seen;`·
+///    `enum E { a, b; static DeviceFix? last; }`, 네 칸·여덟 칸·탭 들여쓰기와
+///    한 줄 클래스(인스턴스·static 둘 다) · 토막 사이 블록 주석 · `mixin`
+///    몸통 · `abstract class` 안의 static · `extension` 안의 static · 선언을
+///    세 줄로 쪼갠 필드 · `extension type` 표현 필드 · `typedef` 별칭 필드,
+///    그리고 round 4 의 검증자가 라이브러리 밖에서 실 좌표를 읽어 낸 조합
+///    그대로(`class SpotLog { final List<DeviceFix> seen = []; ... }` +
+///    `Provider<SpotLog>`).
 ///
-///    round 4 는 여기서 오탐 하나를 풀었고(이름이 `Provider` 로 끝나지 않는
-///    읽기 전용 provider), **round 5 가 하나 더 풀었다**: 문서가 "게터도 보지
-///    않는다"라고 적는데 **최상위 게터**(`String get placeLabel => _base;`)가
-///    exit 2 였다. 이제 검사가 `=>` 를 선언의 끝으로 보지 않으므로 최상위
-///    게터·클래스 게터·표현식 본문 함수가 전부 통과한다(실측).
+///    **round 6·7 이 이 검사의 오탐 다섯을 풀었다** (round 6·7 의 거부 사유).
+///    다섯 다 평범한 Dart 이고 `flutter analyze` 무지적인데 exit 2 였다.
+///    round 6: 값 나열 뒤에 멤버가 오는 enum(`enum E { a, b; bool get x =>
+///    ...; }` — Dart 가 요구하는 그 `;` 를 검사가 값 자리로 읽었다. 이 폴더에
+///    이미 enum 이 둘 있으므로 게터 한 줄을 더하는 것만으로 커밋과 CI 가
+///    막혔다), `@override` 가 붙은 필드, 추상 클래스·인터페이스·mixin 의
+///    몸통 없는 게터 선언. round 7: **타입을 명시한 읽기 전용 provider**
+///    (`final Provider<T> xProvider = Provider<T>(...)` — 이 저장소의 최상위
+///    provider 18개 중 5개가 타입을 명시하고, 그중 읽기 전용 `Provider<T>` 둘이
+///    그 모양이다: `lib/backend/auth.dart:114`·`lib/backend/user_data.dart:830`.
+///    나머지 셋은 StreamProvider·AsyncNotifierProvider 라 타입 표기와 무관하게
+///    이 검사가 일부러 거절한다. 옛 허용 규칙이 선언의 앞부분까지
+///    `^final <이름> = Provider…` 로 못 박고 있었다), 그리고
+///    **`final` 앞에 수식어가 오는 필드**(`static final int retryBudget = 3;`·
+///    `static final String suffix`·`static final Duration gap`·
+///    `static final int Function(int) doubler`·`abstract final String id;` —
+///    옛 검사가 타입을 보기도 전에 첫 토막만으로 거절했다). 다섯 다 이제
+///    지나가고, 정탐은 그대로다(실측).
 ///
 ///    *지키지 않는 것:* **함수 몸통 안의 지역 변수와 클로저 캡처**는 보지
 ///    않는다(그 자리를 보게 하면 이 파일의 정당한 지역 변수가 전부 걸린다).
@@ -319,30 +380,23 @@
 ///    통과한다 — String 은 변하지 않아 쌓을 수 없지만 좌표 하나를 글자로
 ///    담을 수는 있다(그 값이 밖으로 나가려면 겹 1·5 를 지나야 한다).
 ///
-///    **round 6 이 이 검사의 오탐 셋을 풀었다.** 그것이 round 6 의 거부
-///    사유였다. 아래 셋은 평범한 Dart 이고 `flutter analyze` 가 무지적인데
-///    exit 2 였다: 값 나열 뒤에 멤버가 오는 enum(`enum E { a, b; bool get x
-///    => ...; }` — Dart 가 요구하는 그 `;` 를 검사가 "값을 담아 둘 자리"로
-///    읽었다. 이 폴더에는 이미 enum 이 둘 있으므로 게터 한 줄을 더하는
-///    것만으로 커밋과 CI 가 막혔다), `@override` 가 붙은 필드, 그리고 추상
-///    클래스·인터페이스·mixin 의 **몸통 없는 게터 선언**(`String get id;` —
-///    이 문단이 "게터는 보지 않는다"라고 적어 둔 바로 그 모양이다). 셋 다
-///    이제 지나가고, 정탐은 그대로다(실측: `enum E { a, b; static DeviceFix?
-///    last; }` 와 `@override final List<DeviceFix> seen;` 는 exit 2).
-///
 ///    **이 검사가 일부러 거절하는 정당한 모양**도 적어 둔다(5.2 가 여기
-///    걸리면 까닭을 여기서 찾으라고). **닫힌 목록이 아니다** — round 6 의
-///    구현자가 이 폴더에 평범한 Dart 파일 50가지를 지어 넣어 실측한 것들이고,
-///    51번째가 없다고는 적지 않는다(그 "아래 둘"이라는 닫힌 문장이 정확히
-///    round 6 의 거부 사유였다). 까닭은 하나다: **무엇이 담길지 알 수 없는
-///    자리를 거절한다.** 실측한 것들 — 최상위 `final RegExp ... = RegExp(...)`
-///    와 최상위 `final String ... = ...` · 값 타입의 `final List<String> ids;`
-///    · 타입을 적지 않은 `final separator = ' / ';`(추론 타입이라 무엇이
-///    담기는지 알 수 없다. 허용하면 `final spots = <DeviceFix>[];` 가 함께
-///    열린다) · `late final String name;` 을 비롯한 `late` 필드 전부 ·
-///    타입 매개변수 필드 `final T value;`(`Box<DeviceFix>` 로 세우면 그대로
-///    좌표를 담는 통이다) · 레코드 타입 필드 `final (int, int) span;`.
-///    전부 우회하지 말고 허용 목록을 의도적으로 넓히고 ADR 을 남길 것.
+///    걸리면 까닭을 여기서 찾으라고). **닫힌 목록이 아니다** — round 6·7 의
+///    구현자가 이 폴더에 평범한 Dart 를 지어 넣어 실측한 것들이고, 다음
+///    하나가 없다고는 적지 않는다. 까닭은 둘이다. **최상위는 이름이 목록에
+///    없으면 거절한다** — 타입이 무엇이든, `final RegExp ... = RegExp(...)`
+///    도 `final String ... = ...` 도 목록을 넓히기 전에는 거절이다.
+///    **몸통 안은 무엇이 담길지 알 수 없는 자리를 거절한다** — 값 타입의
+///    `final List<String> ids;`(이 저장소에 실재하는 모양이다:
+///    `lib/ui/shared/weather_backdrop.dart:94` 의
+///    `static final List<_Drop> _drops`. 그 파일은 이 검사의 범위 밖이지만
+///    같은 줄을 이 폴더에 두면 exit 2 다) · 타입을 적지 않은
+///    `final separator = ' / ';`(추론 타입이라 무엇이 담기는지 알 수 없고,
+///    허용하면 `final spots = <DeviceFix>[];` 가 함께 열린다) ·
+///    `late final String name;` 을 비롯한 `late` 필드 전부 · 타입 매개변수
+///    필드 `final T value;`(`Box<DeviceFix>` 로 세우면 그대로 좌표를 담는
+///    통이다) · 레코드 타입 필드 `final (int, int) span;`. 전부 우회하지 말고
+///    허용 목록을 의도적으로 넓히고 ADR 을 남길 것.
 /// 5. **경계를 넘는 값에 좌표가 없다.** 이 파일이 밖으로 내보내는 판정 결과
 ///    [StadiumVisitResult] 는 이유·구장 id·경기 id 와 [StadiumVisitResult.isVisit]
 ///    뿐이다. [DeviceFix] 는 타입 자체는 공개(시험이 판정 함수에 좌표를 넣어야
