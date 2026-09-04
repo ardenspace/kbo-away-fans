@@ -28,6 +28,7 @@ import '../../content/kst.dart';
 import '../../content/models.dart';
 import '../../location/visit_check.dart';
 import '../home/next_away_game.dart' show clockProvider;
+import 'stamp_award.dart';
 
 /// 일정·구장 문서를 판정 후보 목록으로 옮긴다.
 ///
@@ -89,32 +90,54 @@ class StadiumVisitCheck extends Notifier<StadiumVisitResult?> {
   /// 있는데, 그때 OS 에 측위를 두 번 요청할 이유가 없다.
   bool _running = false;
 
-  /// 판정을 한 번 돌리고 결과를 [state] 에 남긴다.
+  /// 판정을 한 번 돌리고 결과를 [state] 에 남긴 뒤, 방문이면 도장을 쓴다.
   ///
   /// **콘텐츠를 읽지 못한 실행에서는 판정하지 않고 상태를 그대로 둔다.**
   /// 일정을 모르면 "그날 경기가 없다"와 "일정을 못 읽었다"를 구분할 수 없고,
   /// 후자를 전자로 적으면 4.2 가 도장을 놓친 이유를 잘못 알게 된다.
+  ///
+  /// **이미 도장을 받은 경기만 남았으면 판정 자체를 건너뛴다** (4.2,
+  /// decisions.md 2026-09-04 `[S]`). 트리거가 포그라운드 복귀마다 도는데,
+  /// 도장을 이미 받은 뒤에도 계속 돌면 경기가 있는 날 앱을 켤 때마다 GPS 가
+  /// 켜진다. 그 앎을 가진 계층이 [StampAward] 다 — 판정만 하는
+  /// `lib/location/` 은 백엔드를 모른다.
+  ///
+  /// **도장 쓰기는 [_running] 밖에서 기다린다.** 이 빗장이 막으려는 것은
+  /// 겹쳐 도는 **측위**이지 쓰기가 아니고, 오프라인에서는 서버 확인이 복구
+  /// 뒤에나 오기 때문이다 — 그 기다림을 빗장 안에 두면 통신이 끊긴 구간
+  /// 내내 다음 판정이 통째로 막힌다. 겹쳐 부른 도장 쓰기는 [StampAward] 가
+  /// 자기 앎으로 막는다.
   Future<void> run() async {
     if (_running) return;
     _running = true;
+    ScheduleDocument? schedule;
+    StadiumVisitResult? result;
     try {
-      final schedule = await _document(scheduleProvider);
+      schedule = await _document(scheduleProvider);
       final stadiums = await _document(stadiumsProvider);
       if (schedule == null || stadiums == null) return;
 
-      final result = await ref
+      final candidates = buildStadiumVisitCandidates(
+        schedule: schedule,
+        stadiums: stadiums,
+      );
+      final now = ref.read(clockProvider)();
+      final award = ref.read(stampAwardProvider.notifier);
+      if (award.coversAll(candidatesToJudge(candidates, now))) return;
+
+      result = await ref
           .read(stadiumVisitCheckerProvider)
-          .check(
-            candidates: buildStadiumVisitCandidates(
-              schedule: schedule,
-              stadiums: stadiums,
-            ),
-            now: ref.read(clockProvider)(),
-          );
+          .check(candidates: candidates, now: now);
       state = result;
     } finally {
       _running = false;
     }
+
+    // 여기 닿았다는 것은 위 try 가 `return` 없이 끝났다는 뜻이라 둘 다 값이
+    // 있다 (분석기가 그것을 알아 null 검사를 지우게 한다).
+    await ref
+        .read(stampAwardProvider.notifier)
+        .award(result: result, schedule: schedule);
   }
 
   /// 콘텐츠 문서 하나를 "값 아니면 null" 로 — 로드가 끝나기를 기다린 뒤

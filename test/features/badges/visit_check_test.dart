@@ -1986,12 +1986,23 @@ void main() {
     );
 
     /// 콘텐츠 4종·시계·판정기를 갈아 끼운 컨테이너.
+    ///
+    /// **로그아웃 상태로 못 박는다.** 4.2 부터 방문 판정은 도장 쓰기로
+    /// 이어지는데(`features/badges/stamp_award.dart`), 이 그룹이 재는 것은
+    /// 트리거가 언제 도는가 하나다. 계정이 없으면 판정 결과가 도장으로
+    /// 이어지지 않으므로 그 축만 남는다 — 도장이 찍힌 뒤의 동작(같은 경기에서
+    /// 다시 측위하지 않는다)은 `test/backend/stamp_write_test.dart` 가 잰다.
+    /// 겸해서 인증 provider 가 설정 없는 Firebase 로 서다 실패하며 재시도
+    /// 타이머를 남기는 것도 막는다.
     ProviderContainer buildContainer(
       _RecordingChecker recorder, {
       bool scheduleUnavailable = false,
     }) {
+      final auth = FakeAuthService();
+      addTearDown(auth.dispose);
       final container = ProviderContainer(
         overrides: [
+          authServiceProvider.overrideWithValue(auth),
           clockProvider.overrideWithValue(() => duringPregame),
           stadiumsProvider.overrideWith((ref) async => ContentFresh(stadiums)),
           scheduleProvider.overrideWith(
