@@ -229,6 +229,40 @@ class CachedTeamId extends AsyncNotifier<String?> {
   }
 }
 
+/// 온보딩에서 방금 새 사용자 문서가 만들어졌는가 — 위치 권한 설명(step 2.5)을
+/// 띄울 유일한 신호.
+///
+/// **선다:** [SelectedTeamNotifier._writeProfile] 이 온보딩(`isChange` 가
+/// false인) 화면에서 `createProfile` 로 문서를 **실제로 만들었을** 때만
+/// ([SelectedTeamNotifier.mark] 호출 자리 참조). 그 밖의 어떤 갈래도 세우지
+/// 않는다 — 서버에 남기지 못해 되돌아간 선택도, 이미 있는 문서를 보고 물러선
+/// 선택도, 변경 모드의 패치도 서지 않는다. 셋 다 "이 사람이 방금 팀을 확정해
+/// 새 계정을 만들었다"가 아니고, 그 사실이 아닌데 위치를 물으면 사람이
+/// 고르지도 못한(또는 이미 갖고 있던) 팀에 대해 위치를 내주게 된다
+/// (`.wellbegun/decisions.md` 2026-09-01 [M]).
+///
+/// **한 번 읽으면 꺼진다.** 소비하는 쪽
+/// (`lib/features/onboarding/location_consent.dart`)이 신호를 본 즉시
+/// [consume] 으로 끈다 — 이 provider 는 그 사실을 스스로 알 방법이 없다(같은
+/// 세션에서 홈이 다시 그려질 때마다 신호가 남아 있으면 매번 다시 뜬다).
+final onboardingJustOnboardedProvider =
+    NotifierProvider<OnboardingJustOnboarded, bool>(
+  OnboardingJustOnboarded.new,
+);
+
+/// [onboardingJustOnboardedProvider] 의 몸통 — 세우는 자리는
+/// [SelectedTeamNotifier] 하나, 끄는 자리는 소비하는 화면 하나로 좁혀 둔다.
+class OnboardingJustOnboarded extends Notifier<bool> {
+  @override
+  bool build() => false;
+
+  /// 온보딩에서 문서가 방금 만들어졌다.
+  void mark() => state = true;
+
+  /// 신호를 봤다 — 다시 세우지 않는 한 이 세션에서 다시 뜨지 않는다.
+  void consume() => state = false;
+}
+
 /// 현재 응원 팀 id — null 이면 미선택(온보딩 대상).
 ///
 /// 루트 게이트(`lib/app.dart` 의 `_SignedInGate`)가 이 값으로 온보딩·홈·대기
@@ -463,6 +497,14 @@ class SelectedTeamNotifier extends Notifier<AsyncValue<String?>> {
       );
       if (created) {
         _writtenDocumentUid = owner.uid;
+        if (!isChange) {
+          // 온보딩에서 방금 새 계정이 섰다 — 위치 권한 설명을 띄울 신호를
+          // 켠다(step 2.5). 변경 모드에서 이 갈래에 이르는 것은 이 세션이
+          // 스냅샷을 못 본 채 "응원 팀 바꾸기"를 눌러 문서가 없는 것처럼
+          // 보인 드문 경우인데, 그 사람은 이미 계정이 있던 사람이라 위치를
+          // 새로 물을 자리가 아니다.
+          ref.read(onboardingJustOnboardedProvider.notifier).mark();
+        }
         return true;
       }
       // 만들지 못했다 = 이미 문서가 있다.

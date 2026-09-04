@@ -5,7 +5,7 @@ import 'backend/auth.dart';
 import 'content/content_providers.dart';
 import 'design/tokens.dart';
 import 'features/auth/sign_in_screen.dart';
-import 'features/home/home_screen.dart';
+import 'features/onboarding/location_consent.dart';
 import 'features/splash/splash_screen.dart';
 import 'features/team_select/selected_team.dart';
 import 'features/team_select/team_select_screen.dart';
@@ -207,7 +207,8 @@ class _RootGateState extends ConsumerState<RootGate> {
 bool _isSignedIn(AsyncValue<AuthUser?> state) =>
     !state.hasError && state.hasValue && state.value != null;
 
-/// 로그인한 뒤의 분기 — 응원 팀이 없으면 온보딩, 있으면 홈.
+/// 로그인한 뒤의 분기 — 응원 팀이 없으면 온보딩, 있으면 홈(그 사이에 step
+/// 2.5 의 위치 권한 게이트가 낀다 — [OnboardingLocationGate] 문서 참조).
 class _SignedInGate extends ConsumerWidget {
   const _SignedInGate();
 
@@ -216,7 +217,7 @@ class _SignedInGate extends ConsumerWidget {
     return switch (ref.watch(selectedTeamIdProvider)) {
       AsyncData(:final value) => value == null
           ? const TeamSelectScreen()
-          : HomeScreen(teamId: value),
+          : OnboardingLocationGate(teamId: value),
       AsyncError() => const TeamSelectScreen(),
       _ => _gateLoading,
     };
