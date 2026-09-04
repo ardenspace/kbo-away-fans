@@ -196,6 +196,20 @@ class _RecordingChecker {
 /// 그때 조용히 지나가지 않고 `expect(head, isNonNegative)` 가 빨간불이 되므로
 /// 막히는 쪽으로 틀린다(round 8 실측: `with` 절을 붙이면 그 시험이 실패한다).
 /// 5.2 가 경계 타입에 상위 타입을 붙이면 여기를 함께 고치게 된다.
+///
+/// **왜 이 함수는 [_withStringsBlanked] 를 쓰지 않는가** (round 11 이 같은
+/// 개념이 두 자리에 있는지 훑으면서 남긴 자리다). 두 가지 까닭이다.
+/// 첫째, 지운 사본은 **글자 자리가 원본과 다르다** — 주석을 지우는 것이
+/// 길이를 줄이므로 여기서 센 위치로 원본을 자를 수 없다. 둘째, 이 함수가
+/// 돌려주는 몸통을 보는 시험 하나가 **주석과 문자열까지 함께** 본다
+/// ("경계를 넘는 타입에는 좌표 어휘가 없다" — 결과 타입이 `lat` 을 주석이나
+/// 문자열로도 들고 나가지 않는 것을 잰다). 지운 사본을 넘기면 그 시험이
+/// 약해진다.
+///
+/// **어긋나면 무엇이 잡는가.** 이 거친 셈이 몸통을 짧게 끊거나 길게 잡으면
+/// 같은 몸통을 [_declaredStorage] 로 펴서 **표와 정확히 대조하는** 시험
+/// 셋(결과 타입·후보 타입·판정기)이 그 자리에서 빨간불이 된다. 닫는 중괄호를
+/// 아예 찾지 못하면 [fail] 로 선다.
 String _classBody(String source, String name) {
   final head = source.indexOf('class $name {');
   expect(head, isNonNegative, reason: '$name 을 소스에서 찾지 못했다');
@@ -215,12 +229,19 @@ String _classBody(String source, String name) {
 ///
 /// **이것은 `scripts/hooks/dart-source.sh` 와 같은 규칙이다.** 그 파일이
 /// 훅 둘의 검사 아홉 자리가 함께 쓰는 자리이고, 여기가 시험 쪽의 짝이다.
-/// 하나로 합치지 않은 까닭: Dart 시험이 셸 스크립트를 부르려면 하위 프로세스
-/// (`Process.runSync`)로 bash·awk·find·mktemp 를 타야 하는데, 그러면 계약이
-/// **이름으로 부른 경계 명령**이 그 넷의 있고 없음에 매달린다. 규칙 자체는
-/// 짧고(문자열·주석·보간을 세는 상태 더미 하나) 양쪽이 어긋나면 그 자리에서
-/// 빨간불이 되므로, 값싼 쪽은 같은 규칙을 두 언어로 두고 **서로를 가리켜
-/// 두는 것**이다 — `.wellbegun/decisions.md` 2026-09-05 `[S]`.
+/// 하나로 합치지 않은 까닭: 규칙의 몸통은 짧은데(문자열·주석·보간을 세는
+/// 상태 더미 하나) 그것을 셸 하나로만 두면 이 파일의 파수꾼들이 매번 하위
+/// 프로세스를 타야 한다 — `.wellbegun/decisions.md` 2026-09-05 `[S]`.
+///
+/// **round 11 이 그 `[S]` 의 두 번째 문장을 고쳤다.** 그 줄은 "양쪽이 어긋나면
+/// 그 자리에서 빨간불이 된다"라고 적었는데, 어긋남을 잡는 것이 아무것도
+/// 없었다(검증자가 양쪽에서 중첩 보간을 다루는 세 줄을 각각 지웠을 때 훅
+/// 4종·analyze·시험 684개가 전부 초록불이었다). 이제 아래 group
+/// "주석·문자열을 걷어 내는 규칙 (두 판이 함께 서 있다)" 가 같은 입력 열
+/// 가지로 **두 판을 실제로 견준다** — 그 시험만 `Process.runSync` 로 bash 를
+/// 타고, 나머지 파수꾼들은 그대로 이 Dart 판을 쓴다. bash·awk 는 계약이
+/// 이름으로 부른 경계 명령 셋 중 둘이 이미 요구하는 것이라 새로 매다는 것이
+/// 없다 (`.wellbegun/decisions.md` 2026-09-05 두 번째 `[S]`).
 ///
 /// 다루는 것과 다루지 못하는 것은 `dart-source.sh` 헤더의 목록 그대로다:
 /// 홑·겹따옴표와 각각의 세 겹, raw 접두어, 이스케이프, 중첩 블록 주석,
@@ -230,13 +251,40 @@ String _classBody(String source, String name) {
 ///
 /// 줄 수를 그대로 두는 것은 부르는 쪽이 줄 단위로 보기 때문이다: 주석만 있던
 /// 줄은 **빈 줄**로 남는다.
-String _withoutComments(String source) {
+String _withoutComments(String source) => _stripped(source, blankStrings: false);
+
+/// 주석을 걷어 낸 위에서 **문자열 리터럴까지 공백으로 지운** 사본.
+///
+/// 리터럴 전체를 지운다 — 여는·닫는 따옴표도, `r` 접두어도, 보간(`${...}`)
+/// **안의 코드까지** 다다. 그래서 이 사본에는 따옴표가 한 글자도 남지 않고,
+/// 남은 `;`·`{`·`}`·`(`·`)` 는 전부 코드다. 줄 수와 각 줄의 길이는 그대로다.
+///
+/// **이것이 있는 까닭.** 문장을 끊으려는 쪽([_classLevelStatements])은 문자열의
+/// 내용이 필요 없고 `;`·`{`·`}` 가 문자열 **안인지**만 알면 된다. 그것을 위해
+/// 문자열을 다시 파싱하면 문자열을 알아보는 규칙이 저장소에 두 자리가 되고,
+/// 두 자리의 세기가 어긋난다 — round 11 의 거부 사유가 그것이었다(짝인
+/// `check-no-location-upload.sh` 의 검사 4) 가 홑·겹따옴표만 알아서, 세 겹
+/// 문자열 안의 홀수 개 홑따옴표 하나에 파일 끝까지 눈이 멀었다). 그래서 지운
+/// 사본을 여기서 한 번 만들어 넘긴다. `scripts/hooks/dart-source.sh` 의
+/// `blank` 사본이 셸 쪽의 같은 것이다.
+String _withStringsBlanked(String source) =>
+    _stripped(source, blankStrings: true);
+
+/// 위 둘의 **한 자리** 구현 — 문자열·주석·보간을 세는 상태 더미는 여기뿐이다.
+String _stripped(String source, {required bool blankStrings}) {
   final kind = <String>[]; // 'B' 블록 주석 · 'S' 문자열 · 'I' 보간 안의 코드
   final quote = <String>[];
   final raw = <bool>[];
   final brace = <int>[];
   final out = StringBuffer();
   final identifier = RegExp(r'[A-Za-z0-9_$]');
+
+  /// 리터럴의 일부를 적는다 — 지운 사본에서는 **줄바꿈만 남기고** 같은 길이의
+  /// 공백이 된다. 줄바꿈을 지우지 않는 것은 부르는 쪽이 줄 번호로 보기
+  /// 때문이고, 셸 판이 줄 단위로 훑어 같은 답을 내기 때문이다.
+  void hide(String real) => out.write(
+    blankStrings ? real.replaceAll(RegExp(r'[^\n]'), ' ') : real,
+  );
 
   void push(String k, {String q = '', bool r = false, int b = 0}) {
     kind.add(k);
@@ -289,24 +337,24 @@ String _withoutComments(String source) {
 
     if (top == 'S') {
       if (!raw.last && c == r'\') {
-        out.write(source.substring(i, math.min(i + 2, source.length)));
+        hide(source.substring(i, math.min(i + 2, source.length)));
         i += 2;
         continue;
       }
       final q = quote.last;
       if (source.startsWith(q, i)) {
-        out.write(q);
+        hide(q);
         i += q.length;
         pop();
         continue;
       }
       if (!raw.last && c == r'$' && source.startsWith(r'${', i)) {
-        out.write(r'${');
+        hide(r'${');
         i += 2;
         push('I', b: 1);
         continue;
       }
-      out.write(c);
+      hide(c);
       i++;
       continue;
     }
@@ -330,7 +378,7 @@ String _withoutComments(String source) {
     if (top == 'I') {
       if (c == '{') {
         brace[brace.length - 1]++;
-        out.write(c);
+        hide(c);
         i++;
         continue;
       }
@@ -340,7 +388,7 @@ String _withoutComments(String source) {
         } else {
           brace[brace.length - 1]--;
         }
-        out.write(c);
+        hide(c);
         i++;
         continue;
       }
@@ -352,7 +400,7 @@ String _withoutComments(String source) {
         i + 1 < source.length &&
         (source[i + 1] == "'" || source[i + 1] == '"') &&
         (i == 0 || !identifier.hasMatch(source[i - 1]))) {
-      out.write(c);
+      hide(c); // raw 접두어도 리터럴의 일부다
       i++;
       head = source[i];
       isRaw = true;
@@ -361,16 +409,22 @@ String _withoutComments(String source) {
       final triple = head * 3;
       if (source.startsWith(triple, i)) {
         push('S', q: triple, r: isRaw);
-        out.write(triple);
+        hide(triple);
         i += 3;
         continue;
       }
       push('S', q: head, r: isRaw);
-      out.write(head);
+      hide(head);
       i++;
       continue;
     }
-    out.write(head);
+    // 보간 안은 문자열 리터럴의 일부다 — 지운 사본에서는 거기 있는
+    // 중괄호·따옴표도 함께 사라져야 부르는 쪽이 그것을 코드로 읽지 않는다.
+    if (top == 'I') {
+      hide(head);
+    } else {
+      out.write(head);
+    }
     i++;
   }
 
@@ -382,24 +436,34 @@ String _withoutComments(String source) {
 
 /// 클래스 몸통을 **문장 단위**로 끊어 돌려준다 — 들여쓰기를 보지 않는다.
 ///
-/// [_withoutComments] 로 주석을 먼저 걷어 낸 뒤, 문자열을 건너뛰며 괄호·
-/// 대괄호 밖의 중괄호로 깊이를 세고, 깊이 0 에서 괄호 밖의 `;` 를 만날 때
-/// 문장 하나를 끊는다. **주석을 걷어 내는 규칙을 여기 다시 적지 않는 것이
-/// round 10 의 변화다** — 그 규칙은 [_withoutComments] 한 자리에만 있다. 메서드 몸통을 여는 `{`
+/// [_withStringsBlanked] 가 주석과 **문자열 리터럴을 함께** 걷어 낸 사본을
+/// 받아, 괄호·대괄호 밖의 중괄호로 깊이를 세고 깊이 0 에서 괄호 밖의 `;` 를
+/// 만날 때 문장 하나를 끊는다. **주석을 걷어 내는 규칙도 문자열을 알아보는
+/// 규칙도 여기 다시 적지 않는다** — 둘 다 [_stripped] 한 자리에만 있다
+/// (주석은 round 10 이, 문자열은 round 11 이 모았다). 메서드 몸통을 여는 `{`
 /// 는 깊이를 올리고 모아 둔 것을 버리므로, 그 안의 지역 변수는 여기 오지
 /// 않는다. `({required this.x})` 처럼 **괄호 안의** 중괄호는 깊이를 바꾸지
 /// 않아서 생성자 하나가 문장 하나로 남는다.
+///
+/// 사본에 따옴표가 한 글자라도 남아 있으면 그 전제가 깨진 것이므로 **조용히
+/// 넘어가는 대신** 그 자리에서 빨간불이 된다.
 ///
 /// `check-no-location-upload.sh` 의 검사 4) 가 쓰는 것과 같은 방식이고, 까닭도
 /// 같다: 표기가 아니라 구조로 자리를 정해야 들여쓰기를 바꾸는 것만으로 파수꾼
 /// 을 지나가지 못한다.
 List<String> _classLevelStatements(String rawBody) {
-  final body = _withoutComments(rawBody);
+  final body = _withStringsBlanked(rawBody);
+  expect(
+    body,
+    isNot(anyOf(contains("'"), contains('"'))),
+    reason:
+        '문자열을 지운 사본에 따옴표가 남았다 — 이 함수는 문자열을 알아보지 '
+        '않으므로(_stripped 가 이미 지운다) 그 전제가 깨지면 여기서 멈춘다',
+  );
   final out = <String>[];
   final buf = StringBuffer();
   var depth = 0; // 클래스 몸통 안이 0, 메서드 몸통 안이 1 이상
   var paren = 0;
-  String? quote;
 
   void keep(String c) {
     if (depth == 0) buf.write(c);
@@ -407,19 +471,6 @@ List<String> _classLevelStatements(String rawBody) {
 
   for (var i = 0; i < body.length; i++) {
     final c = body[i];
-    if (quote != null) {
-      if (c == r'\') {
-        i++;
-      } else if (c == quote) {
-        quote = null;
-      }
-      continue;
-    }
-    if (c == "'" || c == '"') {
-      quote = c;
-      keep(c);
-      continue;
-    }
     if (c == '(' || c == '[') {
       paren++;
       keep(c);
@@ -1701,7 +1752,14 @@ void main() {
     });
 
     test('원정 경기도 홈 경기와 똑같이 후보다 — 둘을 가르는 값이 없다', () {
-      // `lg` 를 응원 팀으로 보면 앞엣것은 홈 경기, 뒤엣것은 원정 경기다.
+      // `lg` 를 응원 팀으로 보면 첫째는 홈 경기, 둘째는 원정 경기다.
+      //
+      // 셋째(`g-share`)는 round 11 이 더한 자리다. 그 전에는 이 group 의 어느
+      // 픽스처에서도 `doosan` 이 **홈 팀인 적이 한 번도 없어서**, 홈 팀 id 로
+      // 후보를 거르는 변이(`game.homeTeamId == 'doosan'` 인 경기를 빼기)가
+      // 초록불로 남았다(원정 팀 id 로 거르는 변이는 `g-away` 가 잡았다).
+      // 잠실을 두 팀이 함께 쓰므로 `doosan` 이 홈인 잠실 경기는 실제 일정에
+      // 있는 모양이기도 하다.
       final schedule = ScheduleDocument(
         generatedAt: DateTime.utc(2026),
         games: [
@@ -1719,6 +1777,13 @@ void main() {
             away: 'lg',
             stadium: 'sajik',
           ),
+          _game(
+            id: 'g-share',
+            date: '2026-08-25',
+            home: 'doosan',
+            away: 'kt',
+            stadium: 'jamsil',
+          ),
         ],
       );
 
@@ -1729,8 +1794,8 @@ void main() {
 
       expect(
         candidates.map((c) => c.gameId),
-        ['g-home', 'g-away'],
-        reason: '홈이든 원정이든 후보에서 빠지지 않는다',
+        ['g-home', 'g-away', 'g-share'],
+        reason: '홈이든 원정이든, 홈 팀이 어느 팀이든 후보에서 빠지지 않는다',
       );
 
       // 그리고 그 구장에 있었는지만 본다 — 둘 다 같은 이유로 방문이 된다.
@@ -2034,4 +2099,312 @@ void main() {
       expect(recorder.fixReads, 1, reason: '골격이 뜨는 것만으로 판정이 한 번 돈다');
     });
   });
+
+  group('주석·문자열을 걷어 내는 규칙 (두 판이 함께 서 있다)', () {
+    test('중첩 보간·세 겹·보간 안의 중괄호가 든 줄이 잘리지 않는다', () {
+      // round 10 이 고친 자리: 보간 안의 같은 따옴표가 문자열을 닫은 것으로
+      // 읽히면 그 뒤의 `//` 가 줄 주석이 되어 줄의 나머지가 사라진다.
+      expect(
+        _withoutComments("final v = '\${a ?? 'https://a.b'}/x'; // c\n"),
+        "final v = '\${a ?? 'https://a.b'}/x'; \n",
+      );
+      expect(
+        _withoutComments("final s = 'a\${'b\${'c'}d'}e'; // c\n"),
+        "final s = 'a\${'b\${'c'}d'}e'; \n",
+      );
+      // round 11 이 고친 두 모양.
+      expect(
+        _withoutComments("final t = '\${f('}')}'; // c\n"),
+        "final t = '\${f('}')}'; \n",
+      );
+      expect(
+        _withoutComments("String d() => '''it's fine'''; // c\n"),
+        "String d() => '''it's fine'''; \n",
+      );
+    });
+
+    test('문자열을 지운 사본에는 따옴표가 남지 않고 글자 자리도 그대로다', () {
+      for (final entry in _mirrorCorpus) {
+        final code = _withoutComments(entry.source);
+        final blank = _withStringsBlanked(entry.source);
+        expect(
+          blank.length,
+          code.length,
+          reason: '${entry.name}: 지운 사본은 글자 자리를 그대로 둔다',
+        );
+        expect(
+          blank.split('\n').length,
+          code.split('\n').length,
+          reason: '${entry.name}: 줄 수도 그대로다',
+        );
+        expect(
+          blank,
+          isNot(anyOf(contains("'"), contains('"'))),
+          reason: '${entry.name}: 리터럴은 따옴표까지 통째로 지워진다',
+        );
+      }
+
+      // 보간 **안의** 중괄호와 세 겹 문자열의 홑따옴표도 함께 사라진다 —
+      // 문장을 끊는 쪽이 그것을 코드로 읽지 않게 하는 것이 이 사본의 목적이다.
+      expect(
+        _withStringsBlanked(
+          "final t = '\${f('}')}'; // c\n",
+        ).replaceAll(RegExp(r'\s'), ''),
+        'finalt=;',
+      );
+      expect(
+        _withStringsBlanked(
+          "String d() => '''it's fine'''; // c\n",
+        ).replaceAll(RegExp(r'\s'), ''),
+        'Stringd()=>;',
+      );
+      // 리터럴 밖은 한 글자도 건드리지 않는다.
+      expect(
+        _withStringsBlanked("final u = 'x'; const int y = 2;\n"),
+        'final u =    ; const int y = 2;\n',
+      );
+    });
+
+    test('셸 판(dart-source.sh)과 Dart 판이 같은 사본 둘을 낸다', () {
+      final run = _shellMirror(_mirrorCorpus);
+      expect(
+        run.exitCode,
+        0,
+        reason: 'dart_source_mirror 가 이 입력들에서 서야 한다\n${run.stderr}',
+      );
+      for (final entry in _mirrorCorpus) {
+        expect(
+          run.code[entry.name],
+          _withoutComments(entry.source),
+          reason: '${entry.name}: 주석만 걷어 낸 사본이 두 판에서 같다',
+        );
+        // 지운 사본은 **공백을 접어서** 견준다. awk 는 문자열 안의 글자를
+        // 바이트로 세고 Dart 는 UTF-16 단위로 세어서, 리터럴 안에 한글이
+        // 있으면 지운 자리의 **공백 개수**만 달라진다(둘 다 공백이므로 부르는
+        // 쪽에는 차이가 없다 — 문장을 끊는 쪽은 공백을 하나로 접어 본다).
+        // 그 밖의 어긋남(따옴표나 중괄호가 한쪽에만 남는 것, 줄이 사라지는
+        // 것)은 접어도 그대로 드러난다.
+        String fold(String s) => s.replaceAll(RegExp(' +'), ' ');
+        expect(
+          fold(run.blank[entry.name] ?? ''),
+          fold(_withStringsBlanked(entry.source)),
+          reason: '${entry.name}: 문자열까지 지운 사본이 두 판에서 같다',
+        );
+      }
+    });
+
+    test('사본을 만들지 못하는 입력은 조용히 통과하는 대신 2 로 선다', () {
+      // 갈래마다 **자기 까닭**을 적는다 — 셋이 한 메시지로 뭉개지면
+      // `dart-source.sh` 헤더의 "다루지 못하는 것" 목록이 고칠 길을 잘못
+      // 가리킨다. 그래서 메시지까지 함께 못 박는다(그러지 않으면 `bail()` 을
+      // 통째로 없애도 2)의 END 가드가 대신 서 주어 이 시험이 공허해진다 —
+      // 실측으로 확인했다).
+      const probes = <({String why, String source, String shell, String dart})>[
+        (
+          why: '닫히지 않은 블록 주석',
+          source: '/* x\n',
+          shell: '닫히지 않은 블록 주석으로 파일이 끝났습니다',
+          dart: '닫히지 않은 블록 주석으로 소스가 끝났다',
+        ),
+        (
+          why: '닫히지 않은 문자열',
+          source: "final a = 'x;\n",
+          shell: '닫히지 않은 문자열로 파일이 끝났습니다',
+          dart: '닫히지 않은 문자열으로 소스가 끝났다',
+        ),
+        (
+          why: '한 줄짜리 문자열의 보간 안 줄 주석',
+          source: "final v = '\${a // c}';\n",
+          shell: '한 줄짜리 문자열의 보간 안에서 줄 주석을 만났습니다',
+          dart: '한 줄짜리 문자열의 보간 안에서 줄 주석을 만났다',
+        ),
+      ];
+      for (final probe in probes) {
+        final run = _shellMirror([(name: 'probe', source: probe.source)]);
+        expect(
+          run.exitCode,
+          2,
+          reason: '${probe.why}: dart_source_mirror 가 2 를 돌려준다',
+        );
+        expect(
+          run.stderr,
+          contains('src/probe.dart'),
+          reason: '${probe.why}: 어느 파일인지 stderr 에 적힌다',
+        );
+        expect(
+          run.stderr,
+          contains('여기서 멈춥니다'),
+          reason: '${probe.why}: 조용히 통과하지 않는다',
+        );
+        expect(
+          run.stderr,
+          contains(probe.shell),
+          reason: '${probe.why}: 셸 판이 이 갈래의 까닭을 적는다',
+        );
+        expect(
+          () => _withoutComments(probe.source),
+          throwsA(
+            isA<StateError>().having(
+              (e) => e.message,
+              'message',
+              contains(probe.dart),
+            ),
+          ),
+          reason: '${probe.why}: Dart 판도 같은 자리에서 같은 까닭으로 선다',
+        );
+      }
+
+      // 사본이 하나도 생기지 않는 실행도 같다 — 검사가 볼 것이 없는 채로
+      // 초록불이 되지 않는다.
+      final empty = _shellMirror(const []);
+      expect(empty.exitCode, 2);
+      expect(empty.stderr, contains('사본이 하나도 생기지 않았습니다'));
+    });
+  });
 }
+
+// ─────────────────────────────────────────────────────────────────────────
+// 주석·문자열을 걷어 내는 규칙의 두 판을 재는 자리 (round 11).
+// ─────────────────────────────────────────────────────────────────────────
+//
+// round 11 의 거부 사유 둘이 "어긋나면 잡힌다고 적었는데 잡는 것이 없다"였다.
+// [_withoutComments] 의 doc 이 "양쪽이 어긋나면 그 자리에서 빨간불이 된다"라고
+// 적고 `.wellbegun/decisions.md` 2026-09-05 `[S]` 가 같은 말을 했는데, 검증자가
+// 양쪽에서 중첩 보간을 다루는 세 줄을 각각 지웠을 때 훅 4종·analyze·시험
+// 684개가 **전부 초록불**이었다. 그리고 셸 판의 실패 표면화 장치(`bail()` 과
+// `dart_source_mirror` 의 종료 상태)를 통째로 없애도 마찬가지였다.
+//
+// 아래 넷이 그 문장을 참으로 만든다:
+//   1. Dart 판의 정확한 출력 — 중첩 보간·세 겹·raw 를 지우면 빨간불이 된다.
+//   2. 지운 사본의 성질 — 따옴표가 남지 않고 글자 수가 그대로다.
+//   3. **두 판의 동치** — 같은 입력에 셸 판과 Dart 판이 같은 사본 둘을 낸다.
+//   4. 셸 판의 **실패 표면화** — 다루지 못하는 입력 셋과 빈 사본에서 2 가 선다.
+//
+// 3·4 는 `Process.runSync` 로 bash 를 탄다. 계약이 이름으로 부른 경계 명령
+// 셋 중 둘이 이미 `bash scripts/hooks/...` 이므로 bash·awk 는 이 계약이 이미
+// 요구하는 것이고, 여기서 새로 매다는 것은 없다 (까닭은
+// `.wellbegun/decisions.md` 2026-09-05 두 번째 `[S]`).
+
+/// 셸 판(`scripts/hooks/dart-source.sh`)을 임시 자리에서 한 번 돌린 결과.
+({int exitCode, String stderr, Map<String, String> code, Map<String, String> blank})
+_shellMirror(List<({String name, String source})> files) {
+  final tmp = Directory.systemTemp.createTempSync('dart_source_mirror_');
+  try {
+    Directory('${tmp.path}/src').createSync();
+    for (final f in files) {
+      File('${tmp.path}/src/${f.name}.dart').writeAsStringSync(f.source);
+    }
+    final run = Process.runSync('bash', [
+      '-c',
+      r'cd "$2" && . "$1" && dart_source_mirror mirror src',
+      'dart-source-probe',
+      File('scripts/hooks/dart-source.sh').absolute.path,
+      tmp.path,
+    ]);
+    final code = <String, String>{};
+    final blank = <String, String>{};
+    for (final f in files) {
+      for (final pair in [('code', code), ('blank', blank)]) {
+        final file = File('${tmp.path}/mirror/${pair.$1}/src/${f.name}.dart');
+        if (file.existsSync()) pair.$2[f.name] = file.readAsStringSync();
+      }
+    }
+    return (
+      exitCode: run.exitCode,
+      stderr: run.stderr as String,
+      code: code,
+      blank: blank,
+    );
+  } finally {
+    tmp.deleteSync(recursive: true);
+  }
+}
+
+/// 두 판에 함께 먹이는 입력들 — `dart-source.sh` 헤더의 "바르게 다루는 것"
+/// 목록을 그대로 옮긴 것이고, round 11 이 찾은 두 모양(세 겹 문자열 안의
+/// 홀수 개 홑따옴표, 보간 안의 닫는 중괄호)이 앞의 둘이다.
+const _mirrorCorpus = <({String name, String source})>[
+  (
+    name: 'triple_odd_quote',
+    source: r"""
+class Probe {
+  String doc() => '''it's fine''';
+  int n = 1;
+}
+""",
+  ),
+  (
+    name: 'interp_close_brace',
+    source: r"""
+final t = '${f('}')}'; // 꼬리 주석
+final after = 1;
+""",
+  ),
+  (
+    name: 'nested_interp',
+    source: r"""
+final v = '${a ?? 'https://a.b'}/x'; // 꼬리 주석
+final s = 'a${'b${'c'}d'}e'; // 꼬리 주석
+""",
+  ),
+  (
+    name: 'escapes',
+    source: r"""
+final e = 'it\'s';
+final f2 = "he said \"x\"";
+final g = 'a\\';
+""",
+  ),
+  (
+    name: 'comment_markers_in_string',
+    source: r"""
+final u = 'https://a.b';
+final v2 = '/*';
+final w = '\${notInterp}//still string';
+""",
+  ),
+  (
+    name: 'code_in_interp',
+    source: r"""
+final z = '${ /* } */ a}';
+final m = '${ {'k': 1}.length }';
+final r2 = '${r'x'}';
+""",
+  ),
+  (
+    name: 'raw_and_adjacent',
+    source: r"""
+final rr = r'a\${b}//c';
+final n = 'a' 'b';
+final o = '';
+final p = '''a'b''';
+""",
+  ),
+  (
+    name: 'nested_block_comment',
+    source: r"""
+final/*c*/int x = 1; /* /* y */ */
+final y = a / /* c */ b;
+// 주석 안의 '따옴표
+/* ' 와 " */
+""",
+  ),
+  (
+    name: 'triple_over_lines',
+    source: r'''
+final block = """
+  ; { } 는 전부 문자열 안이다
+""";
+final after = 1;
+''',
+  ),
+  (
+    name: 'line_comment_in_triple_interp',
+    source: r'''
+final t3 = """${a
+// 세 겹 안의 보간이라 이 줄 주석은 성립한다
+}""";
+final rr3 = r"""a\b${c}""";
+''',
+  ),
+];

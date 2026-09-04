@@ -297,7 +297,11 @@
 ///
 ///    · **최상위 선언은 타입이 아니라 이름을 본다** (round 7 에서 뒤집었다).
 ///      이 폴더의 최상위 선언 이름 집합을 스크립트의 `LOC_TOP_NAMES` 가 그대로
-///      못 박고, 거기 없는 이름이 하나라도 서면 exit 2 다. 갈래(type·func·
+///      못 박고, 거기 없는 이름이 하나라도 서면 exit 2 다(round 11 이 그
+///      문장을 한 번 거짓으로 만들었다 — 그 검사의 문장 훑기가 세 겹 문자열을
+///      몰라서 `'''it's fine'''` 한 줄 뒤의 선언을 통째로 삼켰고, 그 구간의
+///      최상위 저장소가 조용히 통과했다. 문자열을 알아보는 자리를
+///      `scripts/hooks/dart-source.sh` 하나로 모아 닫았다). 갈래(type·func·
 ///      getter·setter·const·provider·var)도 이름과 함께 못 박으므로, 이름을
 ///      그대로 두고 모양만 바꾸는 변경도 걸린다(실측: `const double
 ///      kStadiumVisitRadiusMeters` 를 `double` 저장소로 바꾸면 const→var,

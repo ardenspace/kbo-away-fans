@@ -115,7 +115,12 @@
 #      보간을 이어 읽는다(실측).
 #
 #   위 셋 다 `flutter analyze` 가 함께 빨간불이거나(1·2·3) 애초에 성립하지 않는
-#   입력이다. 그리고 셋 다 **파일 이름과 함께** 적힌다.
+#   입력이다. 그리고 셋 다 **파일 이름과 함께** 적힌다. 셋이 **각자의 까닭을**
+#   적는 것과 `dart_source_mirror` 가 그것을 2 로 세우는 것은 시험이 잰다
+#   (`test/features/badges/visit_check_test.dart` 의 "사본을 만들지 못하는
+#   입력은 조용히 통과하는 대신 2 로 선다"). round 11 까지는 그것을 재는
+#   시험이 없어서, `bail()` 을 아무 일도 하지 않게 만들거나
+#   `dart_source_mirror` 가 awk 실패를 삼키게 만들어도 전부 초록불이었다.
 #
 #   그밖에 이 규칙이 **알아보지 못하는 Dart 문법은 실측으로 찾지 못했다.** 다만
 #   이것은 Dart 파서가 아니라 문자 훑기라서, 위 목록 밖의 성립하지 않는 입력이
@@ -126,13 +131,47 @@
 # 알아보는 문자열은 넷이다: 홑따옴표·겹따옴표, 그 각각의 세 겹
 # (`'''`·`"""`, 줄을 넘긴다), 그리고 raw 접두어(`r'…'`).
 #
-# **문자열을 알아보는 규칙이 이 저장소에 두 자리 있는 것은 목적이 다르기
-# 때문이다.** 여기서는 "주석 표지가 문자열 안에 있는가"를 가리려고 보고,
-# `check-no-location-upload.sh` 의 검사 4) 는 "문장을 끊는 `;`·`{` 가 문자열
-# 안에 있는가"를 가리려고 본다. 둘을 하나로 합치려면 문자열 내용을 지워야
-# 하는데, 그러면 검사 2) 가 URI 를 읽지 못한다. (같은 유형의 구분: 같은
-# 스크립트의 `DECL_MODIFIERS` 와 필드 수식어 집합도 이름이 겹치지만 다른
-# 개념이라고 그 자리에 적혀 있다.)
+# ─────────────────────────────────────────────────────────────────────────
+# round 11 이 이 파일에서 고친 것 — 사본이 **둘**이 되었다.
+# ─────────────────────────────────────────────────────────────────────────
+#
+# round 11 의 거부 사유는 **문자열을 알아보는 규칙이 이 저장소에 두 자리
+# 있었다는 것**이다. 여기 헤더는 위 넷을 알아본다고 적었고 실제로 그랬는데,
+# `check-no-location-upload.sh` 의 검사 4) 가 문장을 끊으려고 **자기 훑기에
+# 다시 적은** 규칙은 홑따옴표·겹따옴표 둘만 알았다. 그래서 세 겹 문자열 안의
+# 홀수 개 홑따옴표 하나(`'''it's fine'''` — Dart 가 이스케이프를 요구하지 않는
+# 가장 평범한 표기이고, 이 저장소도 이미 쓴다)에 그 훑기가 파일 끝까지 눈이
+# 멀었다. 얼굴이 둘이었다: 파일이 클래스 몸통으로 끝나면 삼켜진 구간의 최상위
+# 저장소가 **조용히 통과**했고(검증자 재현: `DeviceFix? lastSpot;` 이 훅 4종·
+# analyze·시험 684개를 전부 지났다), 그렇지 않으면 정당한 코드가 **원인과
+# 무관한 자리를 가리키는 오탐**으로 걸렸다. 보간 안의 문자열에 담긴 닫는
+# 중괄호(`'${f('}')}'`)도 같은 뿌리로 어긋났다.
+#
+# 이 저장소가 같은 뿌리로 거부당한 것이 세 번째였다(round 8 선언 머리 읽기,
+# round 9 주석 걷어내기, round 11 문자열 알아보기). 앞의 둘과 같은 방식으로
+# 푼다: **문자열을 알아보는 상태 기계를 이 파일 하나에만 둔다.**
+#
+# 부르는 쪽이 문자열을 다시 파싱하지 않아도 되도록, 한 번 훑으면서 사본을
+# **둘** 낸다.
+#
+#   · **code 사본** — 주석만 걷어 내고 문자열 내용은 그대로. 문자열의 *내용*이
+#     필요한 쪽이 읽는다(검사 2) 가 import 의 URI 를 거기서 읽는다).
+#   · **blank 사본** — 그 위에서 문자열 리터럴을 통째로 공백으로 지운 것.
+#     여는·닫는 따옴표도, `r` 접두어도, **보간(`${…}`) 안의 코드까지** 지운다.
+#     그래서 이 사본에는 따옴표가 한 글자도 남지 않고, 남은 `;`·`{`·`}` 는
+#     전부 코드다. 문자열이 *어디까지인지*만 필요한 쪽이 읽는다(검사 4)).
+#
+# 두 사본은 **줄 수도 각 줄의 글자 수도 같다** — blank 사본은 지운 자리에
+# 같은 길이의 공백을 넣고 줄바꿈은 그대로 둔다. 그래서 부르는 쪽의 줄 번호가
+# 원본과 어긋나지 않는다.
+#
+# blank 사본을 읽는 쪽은 **따옴표가 남아 있으면 멈춘다** — 그 전제가 깨졌다는
+# 뜻이고, 그것이 조용히 통과하는 것이 round 11 의 거부 사유였기 때문이다.
+#
+# (같은 유형의 구분이지만 **합치지 않은** 자리도 하나 적어 둔다:
+# `check-no-location-upload.sh` 의 `DECL_MODIFIERS`(선언 머리의 class
+# modifier)와 필드 수식어 집합은 이름이 겹치지만 다른 개념이고, 왜 같아서는
+# 안 되는지가 그 자리에 적혀 있다.)
 #
 # ─────────────────────────────────────────────────────────────────────────
 # 쓰는 법.
@@ -144,16 +183,32 @@
 #   trap 'rm -rf "$MIRROR"' EXIT
 #   dart_source_mirror "$MIRROR" lib || fail=2
 #
-# 그 뒤로는 `$MIRROR/<원본과 같은 상대 경로>` 를 읽는다. `grep -rn` 을 쓸
-# 때는 `(cd "$MIRROR" && grep -rn … lib)` 로 부르면 출력의 경로가 원본과
-# 같은 모양으로 나온다.
+# 그 뒤로는 `$MIRROR/code/<원본과 같은 상대 경로>` (주석만 걷어 낸 사본) 나
+# `$MIRROR/blank/<같은 상대 경로>` (문자열까지 지운 사본) 를 읽는다.
+# `grep -rn` 을 쓸 때는 `(cd "$MIRROR/code" && grep -rn … lib)` 로 부르면
+# 출력의 경로가 원본과 같은 모양으로 나온다.
+#
+# **둘 중 어느 것을 읽을 것인가.** 문자열의 **내용**이 필요하면 code 사본이고
+# (검사 2) 가 import 의 URI 를 거기서 읽는다), 문자열이 **어디까지인지**만
+# 필요하면 blank 사본이다 (검사 4) 는 `;`·`{`·`}` 가 문자열 안인지만 가린다).
+# blank 사본을 읽는 쪽은 문자열을 다시 파싱하지 않는다 — 그것이 이 파일이
+# 있는 까닭이다.
 
 DART_SOURCE_AWK='
   # 상태 더미. kind[k] 는 "B"(블록 주석) · "S"(문자열) · "I"(보간 안의 코드).
   # 더미가 비면 파일 최상위의 코드 자리다.
-  BEGIN { top = 0; abort = 0 }
+  BEGIN { top = 0; abort = 0; printf "" > (BLANK) }
 
   function push(k) { top++; kind[top] = k; quote[top] = ""; raw[top] = 0; brace[top] = 0 }
+
+  function sp(n,   s) { s = ""; while (n-- > 0) s = s " "; return s }
+
+  # 한 번 훑으면서 사본 **둘**을 함께 적는다.
+  #   a → code 사본  : 주석만 걷어 내고 문자열 내용은 그대로 둔다.
+  #   b → blank 사본 : 그 위에서 문자열 리터럴을 통째로 공백으로 지운다.
+  # 부르는 쪽이 문자열을 다시 파싱하지 않도록, 문자열을 알아보는 일은 여기서
+  # 끝낸다.
+  function put(a, b) { out = out a; bout = bout b }
 
   # 가장 안쪽 문자열이 세 겹인가 — 줄 주석을 만났을 때 이 줄만 버려도 되는지를
   # 가른다 (세 겹은 다음 줄에서 같은 보간을 이어 읽을 수 있다).
@@ -172,6 +227,7 @@ DART_SOURCE_AWK='
     line = $0
     len = length(line)
     out = ""
+    bout = ""
     i = 1
     while (i <= len) {
       state = (top > 0) ? kind[top] : "C"
@@ -184,23 +240,27 @@ DART_SOURCE_AWK='
         continue
       }
 
-      if (state == "S") {                         # 문자열 안 — 내용은 그대로 둔다
+      if (state == "S") {                         # 문자열 안 — code 사본은 내용을 그대로 두고 blank 사본은 지운다
         c = substr(line, i, 1)
-        if (!raw[top] && c == "\\") { out = out substr(line, i, 2); i += 2; continue }
+        if (!raw[top] && c == "\\") { put(substr(line, i, 2), "  "); i += 2; continue }
         q = quote[top]
         if (substr(line, i, length(q)) == q) {
-          out = out q; i += length(q); top--
+          put(q, sp(length(q))); i += length(q); top--
           continue
         }
         if (!raw[top] && c == "$" && substr(line, i + 1, 1) == "{") {
-          out = out "${"; i += 2; push("I"); brace[top] = 1
+          put("${", "  "); i += 2; push("I"); brace[top] = 1
           continue
         }
-        out = out c; i++
+        put(c, " "); i++
         continue
       }
 
       # 여기부터는 코드 자리다 — 파일 최상위("C") 이거나 보간 안("I").
+      # **보간 안은 문자열 리터럴의 일부다** — blank 사본에서는 거기 있는
+      # 중괄호·따옴표도 함께 지워야 부르는 쪽이 그것을 코드로 읽지 않는다
+      # (`${f("}")}` 의 닫는 중괄호가 그 자리다).
+      inStr = (state == "I")
       two = substr(line, i, 2)
       if (two == "//") {                          # 줄 주석 — 나머지를 버린다
         if (top > 0 && !innerStringIsTriple()) {
@@ -211,14 +271,14 @@ DART_SOURCE_AWK='
       # 블록 주석은 **공백 하나로** 접는다 — 토막 사이에 있던 주석이 두 토막을
       # 붙여 버리지 않도록 (`final/*c*/int x` 가 `finalint x` 가 되면 부르는
       # 쪽이 선언을 읽지 못한다).
-      if (two == "/*") { push("B"); i += 2; out = out " "; continue }
+      if (two == "/*") { push("B"); i += 2; put(" ", " "); continue }
 
       c = substr(line, i, 1)
       if (state == "I") {                         # 보간의 짝을 센다
-        if (c == "{") { brace[top]++; out = out c; i++; continue }
+        if (c == "{") { brace[top]++; put(c, " "); i++; continue }
         if (c == "}") {
-          if (brace[top] <= 1) { top--; out = out c; i++; continue }
-          brace[top]--; out = out c; i++
+          if (brace[top] <= 1) { top--; put(c, " "); i++; continue }
+          brace[top]--; put(c, " "); i++
           continue
         }
       }
@@ -226,7 +286,7 @@ DART_SOURCE_AWK='
       isRaw = 0
       if (c == "r" && (substr(line, i + 1, 1) == "\047" || substr(line, i + 1, 1) == "\"") \
           && (i == 1 || substr(line, i - 1, 1) !~ /[A-Za-z0-9_$]/)) {
-        out = out c; i++
+        put(c, " "); i++                          # raw 접두어도 리터럴의 일부다
         c = substr(line, i, 1)
         isRaw = 1
       }
@@ -234,16 +294,17 @@ DART_SOURCE_AWK='
         q3 = c c c
         if (substr(line, i, 3) == q3) {           # 세 겹 — 줄을 넘길 수 있다
           push("S"); quote[top] = q3; raw[top] = isRaw
-          out = out q3; i += 3
+          put(q3, "   "); i += 3
           continue
         }
         push("S"); quote[top] = c; raw[top] = isRaw
-        out = out c; i++
+        put(c, " "); i++
         continue
       }
-      out = out c; i++
+      put(c, inStr ? " " : c); i++
     }
     print out
+    print bout > (BLANK)
   }
 
   END {
@@ -260,7 +321,11 @@ DART_SOURCE_AWK='
   }
 '
 
-# 주어진 자리들 아래의 `*.dart` 를 주석만 걷어 낸 사본으로 $1 아래에 만든다.
+# 주어진 자리들 아래의 `*.dart` 를 사본 **둘**로 $1 아래에 만든다.
+#
+#   $1/code/<원본과 같은 상대 경로>   주석만 걷어 낸 사본
+#   $1/blank/<원본과 같은 상대 경로>  그 위에서 문자열 리터럴까지 지운 사본
+#
 # 상대 경로는 원본 그대로 둔다 — 부르는 쪽이 원본 경로로 메시지를 낼 수 있다.
 #
 # awk 가 실패하거나 사본이 하나도 생기지 않으면 **조용히 통과하는 대신**
@@ -269,7 +334,7 @@ DART_SOURCE_AWK='
 dart_source_mirror() {
   local mirror=$1
   shift
-  local rc=0 count=0 root f out
+  local rc=0 count=0 root f out blank
   for root in "$@"; do
     if [ ! -e "$root" ]; then
       echo "dart_source_mirror: $root 이 없습니다." >&2
@@ -277,13 +342,14 @@ dart_source_mirror() {
       continue
     fi
     while IFS= read -r f; do
-      out="$mirror/$f"
-      if ! mkdir -p "$(dirname "$out")"; then
+      out="$mirror/code/$f"
+      blank="$mirror/blank/$f"
+      if ! mkdir -p "$(dirname "$out")" || ! mkdir -p "$(dirname "$blank")"; then
         echo "dart_source_mirror: $out 의 자리를 만들지 못했습니다." >&2
         rc=2
         continue
       fi
-      if awk "$DART_SOURCE_AWK" "$f" > "$out"; then
+      if awk -v BLANK="$blank" "$DART_SOURCE_AWK" "$f" > "$out"; then
         count=$((count + 1))
       else
         echo "dart_source_mirror: $f 에서 주석을 걷어 내지 못했습니다 — 검사가 조용히 통과하는 대신 여기서 멈춥니다." >&2

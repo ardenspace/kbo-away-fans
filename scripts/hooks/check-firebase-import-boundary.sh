@@ -36,7 +36,20 @@
 #
 # 주석을 걷어 내는 규칙은 `scripts/hooks/dart-source.sh` **한 자리**에 있다 —
 # 짝 훅(`check-no-location-upload.sh`)도 같은 자리를 쓴다. 같은 개념을 두 자리에
-# 따로 적으면 어긋남이 다시 생긴다.
+# 따로 적으면 어긋남이 다시 생긴다. 그 파일이 만드는 사본은 둘인데 이 훅은
+# **code 사본**(주석만 걷어 낸 것)을 읽는다 — 아래 grep 이 import 의 URI 를
+# 문자열 안에서 읽어야 하기 때문이다.
+#
+# **주석과 달리 문자열 리터럴 안의 `package:…` 는 그대로 잡는다** — 사본이
+# 문자열 내용은 건드리지 않기 때문이고, **막히는 쪽으로 틀리는 것이다**
+# (짝 훅의 검사 5) 가 `print(` 에 대해 적어 둔 것과 같은 문장이다). 실측:
+# `lib/location/location.dart` 에 세 겹 문자열로 쓴 정규식
+# `RegExp('''^import\s+['"]package:geolocator/geolocator.dart['"];''')` 을
+# 넣으면 `flutter analyze` 는 무지적인데 이 훅이 exit 2 이고, 메시지는
+# "import 가 밖에 있습니다"라고 말한다(걸린 것은 import 가 아니라 그것을
+# 서술하는 문자열이다). 이 계층의 경계를 **정규식이나 예시 문자열로** 적어야
+# 하면 `package:` 를 문자열 안에 통째로 두지 말고 쪼개어 적으십시오 —
+# 오탐 쪽이 아니라 정탐 쪽으로 틀리도록 일부러 이 세기로 둔다.
 #
 # 위반은 stderr 에 찍고 exit 2 (Claude Code PostToolUse 훅이 읽는 신호).
 set -u
@@ -61,7 +74,7 @@ dart_source_mirror "$MIRROR" lib || fail=2
 # 명령 치환(`$( )`)이라 함수 안의 대입이 밖으로 나오지 못하기 때문이다.
 mirror_grep() {
   local pattern=$1 out status
-  out=$( (cd "$MIRROR" || exit 9; grep -rnE --include='*.dart' "$pattern" lib) 2>/dev/null )
+  out=$( (cd "$MIRROR/code" || exit 9; grep -rnE --include='*.dart' "$pattern" lib) 2>/dev/null )
   status=$?
   if [ "$status" -gt 1 ]; then
     printf 'GREPFAIL\t%s\n' "$pattern"

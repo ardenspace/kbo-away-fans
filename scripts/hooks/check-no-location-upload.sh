@@ -218,9 +218,18 @@
 #      .github/workflows/ci.yml 에도 없고, 지금 트리는 포매터 버전 차이로
 #      `dart format --set-exit-if-changed` 에 74개 파일이 걸린다).
 #
-#      그래서 이 검사는 **줄이 아니라 문장(statement)을 본다.** 파일을 한 번
-#      훑으면서 주석과 문자열을 걷어 내고, 괄호 밖의 중괄호로 깊이를 세고,
+#      그래서 이 검사는 **줄이 아니라 문장(statement)을 본다.** 주석과 문자열을
+#      **이미 걷어 낸 사본**(dart-source.sh 의 blank 사본)을 한 번 훑으면서
+#      괄호 밖의 중괄호로 깊이를 세고,
 #      괄호 밖의 `;` 와 `{` 에서 문장을 끊어 공백을 하나로 접은 뒤 본다.
+#      **이 훑기는 문자열을 알아보지 않는다** — round 11 의 거부 사유가 그것을
+#      여기 한 번 더, 그리고 더 얕게(홑·겹따옴표만) 적어 둔 것이었다. 그
+#      얕은 판이 세 겹 문자열 안의 홀수 개 홑따옴표 하나에 파일 끝까지 눈이
+#      멀어서, 삼켜진 구간의 최상위 저장소가 조용히 통과하거나(파일이 클래스
+#      몸통으로 끝날 때) 정당한 코드가 엉뚱한 자리를 가리키는 오탐으로
+#      걸렸다. 이제 문자열을 알아보는 상태 기계는 dart-source.sh 한 자리이고,
+#      이 훑기는 **사본에 따옴표가 남아 있으면** 그 전제가 깨진 것이므로
+#      멈춘다(사본을 다 읽은 뒤 중괄호·괄호의 짝도 함께 확인한다).
 #      그러면 "클래스 몸통 안"이 들여쓰기가 아니라 **중괄호 깊이**로 정해져서,
 #      네 칸을 들여쓰든 한 줄로 쓰든 같은 자리로 온다. 함수 몸통 안(깊이가
 #      같아도 여는 중괄호가 클래스가 아닌 것)은 여전히 보지 않는다 — 그 자리를
@@ -267,6 +276,15 @@
 #
 #          이름을 읽지 못한 문장은 이름이 "?" 로 나가 목록과 어긋난다 —
 #          **막히는 쪽으로 틀린다** (2-c 의 DOOR_NAMES 와 같은 방식이다).
+#
+#          **round 11 이 그 문장을 한 번 거짓으로 만들었다.** 문장을 아예
+#          읽지 못하고 **삼켜 버리는** 갈래가 하나 있었고, 그것은 여는 쪽으로
+#          틀렸다: 위 훑기가 세 겹 문자열을 몰라서 `'''it's fine'''` 하나에
+#          파일 끝까지 눈이 멀었고, 파일이 클래스 몸통으로 끝나면 삼켜진
+#          구간의 최상위 저장소가 목록과 어긋나지도 않은 채 exit 0 이었다.
+#          그 갈래는 문자열을 알아보는 자리를 dart-source.sh 하나로 모아
+#          닫았고, 훑기 자신이 사본의 전제(따옴표가 없다·짝이 맞는다)를
+#          확인하므로 같은 종류의 눈멂은 이제 exit 2 로 나온다.
 #
 #          정당하게 최상위 선언을 하나 더할 때는 LOC_TOP_NAMES 를 의도적으로
 #          넓히고 ADR 을 남기게 되는데, **그 눈에 띔이 이 검사의 목적이다.**
@@ -503,6 +521,48 @@ fi
 #   · 검사 4) 의 "이 폴더가 스스로 선언한 타입" 모으기
 #   · 검사 4) 의 topDecl() (최상위 선언의 이름 읽기)
 #
+# ─────────────────────────────────────────────────────────────────────────
+# 같은 개념이 어디에 있는가 — round 11 이 훑은 결과를 여기 적어 둔다.
+# ─────────────────────────────────────────────────────────────────────────
+#
+# 이 저장소가 **같은 개념을 두 자리에 다르게 적어** 세 번 거부당했다
+# (round 8 선언 머리 읽기 · round 9 주석 걷어내기 · round 11 문자열 알아보기).
+# 셋 다 한 자리로 모아서 풀었다. 그 뒤로 남아 있는 자리와, 모으지 않은 것은
+# 왜 모으지 않았으며 어긋나면 무엇이 잡는지를 적는다.
+#
+#   · **문자열·주석 알아보기** → `scripts/hooks/dart-source.sh` 하나.
+#     사본을 둘 내놓고(code·blank) 훅 둘의 검사 아홉 자리가 전부 그 사본을
+#     읽는다. 시험 쪽 짝(`_stripped`)이 하나 더 있는데, 같은 입력으로 두 판을
+#     견주는 시험이 `visit_check_test.dart` 에 있다("셸 판과 Dart 판이 같은
+#     사본 둘을 낸다").
+#   · **선언 머리 읽기·타입 이름 읽기** → 위 `DECL_AWK` 의 `declHead()` 하나.
+#     세 자리(2-c · 검사 4) 의 타입 모으기 · `topDecl()`)가 함께 쓴다.
+#   · **괄호·꺾쇠 깊이 세기** → `DECL_AWK` 의 `nestDelta()` 하나.
+#     `topTokens`·`firstTopEq`·`splitTop`·`declPart`·`providerOk` 가 쓴다.
+#
+# **모으지 않은 자리 셋** (전부 개념이 실제로 다르고, 그 자리에 까닭이 적혀
+# 있다. 어긋나면 무엇이 잡는지를 함께 적는다):
+#
+#   1. `multiDeclarator()` 는 꺾쇠를 깊이로 세지 않는다 — 초기화 식의
+#      `=>`·`>=` 때문에 꺾쇠의 짝이 애초에 맞지 않는다. 어긋나면 한 문장의
+#      둘째 이름이 목록에 안 나와 (a) 의 이름 집합이 어긋난다(exit 2).
+#   2. 검사 4) 의 **문장 훑기**는 `nestDelta()` 를 쓰지 않는다 — 중괄호와
+#      괄호를 **따로** 세어야 하고(중괄호는 몸통, 괄호는 인자 목록이다),
+#      꺾쇠는 아예 세지 않는다(문장 자리에는 `=>`·비교 연산자가 온다).
+#      어긋나면 훑기 자신의 자기 점검(따옴표 없음 · 짝 맞음)이 exit 2 로
+#      세운다.
+#   3. `DECL_MODIFIERS`(선언 머리의 class modifier)와 `fieldOk()` 의 필드
+#      수식어 집합은 이름이 겹치지만 다른 개념이다 — `sealed`·`base`·
+#      `interface` 는 필드에 붙지 않고 `static`·`covariant` 는 머리에 붙지
+#      않는다. 까닭은 `fieldOk()` 자리에 적혀 있다.
+#
+# **그리고 얕은 판이 하나 더 있는데 일부러 둔다:** 검사 2) 가 import 문에서
+# URI 를 읽는 정규식(`"[^"]*"|'[^']*'`)은 홑·겹따옴표만 안다. 세 겹 문자열로
+# 쓴 URI(`import '''dart:math''';`)를 만나면 빈 문자열을 읽어 허용 목록과
+# 어긋난다 — **막히는 쪽으로 틀린다**(실측: exit 2, 메시지는 "허용 목록 밖의
+# import — " 다). 이것을 사본 쪽으로 옮기지 않는 것은, 그 사본이 URI 를
+# 지워 버려서 검사 2) 가 읽을 것이 없어지기 때문이다.
+#
 # 수식어 집합은 Dart 3 의 class modifier 전부다(`abstract`·`base`·`final`·
 # `sealed`·`interface`)에 `external`·`augment` 를 더한 것이다.
 DECL_MODIFIERS='abstract|base|final|sealed|interface|external|augment'
@@ -511,14 +571,26 @@ DECL_KEYWORDS='class|enum|mixin|extension|typedef'
 # 세 자리가 함께 쓰는 awk 함수 셋. 부르는 쪽은 이 문자열을 자기 프로그램 앞에
 # 이어 붙이고 DECL_MOD_RE·DECL_KW_RE 를 -v 로 넘긴다.
 DECL_AWK='
+  # 괄호·꺾쇠의 **깊이를 세는 규칙**도 이 스크립트에 한 번만 적는다.
+  # 아래 다섯 함수(topTokens·firstTopEq·splitTop·declPart·providerOk)가 전부
+  # "괄호·꺾쇠 밖의 무엇"을 찾느라 같은 셈을 하고 있었다 — 같은 개념을 여러
+  # 자리에 따로 적으면 어긋남이 생긴다는 것이 round 8·9·11 의 거부 사유였다.
+  # **multiDeclarator() 만 이것을 쓰지 않는다** — 그 함수는 꺾쇠를 깊이로 세지
+  # 않고, 왜 그래야 하는지가 그 자리에 적혀 있다(초기화 식의 `=>`·`>=` 때문에
+  # 꺾쇠의 짝이 애초에 맞지 않는다).
+  function nestDelta(c) {
+    if (c == "(" || c == "<" || c == "[" || c == "{") return 1
+    if (c == ")" || c == ">" || c == "]" || c == "}") return -1
+    return 0
+  }
+
   # 괄호·꺾쇠 **밖**의 공백으로만 토막 낸다 — `Future<A> Function()` 은
   # 두 토막이지만 `DeviceFix({required this.lat, ...})` 는 한 토막이다.
   function topTokens(s, arr,   i, c, d, cur, n) {
     d = 0; n = 0; cur = ""
     for (i = 1; i <= length(s); i++) {
       c = substr(s, i, 1)
-      if (c == "(" || c == "<" || c == "[" || c == "{") d++
-      else if (c == ")" || c == ">" || c == "]" || c == "}") d--
+      d += nestDelta(c)
       if (d == 0 && (c == " " || c == "\t")) {
         if (cur != "") { arr[++n] = cur; cur = "" }
         continue
@@ -530,12 +602,12 @@ DECL_AWK='
   }
 
   # 괄호·꺾쇠 밖의 첫 "=" 자리 (없으면 0). "=>"·"==" 도 그 "=" 에서 끊긴다.
-  function firstTopEq(s,   i, c, d) {
+  function firstTopEq(s,   i, c, d, nd) {
     d = 0
     for (i = 1; i <= length(s); i++) {
       c = substr(s, i, 1)
-      if (c == "(" || c == "<" || c == "[" || c == "{") { d++; continue }
-      if (c == ")" || c == ">" || c == "]" || c == "}") { d--; continue }
+      nd = nestDelta(c)
+      if (nd != 0) { d += nd; continue }
       if (d == 0 && c == "=") return i
     }
     return 0
@@ -635,7 +707,7 @@ if [ -d "$LOC_DIR" ]; then
         if (!seen) { sub(/^[[:space:]]+/, "", stmt); report("URI 를 읽지 못한 지시자 — " stmt) }
       }
       END { if (buf != "") report("닫히지 않은 지시자 — " buf) }
-    ' "$MIRROR/$dart_file" || printf 'AWKFAIL\t%s\n' "$dart_file"
+    ' "$MIRROR/code/$dart_file" || printf 'AWKFAIL\t%s\n' "$dart_file"
   done)
 
   uri_awk_fail=$(printf '%s\n' "$uri_scan" | sed -n 's/^AWKFAIL\t//p')
@@ -661,7 +733,7 @@ if [ -d "$LOC_DIR" ]; then
   DOOR="lib/content/kst.dart"
   if [ -f "$DOOR" ]; then
     # 2-a) 재수출도, part 도 없다.
-    door_hits=$(grep -nE "^[[:space:]]*(export|part)[[:space:]]" "$MIRROR/$DOOR" 2>/dev/null)
+    door_hits=$(grep -nE "^[[:space:]]*(export|part)[[:space:]]" "$MIRROR/code/$DOOR" 2>/dev/null)
     if [ -n "$door_hits" ]; then
       {
         echo "$DOOR 이 라이브러리 경계를 넓힙니다 — 이 파일은 $LOC_DIR 허용 목록의 유일한 폴더 밖 문이라, export 는 곧 그 허용 목록에 이름을 몰래 더하는 것이고 part 는 아래 공개 이름 검사의 시야 밖에서 이름을 더하는 것입니다:"
@@ -671,7 +743,7 @@ if [ -d "$LOC_DIR" ]; then
     fi
 
     # 2-b) 그 문 자신의 import 도 허용 목록 안에만 있다.
-    door_uris=$(grep -oE "^[[:space:]]*import[[:space:]]+[\"'][^\"']*[\"']" "$MIRROR/$DOOR" 2>/dev/null \
+    door_uris=$(grep -oE "^[[:space:]]*import[[:space:]]+[\"'][^\"']*[\"']" "$MIRROR/code/$DOOR" 2>/dev/null \
       | sed -E "s/^[[:space:]]*import[[:space:]]+[\"']//; s/[\"']\$//" \
       | grep -vxE 'models[.]dart' | sort -u)
     if [ -n "$door_uris" ]; then
@@ -708,7 +780,7 @@ kstOffset'
         }
         print "?" line
       }
-    ' "$MIRROR/$DOOR")
+    ' "$MIRROR/code/$DOOR")
     # awk 의 종료 상태는 대입 **직후**에만 남는다 — 파이프 뒤로 미루면 사라진다.
     door_awk_status=$?
     door_actual=$(printf '%s\n' "$door_actual" | grep -v '^_' | grep -v '^$' | sort -u)
@@ -789,7 +861,7 @@ if [ -d "$LOC_DIR" ]; then
         if (hd["kw"] == "class" || hd["kw"] == "enum" || hd["kw"] == "mixin")
           print "TYPE\t" hd["name"]
       }
-    ' "$MIRROR/$dart_file" || printf 'AWKFAIL\t%s\n' "$dart_file"
+    ' "$MIRROR/code/$dart_file" || printf 'AWKFAIL\t%s\n' "$dart_file"
   done)
 
   decl_awk_fail=$(printf '%s\n' "$decl_scan" | sed -n 's/^AWKFAIL\t//p')
@@ -822,12 +894,12 @@ if [ -d "$LOC_DIR" ]; then
       # 선언의 앞부분(수식어 + 타입 + 이름)만 잘라 온다 — 괄호·꺾쇠 밖의
       # 첫 ";" 나 "=" 까지다. "=>" 와 "==" 는 선언의 끝이 아니므로 빈 문자열을
       # 돌려준다(표현식 본문 메서드·게터와 함수 선언이 여기서 빠진다).
-      function declPart(s,   i, c, nx, d) {
+      function declPart(s,   i, c, nx, d, nd) {
         d = 0
         for (i = 1; i <= length(s); i++) {
           c = substr(s, i, 1)
-          if (c == "(" || c == "<" || c == "[" || c == "{") { d++; continue }
-          if (c == ")" || c == ">" || c == "]" || c == "}") { d--; continue }
+          nd = nestDelta(c)
+          if (nd != 0) { d += nd; continue }
           if (d != 0) continue
           if (c == ";") return substr(s, 1, i - 1)
           if (c == "=") {
@@ -914,8 +986,7 @@ if [ -d "$LOC_DIR" ]; then
         d = 0; n = 0; cur = ""
         for (i = 1; i <= length(s); i++) {
           c = substr(s, i, 1)
-          if (c == "(" || c == "<" || c == "[" || c == "{") d++
-          else if (c == ")" || c == ">" || c == "]" || c == "}") d--
+          d += nestDelta(c)
           if (d == 0 && c == sep) { arr[++n] = cur; cur = ""; continue }
           cur = cur c
         }
@@ -941,14 +1012,15 @@ if [ -d "$LOC_DIR" ]; then
       # StateProvider·NotifierProvider·FutureProvider·StreamProvider 는 이름이
       # 어긋나 통과하지 못하고, 타입 인자를 적지 않은 `Provider((ref) => ...)`
       # 도 무엇이 담기는지 알 수 없어 통과하지 못한다.
-      function providerOk(init,   i, c, d, args, a, n, t) {
+      function providerOk(init,   i, c, d, args, a, n, t, nd) {
         if (init !~ /^Provider([.]autoDispose)?([.]family)?</) return 0
         i = index(init, "<")
         d = 0; args = ""
         for (; i <= length(init); i++) {
           c = substr(init, i, 1)
-          if (c == "<" || c == "(" || c == "[" || c == "{") { d++; if (d == 1) continue }
-          else if (c == ">" || c == ")" || c == "]" || c == "}") { d--; if (d == 0) break }
+          nd = nestDelta(c)
+          if (nd > 0) { d++; if (d == 1) continue }
+          else if (nd < 0) { d--; if (d == 0) break }
           args = args c
         }
         if (d != 0) return 0
@@ -1104,29 +1176,30 @@ if [ -d "$LOC_DIR" ]; then
 
       END {
         len = length(src)
-        bd = 0; pd = 0; cur = ""; line = 1; sline = 1; q = ""
+        bd = 0; pd = 0; cur = ""; line = 1; sline = 1; broke = 0
         for (i = 1; i <= len; i++) {
           c = substr(src, i, 1)
 
-          if (q != "") {                          # 문자열 안 — 내용은 보지 않는다
-            if (c == "\n") line++
-            else if (c == "\\") { i++; if (substr(src, i, 1) == "\n") line++ }
-            else if (c == q) q = ""
-            cur = cur c
-            continue
+          # **이 훑기는 문자열도 주석도 알아보지 않는다.** dart-source.sh 가
+          # 만든 blank 사본에는 주석이 걷어내어져 있고 문자열 리터럴은
+          # (보간 안까지) 통째로 공백으로 지워져 있으므로, 여기 남은
+          # ";"·"{"·"}" 는 전부 코드다. 문자열을 알아보는 상태 기계는 이
+          # 저장소에 그 한 자리에만 있다 — round 11 의 거부 사유가 그것을
+          # 여기 한 번 더, 그리고 더 얕게 적어 둔 것이었다(세 겹 문자열 안의
+          # 홀수 개 홑따옴표가 이 훑기를 파일 끝까지 눈멀게 했다).
+          #
+          # 따옴표가 하나라도 남아 있으면 그 전제가 깨진 것이다 — **조용히
+          # 통과하는 대신 여기서 멈춘다.**
+          if (c == SQ || c == DQ) {
+            printf "%s:%d: 문자열을 지운 사본에 따옴표가 남아 있습니다 — 이 훑기는 문자열을 알아보지 않으므로(dart-source.sh 가 이미 지운다) 그 전제가 깨지면 검사가 조용히 통과하는 대신 여기서 멈춥니다.\n", FNAME, line > "/dev/stderr"
+            exit 1
           }
-
-          # 주석은 dart-source.sh 가 이미 걷어 냈다 — 이 훑기는 문자열만
-          # 알아본다(문장을 끊는 ";"·"{" 가 문자열 안에 있는지를 가리려는
-          # 것이라, 주석을 가리는 것과 목적이 다르다. 그 구분은
-          # dart-source.sh 의 헤더에 적혀 있다).
           if (c == "\n") { line++; c = " " }
           if (c == " " || c == "\t" || c == "\r") {
             if (cur != "" && substr(cur, length(cur), 1) != " ") cur = cur " "
             continue
           }
 
-          if (c == SQ || c == DQ) { q = c; if (cur == "") sline = line; cur = cur c; continue }
           if (c == "(" || c == "[") { pd++; if (cur == "") sline = line; cur = cur c; continue }
           if (c == ")" || c == "]") { pd--; cur = cur c; continue }
 
@@ -1150,7 +1223,7 @@ if [ -d "$LOC_DIR" ]; then
             continue
           }
           if (c == "}") {
-            if (bd > 0) bd--
+            if (bd > 0) bd--; else broke = 1
             if (pd == 0) cur = ""; else cur = cur c
             continue
           }
@@ -1163,8 +1236,17 @@ if [ -d "$LOC_DIR" ]; then
           cur = cur c
         }
         emit(cur, bd, sline)
+
+        # 두 번째 자기 점검. 사본을 다 읽고 나면 중괄호도 괄호도 짝이 맞아야
+        # 한다 — 맞지 않으면 이 훑기가 문장을 엉뚱한 깊이로 읽었다는 뜻이고,
+        # 그 어긋남은 **위 (a) 의 이름 집합이 조용히 맞아떨어지는** 모양으로
+        # 나올 수 있다. 그러니 여기서 멈춘다.
+        if (bd != 0 || pd != 0 || broke) {
+          printf "%s: 사본을 다 읽었는데 짝이 맞지 않습니다 (남은 중괄호 %d · 남은 괄호 %d · 깊이가 음수로 내려간 적 %s) — 이 훑기가 문장을 엉뚱한 깊이로 읽었다는 뜻이라, 검사가 조용히 통과하는 대신 여기서 멈춥니다.\n", FNAME, bd, pd, (broke ? "있음" : "없음") > "/dev/stderr"
+          exit 1
+        }
       }
-    ' "$MIRROR/$dart_file" || printf 'AWKFAIL\t%s\n' "$dart_file"
+    ' "$MIRROR/blank/$dart_file" || printf 'AWKFAIL\t%s\n' "$dart_file"
   done)
 
   awk_fail=$(printf '%s\n' "$scan" | sed -n 's/^AWKFAIL\t//p')
@@ -1252,7 +1334,7 @@ fi
 # 코드 뒤 꼬리 주석(`const int kProbe = 1; // print(x) 금지`)이 exit 2 였다
 # (실측). 이제 dart-source.sh 가 걷어 낸 사본을 본다.
 if [ -d "$LOC_DIR" ]; then
-  log_hits=$( (cd "$MIRROR" || exit 9; grep -rnE --include='*.dart' \
+  log_hits=$( (cd "$MIRROR/code" || exit 9; grep -rnE --include='*.dart' \
     '\b(print|debugPrint[A-Za-z]*)[[:space:]]*\(' "$LOC_DIR") 2>/dev/null )
   log_status=$?
   if [ "$log_status" -gt 1 ]; then
