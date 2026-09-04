@@ -40,6 +40,7 @@ library;
 
 import 'dart:async';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -76,9 +77,49 @@ const String _uid = 'google-uid';
 /// 이 시험이 보지 않는 콘텐츠 문서를 "못 읽었다"로 채우는 값.
 const ContentIssue _fixture = ContentIssue(ContentIssueKind.network, 'fixture');
 
-/// 위도 1도는 어디서나 약 111.32km — 정북으로 [meters] 만큼 옮긴 지점.
-DeviceFix _northOf(double meters) =>
-    DeviceFix(lat: _jamsilLat + meters / 111320.0, lng: _jamsilLng);
+/// 잠실에서 북쪽으로 [north] m, 동쪽으로 [east] m 옮긴 지점.
+///
+/// 위도 1도는 어디서나 약 111.32km 이고, 경도 1도는 그 값에 `cos(위도)` 를
+/// 곱한 만큼이다(잠실 위도 37.5° 에서 약 88.3km). 음수를 주면 남쪽·서쪽이다.
+///
+/// 이 111.32km 는 판정이 쓰는 지구 반지름(6371008.8m → 위도 1도 111.195km)
+/// 과 **0.11% 어긋난다.** 그래서 여기 적은 m 와 판정이 재는 m 는 그만큼
+/// 다르다(북·동 100m → 99.888m, 북 300·동 400 → 499.433m — 실측). 남북과
+/// 동서가 **같은 상수를 쓰므로 그 어긋남은 두 축에 똑같이 걸리고**, 아래
+/// 시험들의 여유(가장 좁은 것이 0.43m)는 그보다 넉넉하다. 1m 보다 촘촘한
+/// 경계를 이 픽스처로 재려 하면 안 된다.
+///
+/// **왜 동서 성분이 따로 있어야 하는가.** round 10 까지 이 파일의 좌표
+/// 픽스처는 [_northOf] 하나였고 위도만 옮겼다. 그래서 판정의 하버사인에서
+/// 경도 항을 절반으로 줄이거나(`_radians((lng2 - lng1) / 2)`) 아예 0 으로
+/// 만들어도 이 파일의 시험 54개가 전부 초록불이었다(round 10 의 거부 사유 3,
+/// 지휘자 재현). 계약이 이름 지은 "구장 반경"이 한 축으로만 못 박혀 있었던
+/// 것이다. 아래 "반경은 동서로도 같은 거리다"·"대각선" 시험이 그 축을 잰다.
+DeviceFix _offsetFromJamsil({double north = 0, double east = 0}) => DeviceFix(
+  lat: _jamsilLat + north / 111320.0,
+  lng: _jamsilLng + east / (111320.0 * math.cos(_jamsilLat * math.pi / 180)),
+);
+
+/// 정북으로 [meters] 만큼 옮긴 지점.
+DeviceFix _northOf(double meters) => _offsetFromJamsil(north: meters);
+
+/// 정동으로 [meters] 만큼 옮긴 지점 — [_northOf] 의 짝이다.
+DeviceFix _eastOf(double meters) => _offsetFromJamsil(east: meters);
+
+/// 잠실에서 북 [north] m · 동 [east] m 떨어진 지점을 반경 [radius] 로 재
+/// 판정한 이유 — 대각선 시험이 같은 여섯 줄을 되풀이하지 않게 하는 자리다.
+/// 시간 창·권한·경기 유무는 전부 "맞음"으로 고정하므로 남는 축은 거리뿐이다.
+StadiumVisitReason _reasonAtOffset({
+  required double north,
+  required double east,
+  required double radius,
+}) => judgeStadiumVisit(
+  permission: LocationPermissionStatus.granted,
+  candidates: [_jamsilTonight()],
+  now: DateTime.parse('2026-08-25T17:30:00+09:00'),
+  fix: _offsetFromJamsil(north: north, east: east),
+  radiusMeters: radius,
+).reason;
 
 /// 오늘(KST) 잠실 18:30 경기 하나.
 StadiumVisitCandidate _jamsilTonight({String gameId = 'g-jamsil'}) =>
@@ -170,10 +211,181 @@ String _classBody(String source, String name) {
   fail('$name 의 닫는 중괄호를 찾지 못했다');
 }
 
+/// Dart 소스에서 **주석만** 걷어 내고 줄 수를 그대로 둔 사본을 돌려준다.
+///
+/// **이것은 `scripts/hooks/dart-source.sh` 와 같은 규칙이다.** 그 파일이
+/// 훅 둘의 검사 아홉 자리가 함께 쓰는 자리이고, 여기가 시험 쪽의 짝이다.
+/// 하나로 합치지 않은 까닭: Dart 시험이 셸 스크립트를 부르려면 하위 프로세스
+/// (`Process.runSync`)로 bash·awk·find·mktemp 를 타야 하는데, 그러면 계약이
+/// **이름으로 부른 경계 명령**이 그 넷의 있고 없음에 매달린다. 규칙 자체는
+/// 짧고(문자열·주석·보간을 세는 상태 더미 하나) 양쪽이 어긋나면 그 자리에서
+/// 빨간불이 되므로, 값싼 쪽은 같은 규칙을 두 언어로 두고 **서로를 가리켜
+/// 두는 것**이다 — `.wellbegun/decisions.md` 2026-09-05 `[S]`.
+///
+/// 다루는 것과 다루지 못하는 것은 `dart-source.sh` 헤더의 목록 그대로다:
+/// 홑·겹따옴표와 각각의 세 겹, raw 접두어, 이스케이프, 중첩 블록 주석,
+/// **깊이 제한 없는 문자열 보간**(`'${a ?? 'https://a.b'}/x'`) 을 다루고,
+/// 닫히지 않은 주석·문자열과 **한 줄짜리 문자열의 보간 안에 있는 줄 주석**은
+/// 조용히 자르는 대신 [StateError] 로 세운다(시험에서는 그것이 빨간불이다).
+///
+/// 줄 수를 그대로 두는 것은 부르는 쪽이 줄 단위로 보기 때문이다: 주석만 있던
+/// 줄은 **빈 줄**로 남는다.
+String _withoutComments(String source) {
+  final kind = <String>[]; // 'B' 블록 주석 · 'S' 문자열 · 'I' 보간 안의 코드
+  final quote = <String>[];
+  final raw = <bool>[];
+  final brace = <int>[];
+  final out = StringBuffer();
+  final identifier = RegExp(r'[A-Za-z0-9_$]');
+
+  void push(String k, {String q = '', bool r = false, int b = 0}) {
+    kind.add(k);
+    quote.add(q);
+    raw.add(r);
+    brace.add(b);
+  }
+
+  void pop() {
+    kind.removeLast();
+    quote.removeLast();
+    raw.removeLast();
+    brace.removeLast();
+  }
+
+  bool innerStringIsTriple() {
+    for (var k = kind.length - 1; k >= 0; k--) {
+      if (kind[k] == 'S') return quote[k].length == 3;
+    }
+    return false;
+  }
+
+  var i = 0;
+  while (i < source.length) {
+    final top = kind.isEmpty ? 'C' : kind.last;
+    final c = source[i];
+    final two = source.startsWith('*/', i)
+        ? '*/'
+        : source.startsWith('/*', i)
+        ? '/*'
+        : source.startsWith('//', i)
+        ? '//'
+        : '';
+
+    if (top == 'B') {
+      if (two == '*/') {
+        pop();
+        i += 2;
+        continue;
+      }
+      if (two == '/*') {
+        push('B');
+        i += 2;
+        continue;
+      }
+      if (c == '\n') out.write('\n'); // 줄 수를 지킨다
+      i++;
+      continue;
+    }
+
+    if (top == 'S') {
+      if (!raw.last && c == r'\') {
+        out.write(source.substring(i, math.min(i + 2, source.length)));
+        i += 2;
+        continue;
+      }
+      final q = quote.last;
+      if (source.startsWith(q, i)) {
+        out.write(q);
+        i += q.length;
+        pop();
+        continue;
+      }
+      if (!raw.last && c == r'$' && source.startsWith(r'${', i)) {
+        out.write(r'${');
+        i += 2;
+        push('I', b: 1);
+        continue;
+      }
+      out.write(c);
+      i++;
+      continue;
+    }
+
+    // 여기부터는 코드 자리다 — 파일 최상위('C') 이거나 보간 안('I').
+    if (two == '//') {
+      if (kind.isNotEmpty && !innerStringIsTriple()) {
+        throw StateError('한 줄짜리 문자열의 보간 안에서 줄 주석을 만났다 — 닫는 따옴표까지 함께 사라진다');
+      }
+      while (i < source.length && source[i] != '\n') {
+        i++;
+      }
+      continue;
+    }
+    if (two == '/*') {
+      push('B');
+      i += 2;
+      out.write(' ');
+      continue;
+    }
+    if (top == 'I') {
+      if (c == '{') {
+        brace[brace.length - 1]++;
+        out.write(c);
+        i++;
+        continue;
+      }
+      if (c == '}') {
+        if (brace.last <= 1) {
+          pop();
+        } else {
+          brace[brace.length - 1]--;
+        }
+        out.write(c);
+        i++;
+        continue;
+      }
+    }
+
+    var isRaw = false;
+    var head = c;
+    if (c == 'r' &&
+        i + 1 < source.length &&
+        (source[i + 1] == "'" || source[i + 1] == '"') &&
+        (i == 0 || !identifier.hasMatch(source[i - 1]))) {
+      out.write(c);
+      i++;
+      head = source[i];
+      isRaw = true;
+    }
+    if (head == "'" || head == '"') {
+      final triple = head * 3;
+      if (source.startsWith(triple, i)) {
+        push('S', q: triple, r: isRaw);
+        out.write(triple);
+        i += 3;
+        continue;
+      }
+      push('S', q: head, r: isRaw);
+      out.write(head);
+      i++;
+      continue;
+    }
+    out.write(head);
+    i++;
+  }
+
+  if (kind.isNotEmpty) {
+    throw StateError('닫히지 않은 ${kind.last == 'B' ? '블록 주석' : '문자열'}으로 소스가 끝났다');
+  }
+  return out.toString();
+}
+
 /// 클래스 몸통을 **문장 단위**로 끊어 돌려준다 — 들여쓰기를 보지 않는다.
 ///
-/// 주석과 문자열을 걷어 내고, 괄호·대괄호 밖의 중괄호로 깊이를 세고, 깊이 0
-/// 에서 괄호 밖의 `;` 를 만날 때 문장 하나를 끊는다. 메서드 몸통을 여는 `{`
+/// [_withoutComments] 로 주석을 먼저 걷어 낸 뒤, 문자열을 건너뛰며 괄호·
+/// 대괄호 밖의 중괄호로 깊이를 세고, 깊이 0 에서 괄호 밖의 `;` 를 만날 때
+/// 문장 하나를 끊는다. **주석을 걷어 내는 규칙을 여기 다시 적지 않는 것이
+/// round 10 의 변화다** — 그 규칙은 [_withoutComments] 한 자리에만 있다. 메서드 몸통을 여는 `{`
 /// 는 깊이를 올리고 모아 둔 것을 버리므로, 그 안의 지역 변수는 여기 오지
 /// 않는다. `({required this.x})` 처럼 **괄호 안의** 중괄호는 깊이를 바꾸지
 /// 않아서 생성자 하나가 문장 하나로 남는다.
@@ -181,7 +393,8 @@ String _classBody(String source, String name) {
 /// `check-no-location-upload.sh` 의 검사 4) 가 쓰는 것과 같은 방식이고, 까닭도
 /// 같다: 표기가 아니라 구조로 자리를 정해야 들여쓰기를 바꾸는 것만으로 파수꾼
 /// 을 지나가지 못한다.
-List<String> _classLevelStatements(String body) {
+List<String> _classLevelStatements(String rawBody) {
+  final body = _withoutComments(rawBody);
   final out = <String>[];
   final buf = StringBuffer();
   var depth = 0; // 클래스 몸통 안이 0, 메서드 몸통 안이 1 이상
@@ -200,22 +413,6 @@ List<String> _classLevelStatements(String body) {
       } else if (c == quote) {
         quote = null;
       }
-      continue;
-    }
-    if (c == '/' && i + 1 < body.length && body[i + 1] == '/') {
-      while (i < body.length && body[i] != '\n') {
-        i++;
-      }
-      keep(' ');
-      continue;
-    }
-    if (c == '/' && i + 1 < body.length && body[i + 1] == '*') {
-      i += 2;
-      while (i + 1 < body.length && !(body[i] == '*' && body[i + 1] == '/')) {
-        i++;
-      }
-      i++;
-      keep(' ');
       continue;
     }
     if (c == "'" || c == '"') {
@@ -312,20 +509,25 @@ Map<String, String> _declaredStorage(String body) {
 /// 한 줄이 자기가 부르는 private 함수의 이름을 뒤집어쓰고 아래 단언을
 /// 통과한다(실측 — 그 래퍼를 더한 변이가 마지막을 잡을 때 초록불이었다).
 /// 열 0 의 `///`·`}`·닫는 괄호는 머리가 아니므로 앞 선언의 이름이 이어진다.
-/// 주석 줄은 아예 빼고 돌려준다 — 이 파일의 주석은 규칙 자체를 서술하는
-/// 자리라 그 이름들을 그대로 적는다.
+///
+/// **주석은 [_withoutComments] 가 먼저 걷어 낸다** — 줄 전체 주석뿐 아니라
+/// 코드 뒤 꼬리 주석(`return null; // 무엇이 오든 null 로 접는다`)과 블록
+/// 주석까지다. round 9 까지는 `line.trimLeft().startsWith('//')` 하나였고,
+/// 그래서 아래 파수꾼들의 doc 이 "주석을 고치는 것은 여기서 빨간불이 되지
+/// 않는다"라고 적으면서도 꼬리 주석 한 줄에 빨간불이었다(round 10 의 거부
+/// 사유 2). 주석만 있던 줄은 **빈 줄**로 남아 목록에 그대로 들어온다 —
+/// 부르는 쪽이 빈 줄을 거른다.
 List<({String owner, String line})> _byTopLevelOwner(String source) {
   final head = RegExp(r'^[A-Za-z_$]');
   final name = RegExp(r'([A-Za-z_$][A-Za-z0-9_$]*) *[(=]');
   final out = <({String owner, String line})>[];
   var owner = '(파일 최상위)';
-  for (final line in source.split('\n')) {
+  for (final line in _withoutComments(source).split('\n')) {
     if (head.hasMatch(line)) {
       final matches = name.allMatches(line).toList();
       owner = matches.isEmpty ? line.trim() : matches.first.group(1)!;
     }
-    if (line.trimLeft().startsWith('//')) continue;
-    out.add((owner: owner, line: line));
+    out.add((owner: owner, line: line.trimRight()));
   }
   return out;
 }
@@ -684,6 +886,112 @@ void main() {
           fix: _northOf(kStadiumVisitRadiusMeters + 1),
         ).reason,
         StadiumVisitReason.outsideRadius,
+      );
+    });
+
+    test('반경은 동서로도 같은 거리다 — 경도 항이 살아 있다', () {
+      // [_northOf] 하나로는 하버사인의 **경도 항**이 아무 시험에도 걸리지
+      // 않는다(round 10 의 거부 사유 3). 위 시험의 남북 짝을 그대로 동서로
+      // 다시 잰다: 반경 안쪽 1m 는 방문, 바깥쪽 1m 는 방문 아님.
+      expect(
+        judgeStadiumVisit(
+          permission: LocationPermissionStatus.granted,
+          candidates: [_jamsilTonight()],
+          now: duringPregame,
+          fix: _eastOf(kStadiumVisitRadiusMeters - 1),
+        ).reason,
+        StadiumVisitReason.visited,
+      );
+      expect(
+        judgeStadiumVisit(
+          permission: LocationPermissionStatus.granted,
+          candidates: [_jamsilTonight()],
+          now: duringPregame,
+          fix: _eastOf(kStadiumVisitRadiusMeters + 1),
+        ).reason,
+        StadiumVisitReason.outsideRadius,
+        reason: '경도 항을 절반으로 줄이거나 0 으로 만들면 여기가 빨간불이다',
+      );
+      // 서쪽도 같은 거리다 — 부호를 지우는 변이(`max(0, …)`)를 막는다.
+      expect(
+        judgeStadiumVisit(
+          permission: LocationPermissionStatus.granted,
+          candidates: [_jamsilTonight()],
+          now: duringPregame,
+          fix: _offsetFromJamsil(east: -(kStadiumVisitRadiusMeters + 1)),
+        ).reason,
+        StadiumVisitReason.outsideRadius,
+      );
+      expect(
+        judgeStadiumVisit(
+          permission: LocationPermissionStatus.granted,
+          candidates: [_jamsilTonight()],
+          now: duringPregame,
+          fix: _offsetFromJamsil(north: -(kStadiumVisitRadiusMeters + 1)),
+        ).reason,
+        StadiumVisitReason.outsideRadius,
+      );
+    });
+
+    test('동서 거리를 반경 주입으로 좁혀 잰다 — 100m 는 100m 다', () {
+      // 위 시험은 "반경 300 의 안팎"만 가른다. 여기서는 반경을 주입해
+      // **동서 100m 가 실제로 99m 보다 멀고 101m 보다 가깝다**는 것을 못
+      // 박는다. 경도 항이 절반이면 약 50m 가 되어 99 쪽이 빨간불이고,
+      // `cos(위도)` 를 지우면 약 126m 가 되어 101 쪽이 빨간불이다.
+      expect(
+        judgeStadiumVisit(
+          permission: LocationPermissionStatus.granted,
+          candidates: [_jamsilTonight()],
+          now: duringPregame,
+          fix: _eastOf(100),
+          radiusMeters: 99,
+        ).reason,
+        StadiumVisitReason.outsideRadius,
+        reason: '동서 100m 는 99m 반경 밖이다',
+      );
+      expect(
+        judgeStadiumVisit(
+          permission: LocationPermissionStatus.granted,
+          candidates: [_jamsilTonight()],
+          now: duringPregame,
+          fix: _eastOf(100),
+          radiusMeters: 101,
+        ).reason,
+        StadiumVisitReason.visited,
+        reason: '동서 100m 는 101m 반경 안이다',
+      );
+    });
+
+    test('대각선 거리는 두 성분을 함께 센다 (3·4·5)', () {
+      // 북 300m · 동 400m 는 500m 다. 두 항 중 하나만 살아 있으면 300 이나
+      // 400 이 되어 실 반경(300m) 판정이 뒤집힌다.
+      expect(
+        _reasonAtOffset(north: 300, east: 400, radius: 499),
+        StadiumVisitReason.outsideRadius,
+        reason: '북 300 · 동 400 은 500m 다 (한 항만 살면 400 이하가 된다)',
+      );
+      expect(
+        _reasonAtOffset(north: 300, east: 400, radius: 501),
+        StadiumVisitReason.visited,
+      );
+      // 실 반경으로도 밖이다 — 주입 없이도 같은 답이 선다.
+      expect(
+        judgeStadiumVisit(
+          permission: LocationPermissionStatus.granted,
+          candidates: [_jamsilTonight()],
+          now: duringPregame,
+          fix: _offsetFromJamsil(north: 300, east: 400),
+        ).reason,
+        StadiumVisitReason.outsideRadius,
+      );
+      // 남서 대각선도 같다.
+      expect(
+        _reasonAtOffset(north: -300, east: -400, radius: 499),
+        StadiumVisitReason.outsideRadius,
+      );
+      expect(
+        _reasonAtOffset(north: -300, east: -400, radius: 501),
+        StadiumVisitReason.visited,
       );
     });
 
@@ -1308,29 +1616,36 @@ void main() {
     //
     // **재지 않는 것:** 이것은 소스 텍스트 대조라 같은 일을 하는 다른 표기를
     // 막지 못한다(`visit_check.dart` 첫 문단의 "이 파수꾼들이 막는 것"과 같은
-    // 세기다). 그리고 주석은 [_byTopLevelOwner] 가 걷어 내므로 이 목록에
-    // 오지 않는다 — 주석을 고치는 것은 여기서 빨간불이 되지 않는다.
+    // 세기다). 그리고 주석은 [_byTopLevelOwner] 가 [_withoutComments] 로
+    // 걷어 내므로 이 목록에 오지 않는다 — 줄 전체 주석도, **코드 뒤 꼬리
+    // 주석도, 블록 주석도** 여기서 빨간불이 되지 않는다(셋 다 실측).
+    // round 9 까지는 줄 전체 주석 하나만 빠져서, 이 문장이 참이 아닌 채로
+    // 적혀 있었다 — 이 함수 몸통에 설명 한 줄을 붙이는 것만으로 빨간불이었다.
     test('측위 함수의 몸통이 그대로다 (폴더 전체, 소스 대조)', () {
       final body = [
         for (final entry in locationSources.entries)
           for (final owned in _byTopLevelOwner(entry.value))
             if (owned.owner == '_readDeviceFix' && owned.line.trim().isNotEmpty)
-              owned.line,
+              owned.line.trim(),
       ];
 
+      // 들여쓰기를 보지 않는 것은 **주석을 걷어 낸 뒤의 자리**를 재기
+      // 때문이다: 줄 앞의 블록 주석(`/* c */ return null;`)은 공백 하나로
+      // 접혀 들여쓰기를 바꾼다. 들여쓰기는 `dart format` 이 따로 지키고,
+      // 이 파수꾼이 재는 것은 **줄의 목록과 그 내용**이다.
       expect(body, [
         'Future<DeviceFix?> _readDeviceFix() async {',
-        '  try {',
-        '    final position = await geo.Geolocator.getCurrentPosition(',
-        '      locationSettings: const geo.LocationSettings(',
-        '        accuracy: geo.LocationAccuracy.high,',
-        '        timeLimit: kLocationFixTimeout,',
-        '      ),',
-        '    ).timeout(kLocationFixTimeout);',
-        '    return DeviceFix(lat: position.latitude, lng: position.longitude);',
-        '  } catch (_) {',
-        '    return null;',
-        '  }',
+        'try {',
+        'final position = await geo.Geolocator.getCurrentPosition(',
+        'locationSettings: const geo.LocationSettings(',
+        'accuracy: geo.LocationAccuracy.high,',
+        'timeLimit: kLocationFixTimeout,',
+        '),',
+        ').timeout(kLocationFixTimeout);',
+        'return DeviceFix(lat: position.latitude, lng: position.longitude);',
+        '} catch (_) {',
+        'return null;',
+        '}',
         '}',
       ], reason: '좌표가 태어나는 자리에 줄이 하나 늘면 그 줄이 곧 좌표의 출구다');
     });

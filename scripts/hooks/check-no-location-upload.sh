@@ -45,7 +45,7 @@
 # 검사 4) 가 평범한 Dart 세 모양(값 나열 뒤에 멤버가 오는 enum · `@override`
 # 가 붙은 필드 · 몸통 없는 게터 선언)을 잡았고, round 7 에서는 타입을 명시한
 # 읽기 전용 provider(`final Provider<T> xProvider = Provider<T>(...)` — 이
-# 저장소의 최상위 provider 18개 중 5개가 타입을 명시하고, 그중 읽기 전용
+# 저장소의 최상위 provider 23개 중 5개가 타입을 명시하고, 그중 읽기 전용
 # `Provider<T>` 둘이 그 모양이다)와 `final` 앞에 수식어가
 # 오는 필드(`static final int retryBudget = 3;` 등)를 잡았다. 이 검사는 CI 에도
 # 걸려 있으므로 오탐은 로컬 훅뿐 아니라 CI 도 막는다.
@@ -928,7 +928,7 @@ if [ -d "$LOC_DIR" ]; then
       # 옛 판은 이것을 선언의 앞부분까지 함께 보는 정규식
       # (`^final <이름> = Provider…`)으로 두어서, 타입을 명시한 provider
       # (`final Provider<T> xProvider = Provider<T>(...)` — 이 저장소의 최상위
-      # provider 18개 중 5개가 타입을 명시하고, 그중 읽기 전용 `Provider<T>` 둘이
+      # provider 23개 중 5개가 타입을 명시하고, 그중 읽기 전용 `Provider<T>` 둘이
       # 그 모양이다: lib/backend/auth.dart:114 · lib/backend/user_data.dart:830)
       # 를 오탐했다. 이제 앞부분은 보지 않는다.
       #

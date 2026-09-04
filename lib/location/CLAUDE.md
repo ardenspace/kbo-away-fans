@@ -239,7 +239,7 @@
      이미 enum 이 둘 있으므로 게터 한 줄로 커밋과 CI 가 막혔다), `@override`
      가 붙은 필드, 추상 클래스·인터페이스·mixin 의 **몸통 없는 게터 선언**.
      round 7: **타입을 명시한 읽기 전용 provider**(`final Provider<T>
-     xProvider = Provider<T>(...)` — 이 저장소의 최상위 provider 18개 중
+     xProvider = Provider<T>(...)` — 이 저장소의 최상위 provider 23개 중
      5개가 타입을 명시하고, 그중 읽기 전용 `Provider<T>` 둘이 그 모양이다:
      `lib/backend/auth.dart:114`·`lib/backend/user_data.dart:830`), 그리고 **`final` 앞에
      수식어가 오는 필드**(`static final int retryBudget = 3;`·

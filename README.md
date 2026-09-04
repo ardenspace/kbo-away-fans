@@ -38,6 +38,13 @@ git hook은 클론으로 전파되지 않으므로 위처럼 저장소 내 훅 �
 CI 가 막혔다(`/// 경계: 좌표 플러그인(package:geolocator)은 …` 한 줄이
 exit 2 였다).
 
+그 사본 규칙은 **문자열 보간 안에 중첩된 문자열**까지 다룬다
+(`final v = '${a ?? 'https://a.b'}/x';` — 이 저장소가 실제로 쓰는 모양이다).
+다루지 못하는 입력은 셋이고(닫히지 않은 블록 주석 · 닫히지 않은 문자열 ·
+한 줄짜리 문자열의 보간 안에 있는 줄 주석) **셋 다 조용히 자르는 대신 파일
+이름과 함께 stderr 에 적고 훅을 exit 2 로 세운다.** 목록과 실측은
+`scripts/hooks/dart-source.sh` 헤더에 있다.
+
 **아직 원본을 읽는 자리가 둘 남아 있고 같은 오탐이 거기 있다**(둘 다 step
 1.6·1.9 가 세운 검사라 4.1 이 고치지 않고 적어만 둔다): `check-hardcoded-values.sh`
 는 주석에 적은 `Curves.easeIn` 에 exit 2 이고, `check-no-location-upload.sh` 의
@@ -94,7 +101,7 @@ exit 2 였다).
   지나갔다). round 6·7 이 이 검사의 **오탐 다섯**을 풀었다 — 값 나열 뒤에 멤버가
   오는 enum, `@override` 가 붙은 필드, 몸통 없는 게터 선언(`String get id;`),
   타입을 명시한 읽기 전용 provider(`final Provider<T> x = Provider<T>(...)` —
-  이 저장소의 최상위 provider 18개 중 5개가 타입을 명시하고 그중 읽기 전용
+  이 저장소의 최상위 provider 23개 중 5개가 타입을 명시하고 그중 읽기 전용
   `Provider<T>` 둘이 그 모양이다), `final` 앞에 수식어가
   오는 필드(`static final int retryBudget = 3;` 등). 다섯 다 평범한 Dart 이고
   `flutter analyze` 무지적인데 커밋과 CI 를 막았다. 이 검사가 **일부러** 거절하는
