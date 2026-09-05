@@ -20,6 +20,7 @@ class FakeLocationPermissionGateway extends LocationPermissionGateway {
     this.requestError,
     this.statusNeverAnswers = false,
     this.requestNeverAnswers = false,
+    this.openSettingsResult = true,
   }) : _status = initial,
        _afterRequest = afterRequest ?? initial;
 
@@ -38,11 +39,17 @@ class FakeLocationPermissionGateway extends LocationPermissionGateway {
   /// 참이면 [request] 가 영영 끝나지 않는다 (멎은 플랫폼 채널).
   final bool requestNeverAnswers;
 
+  /// [openSettings] 가 돌려줄 값.
+  final bool openSettingsResult;
+
   /// [status] 가 불린 횟수.
   int statusCalls = 0;
 
   /// [request] 가 불린 횟수 — 0 이면 OS 에 한 번도 묻지 않았다는 뜻이다.
   int requestCalls = 0;
+
+  /// [openSettings] 가 불린 횟수 — 0 이면 설정 화면을 연 적이 없다는 뜻이다.
+  int openSettingsCalls = 0;
 
   @override
   Future<LocationPermissionStatus> status() async {
@@ -63,5 +70,11 @@ class FakeLocationPermissionGateway extends LocationPermissionGateway {
     if (error != null) throw error;
     _status = _afterRequest;
     return _status;
+  }
+
+  @override
+  Future<bool> openSettings() async {
+    openSettingsCalls++;
+    return openSettingsResult;
   }
 }

@@ -48,6 +48,18 @@ class _RecordingPermissionHandler extends PermissionHandlerPlatform {
   /// 참이면 플랫폼이 영영 답하지 않는다 (멎은 채널).
   bool neverAnswers = false;
 
+  /// [openAppSettings] 가 불린 횟수.
+  int openAppSettingsCalls = 0;
+
+  /// [openAppSettings] 가 돌려줄 값.
+  bool openAppSettingsReply = true;
+
+  @override
+  Future<bool> openAppSettings() {
+    openAppSettingsCalls++;
+    return _answer(openAppSettingsReply);
+  }
+
   Future<T> _answer<T>(T value) {
     if (neverAnswers) return Completer<T>().future;
     final failure = error;
@@ -141,6 +153,26 @@ void main() {
         expect(await gateway.request(), entry.value);
       });
     }
+  });
+
+  group('openSettings() — 영구 거절 뒤의 유일한 경로 (step 4.5)', () {
+    test('플랫폼의 openAppSettings 를 그대로 부르고 결과를 그대로 돌려준다', () async {
+      platform.openAppSettingsReply = true;
+
+      expect(await gateway.openSettings(), isTrue);
+      expect(platform.openAppSettingsCalls, 1);
+
+      platform.openAppSettingsReply = false;
+
+      expect(await gateway.openSettings(), isFalse);
+      expect(platform.openAppSettingsCalls, 2);
+    });
+
+    test('플랫폼이 던지면 예외가 아니라 false 로 답한다', () async {
+      platform.error = PlatformException(code: 'channel-error');
+
+      expect(await gateway.openSettings(), isFalse);
+    });
   });
 
   group('실패 계약 — 던지지 않고, 상한 안에 답한다', () {

@@ -105,6 +105,18 @@ abstract class LocationPermissionGateway {
   /// [LocationPermissionStatus.permanentlyDenied] 인 상태에서 불러도 안전하다
   /// (다이얼로그 없이 그 상태를 그대로 돌려준다).
   Future<LocationPermissionStatus> request();
+
+  /// 앱의 OS 설정 화면을 연다 — [LocationPermissionStatus.permanentlyDenied]
+  /// 뒤에 [request] 로는 다시 물을 길이 없을 때의 유일한 경로다(step 4.5).
+  ///
+  /// [status]·[request] 와 달리 상한을 두지 않는다 — 이 호출이 붙잡는 화면이
+  /// 없기 때문이다: 이것을 부르면 OS 가 앱을 배경으로 보내고 설정 앱을
+  /// 열므로, 우리 화면은 그 순간 이미 포그라운드에서 사라져 있다(돌아오면
+  /// `StadiumVisitTrigger` 의 `resumed` 가 다시 판정한다). 열기 자체가
+  /// 실패해도(예: 플랫폼이 지원하지 않음) 안내는 그대로 화면에 남아 있으므로
+  /// 사람이 갇히지 않는다 — 그래서 이 메서드도 던지지 않고 성공 여부를
+  /// `bool` 로 답한다.
+  Future<bool> openSettings();
 }
 
 /// 실제 구현 — `permission_handler` 위의 "앱 사용 중" 위치 권한
@@ -123,6 +135,16 @@ class DevicePermissionHandlerGateway extends LocationPermissionGateway {
   Future<LocationPermissionStatus> request() => resolveLocationPermission(
     () async => _fromPlatform(await ph.Permission.locationWhenInUse.request()),
   );
+
+  @override
+  Future<bool> openSettings() async {
+    try {
+      return await ph.openAppSettings();
+    } catch (_) {
+      // 이 폴더의 나머지와 같은 규칙 — SDK 예외를 밖으로 내보내지 않는다.
+      return false;
+    }
+  }
 
   static LocationPermissionStatus _fromPlatform(ph.PermissionStatus status) =>
       switch (status) {
