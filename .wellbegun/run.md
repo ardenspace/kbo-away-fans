@@ -433,11 +433,38 @@ cycle: 2
       수정 후 지휘자 재현: analyze 무지적 / flutter **785통과·1스킵** / `test/features/badges/` 112통과 / `test/ui/shared/` 78 / 규칙 69 / functions 46 / 파이프라인 61 / 훅 4종 exit 0.
       **구현자가 정직하게 남긴 것:** 이음매를 고쳐 기다림이 짧아지자 `StadiumVisitCheck.run` 의 `ref.mounted` 가드를 붙잡아 두던 창이 닫혔다(실측: 그 가드를 지워도 저장소 전체가 초록불). 가드는 그대로 두고 그 사실을 주석에 적었으며, 같은 성질을 실제로 재는 짝은 `serverConfirmed` 콜백 쪽 가드를 새 시험이 지킨다.
 
-## Phase 5 — 홈 개인화 마무리
       **round 2 ACCEPT** (새 fresh 검증자, high-tier). 다섯 단계가 실제 앱 골격 위에서 한 줄로 이어지는 것을 **하루를 걸어** 확인했다: 09:00 창 밖 안내(4.5) → 17:30 포그라운드 복귀로 판정(4.1) → 도장(4.2) → 연출(4.4) → 판 반영(4.3) → 23:45 창이 닫힌 뒤 침묵 → 다음 날 `noGameToday` 안내. 시각을 실제로 옮기고 `resumed` 로 다시 돌린 실행이다. **"언제 찍힌 것으로 치는가"가 이제 네 계층에서 같다** — 쓰기·연출·판·안내가 모두 로컬 확정을 기준으로 서고 서버 확인은 `serverConfirmed` 로 갈려 뒷정리에만 쓰인다. probes: 3케이스 커밋(`phase4_seam_probe_test.dart`, `93ac8b2`).
       **ACCEPT 뒤 실사용 결함 하나를 닫았다** (커밋 `841de30`, mid-tier). **한 실행 안에서 계정을 바꾸면 둘째 사람이 도장을 아예 못 받았다** — `stampAwardProvider` 의 세션 사본이 `{stadiumId}_{gameId}` 만 담고 uid 도 세션도 모르는데 그 아래 모든 쓰기와 판은 uid 로 갈린다. 뿌리 `ProviderScope` 는 로그아웃으로 버려지지 않고 이 provider 는 `autoDispose` 도 아니라, 앞사람 사본이 다음 계정까지 갔다. **판정은 `visited` 로 서는데 쓰기가 한 번도 나가지 않고 안내도 안 뜬다**(판정이 성공했으므로). 3.4 의 로그아웃으로 실제로 닿는 갈래다. `build()` 가 `ref.watch(authStateProvider).value` 를 물게 해 닫았다 — decisions.md 296·311 이 형제 provider 에 대해 적어 둔 그 규칙을 이 provider 만 빠뜨리고 있었다(311 과 같은 모양의 결함이다). **지휘자가 새 시험이 그 변이를 잡는지 직접 확인**: `build()` 를 옛 코드로 되돌리면 `stamp_write_test.dart` exit 1, 원복하면 exit 0.
       **지휘자가 검증자 발견 하나를 재현으로 기각했다.** 검증자는 사다리(1/3/10)와 칸 로스터가 세 벌로 손으로 적혀 있고 "사람이 Dart 코드와 Dart 시험을 함께 고치면서 `firestore.rules` 를 빠뜨리는 갈래는 어떤 검사도 잡지 않는다"고 적었으나, `test/cross_layer_seams_test.dart` 가 **`firestore.rules` 를 직접 파싱해 대조한다**(실측: `minStamps: 3` 을 4로 바꾸면 그 시험이 exit 1). 검증자가 "flutter 만 빨간불이고 firebase 는 초록불"이라고 관찰한 것은 사실이지만 결론이 틀렸다.
       **최종 수치**(지휘자 직접 재현): analyze 무지적 / flutter **789통과·1스킵**(phase 4 착수 시점 614·1) / `test/features/badges/` 115 / `test/ui/shared/` 78 / 규칙 69 / functions 46 / 파이프라인 61 / 훅 4종 exit 0.
+## Phase 5 — 홈 개인화 마무리
+
+> **다음 세션이 이어받는 자리 (2026-09-06 기준).** HEAD `77d3612` 이후, 작업 트리 깨끗함.
+> 기준선(지휘자 직접 실행): `flutter analyze` 무지적 / `flutter test` **789통과·1스킵** /
+> `test/features/badges/` 115 / `test/ui/shared/` 78 / 규칙 69 / functions 46 /
+> 파이프라인 61 / 훅 4종 exit 0.
+>
+> **phase 1~4 가 전부 닫혔다.** 다음은 **5.1(홈 최근 5경기 결과 요약, basic)** 이다.
+> 5.1 은 1.2 가 산출한 과거 경기를 입력으로 쓴다(크롤 창을 2026-08-18~09-30 으로 넓혀
+> finished 48경기를 담은 그 산출물이다). 계약이 "선발 투수·날씨 자리는 만들지 않는다"를
+> 명시하니 범위를 넓히지 말 것.
+>
+> **사람 몫으로 열려 있는 것 하나 — 아직 하지 않았다.** `firestore.indexes.json` 실배포:
+> ```
+> ./firebase/node_modules/.bin/firebase deploy --only firestore:indexes --project kbo-away-fans
+> ```
+> (`.firebaserc` 가 없어 `--project` 가 필요하고, `firebase.json` 을 찾으려면 저장소
+> 루트에서 돌려야 한다.) 배지 판은 인덱스 없이도 열리지만 **칸을 열면
+> `failed-precondition` 으로 "도장을 불러오지 못했어요"가 뜨고 재시도를 눌러도 계속 같은
+> 실패**다. 같은 배포가 `users.board` 의 `fieldOverride`(하위 키 자동 인덱스 끄기)도
+> 올리며 그 상속은 실배포로만 확인된다. 끝나면 Deferred 의 해당 줄을 지운다.
+>
+> **이 세션에서 지휘자가 겪은 것 둘 (다음 세션도 지킬 것).**
+> (1) **서브에이전트의 "완료" 알림이 곧 그 에이전트가 끝났다는 뜻은 아니다.** 4.4 에서
+> 끝난 줄 알고 둘째를 띄웠다가 한동안 둘이 같은 작업 트리에서 겹쳤고 원장에 중복 ADR 이
+> 남았다. 이어받히기 전에 트리와 커밋으로 상태를 직접 재고, 필요하면 `TaskStop` 으로
+> 정리한다. (2) 이 머신의 **8080 은 로컬 LLM 이 상시 점유**한다. Firestore 에뮬레이터는
+> **8791** 이다(`firebase.json`). 지휘자가 이것을 놓쳐 탐침이 5분을 멎었다.
 
 - [ ] 5.1 홈 최근 5경기 결과 요약 (basic)
 - [ ] 5.2 홈 상단 현재 위치 표시 (basic)
