@@ -52,7 +52,10 @@ exit 2 였다).
 (둘 다 실측). `check-registry-sync.sh` 는 Dart 소스를 읽지 않아 이 종류의
 오탐이 없다.
 
-- `check-hardcoded-values.sh` — 토큰 밖 raw 디자인 값.
+- `check-hardcoded-values.sh` — 토큰 밖 raw 디자인 값(색·치수·타이포, 그리고 모션:
+  `Curves.*` 와 `duration:`/`reverseDuration:`/`period:` 에 바로 넘기는 `Duration(...)`
+  리터럴). 이름 붙은 도메인 상수(`const Duration kFooTimeout = ...` 류의 상한·시간
+  창·시간대 오프셋)는 연출 수치가 아니라 걸리지 않는다.
 - `check-registry-sync.sh` — 공유 폴더 ↔ REGISTRY.md 로스터 동기화.
 - `check-no-location-upload.sh` — 기기 위치는 서버에 올리지 않는다는 데이터 소유권
   결정의 강제. 다섯 방향을 본다: `lib/backend/` 에 위도·경도로 읽히는 필드가 없는지,

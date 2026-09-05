@@ -3,6 +3,8 @@
 # 규칙: lib/design/ (tokens.dart, team_themes.dart) 밖의 lib/ 코드에서
 #   - raw hex 색 (Color(0x...), #rrggbb)
 #   - raw 치수 리터럴 (EdgeInsets/Radius/BorderRadius.circular/SizedBox/fontSize 의 숫자)
+#   - raw 연출 수치 (Curves.*, 그리고 duration:/reverseDuration:/period: 에 바로
+#     넘기는 Duration(...) 리터럴 — 애니메이션의 길이는 motion.* 토큰에서 온다)
 # 를 검출하면 stderr 에 위반을 찍고 exit 2 (Claude Code PostToolUse 훅이 읽는 신호).
 # wiring(PostToolUse + pre-commit)은 step 1.6 에서 한다.
 set -u
@@ -24,6 +26,10 @@ patterns=(
   'fontSize: *[0-9]'
   'strokeWidth: *[0-9]'
   'Curves\.[a-zA-Z]'                                 # raw 커브 — motion.* 토큰 경유 강제
+  # raw 지속시간 — 애니메이션에 바로 넘기는 Duration 리터럴만 잡는다.
+  # `const Duration kFooTimeout = ...` 류(상한·시간 창·시간대 오프셋)는 연출
+  # 수치가 아니라 이름 붙은 도메인 값이라 여기 걸리지 않는다.
+  '(duration|reverseDuration|period): *(const +)?Duration\('
 )
 regex=$(IFS='|'; echo "${patterns[*]}")
 

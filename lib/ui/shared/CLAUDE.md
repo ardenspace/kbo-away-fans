@@ -8,3 +8,6 @@
   `scripts/hooks/check-registry-sync.sh`가 pre-commit에서 폴더 ↔ 로스터 어긋남을 막는다.
 - 색·간격·모서리·타이포·모션 값은 `lib/design/` 토큰만 사용한다
   (`scripts/hooks/check-hardcoded-values.sh`가 PostToolUse·pre-commit에서 검사).
+  모션은 커브(`Curves.*`)와 애니메이션에 바로 넘기는 지속시간(`duration:` 등의
+  `Duration(...)` 리터럴) 둘 다 본다 — 앞엣것은 1.6 부터, 뒤엣것은 2026-09-06
+  `[S]` 부터다.
