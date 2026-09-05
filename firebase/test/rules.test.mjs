@@ -288,7 +288,10 @@ describe('칸별 요약 — 사용자 문서 하나만 읽고 판을 그린다',
     }
   });
 
-  it('도장과 요약을 같은 트랜잭션으로 함께 쓸 수 있다', async () => {
+  // 앱이 쓰는 원자 단위는 `WriteBatch` 다(트랜잭션은 오프라인 구장에서 완료되지
+  // 않는다) — 그 모양 그대로를 재는 자리는 probe-4-2-stamp-batch.test.mjs 이고,
+  // 여기서는 두 쓰기가 한 단위로 묶여도 규칙이 받아 준다는 것만 잰다.
+  it('도장과 요약을 한 원자 단위로 함께 쓸 수 있다', async () => {
     const db = asUser(env, OWNER_UID);
     const stamp = stampDoc({ stadiumId: 'changwon', homeTeamId: 'nc', gameId: 'g-changwon-4' });
     const cellId = cellIdOf(stamp);
