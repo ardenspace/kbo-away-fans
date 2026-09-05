@@ -179,6 +179,16 @@ class StampAward extends Notifier<Set<String>> {
   /// "홈·원정을 구분하지 않는다"는 계약을 타입에 박아 둔 자리다
   /// (decisions.md 2026-09-04 [S]). 잠실이 그날 홈팀에 따라 두 칸으로 갈리는
   /// 것도 이 한 줄이 정한다.
+  ///
+  /// **`gameDate` 도 여기서 미리 막는다.** `stadiumId`·`homeTeamId`·`gameId`
+  /// 는 [_documentIdOf] 와 [kBoardCellIds] 검사가 이미 도장 계약의 모양으로
+  /// 걸러 두었지만, 일정 문서의 `date` 는 콘텐츠 계약이 `YYYY-MM-DD` 정규식
+  /// (`Game.fromJson`)으로 지켜 줄 뿐 이 계층 스스로는 재지 않았다 — 그
+  /// `ArgumentError` 는 [StampWrite.toData] 안에 있어 [guardBackend] 밖이고
+  /// [award] 는 [BackendError] 만 잡으므로, 안전이 콘텐츠 파서 하나에
+  /// 걸려 있었다. `_documentIdOf` 와 같은 자리 — `toData()` 를 미리 불러
+  /// 계약을 확인하고, 어긋나면 리그 어딘가의 잘못된 한 줄이 그날의 판정을
+  /// 통째로 멈추지 않도록 조용히 지난다.
   StampWrite? _stampFor({
     required String stadiumId,
     required String gameId,
@@ -189,12 +199,18 @@ class StampAward extends Notifier<Set<String>> {
       if (!kBoardCellIds.contains('${stadiumId}_${game.homeTeamId}')) {
         return null;
       }
-      return StampWrite(
+      final stamp = StampWrite(
         stadiumId: stadiumId,
         gameId: gameId,
         homeTeamId: game.homeTeamId,
         gameDate: game.date,
       );
+      try {
+        stamp.toData();
+      } on ArgumentError {
+        return null;
+      }
+      return stamp;
     }
     return null;
   }

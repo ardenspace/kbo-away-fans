@@ -916,5 +916,41 @@ void main() {
       expect(store.stampWrites, 0);
       expect(container.read(stampAwardProvider), isEmpty);
     });
+
+    test('도장 계약의 모양이 아닌 경기 날짜는 판정을 멈추지 않고 조용히 지난다', () async {
+      // gameId 와 짝인 자리 — `Game.fromJson` 이 `YYYY-MM-DD` 를 이미 막아
+      // 실전에서는 이 갈래가 좀처럼 서지 않지만, 안전을 콘텐츠 파서 하나에
+      // 기대면 이 계층 자신은 `toData()` 의 `ArgumentError` 를 그대로 맞고
+      // `award()` 밖으로 던져 그날의 판정을 통째로 멈춘다.
+      final store = FakeUserDataStore();
+      addTearDown(store.dispose);
+      await store.createProfile(_uid, _newProfile);
+      final recorder = _RecordingChecker(
+        fix: const DeviceFix(lat: _jamsilLat, lng: _jamsilLng),
+      );
+      final container = await buildContainer(
+        store: store,
+        recorder: recorder,
+        schedule: scheduleOf([
+          _game(
+            // `DateTime.parse` 는 4~6자리 연도를 받아들이고 앞자리 0 은 값을
+            // 바꾸지 않으므로 시간 창 판정은 이 값을 2026-08-25 그대로 읽어
+            // 방문이 성립하지만, 도장 계약(`^\d{4}-\d{2}-\d{2}$`)의 모양은
+            // 아니다.
+            id: 'g-jamsil',
+            date: '02026-08-25',
+            home: 'lg',
+            away: 'lotte',
+            stadium: 'jamsil',
+          ),
+        ]),
+      );
+
+      await container.read(stadiumVisitProvider.notifier).run();
+
+      expect(container.read(stadiumVisitProvider)!.isVisit, isTrue);
+      expect(store.stampWrites, 0);
+      expect(container.read(stampAwardProvider), isEmpty);
+    });
   });
 }
