@@ -66,19 +66,30 @@ class _FixedStadiumVisitCheck extends StadiumVisitCheck {
   }
 }
 
+/// 2026-08-25(화) KST 20:00 — 그날 14:00 경기의 시간 창(19:00 에 닫힌다) 밖.
+final DateTime _afterWindowClosed = DateTime.parse('2026-08-25T20:00:00+09:00');
+
+/// 칸 요약 하나짜리 판 — [day] 가 그 칸의 마지막 도장 날짜다.
+Map<String, BoardCell> _boardStampedOn(String day) => {
+  'jamsil_lg': BoardCell.forCount(count: 1, lastStampedOn: day),
+};
+
 /// [VisitStatusNotice] 하나만 세우는 host — 판 없이 안내 위젯의 모습만 잰다.
 Widget _noticeHost({
   required StadiumVisitResult? visit,
   LocationPermissionGateway? gateway,
+  Map<String, BoardCell> board = const {},
+  DateTime? now,
 }) {
   return ProviderScope(
     overrides: [
       stadiumVisitProvider.overrideWith(() => _FixedStadiumVisitCheck(visit)),
       if (gateway != null)
         locationPermissionGatewayProvider.overrideWithValue(gateway),
+      if (now != null) clockProvider.overrideWithValue(() => now),
     ],
-    child: const MaterialApp(
-      home: Scaffold(body: VisitStatusNotice()),
+    child: MaterialApp(
+      home: Scaffold(body: VisitStatusNotice(board: board)),
     ),
   );
 }
@@ -198,7 +209,9 @@ void main() {
             stadiumVisitProvider.overrideWith(() => fixed),
             locationPermissionGatewayProvider.overrideWithValue(gateway),
           ],
-          child: const MaterialApp(home: Scaffold(body: VisitStatusNotice())),
+          child: const MaterialApp(
+            home: Scaffold(body: VisitStatusNotice(board: {})),
+          ),
         ),
       );
       await tester.pumpAndSettle();
@@ -231,7 +244,9 @@ void main() {
             stadiumVisitProvider.overrideWith(() => fixed),
             locationPermissionGatewayProvider.overrideWithValue(gateway),
           ],
-          child: const MaterialApp(home: Scaffold(body: VisitStatusNotice())),
+          child: const MaterialApp(
+            home: Scaffold(body: VisitStatusNotice(board: {})),
+          ),
         ),
       );
       await tester.pumpAndSettle();
@@ -310,6 +325,140 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(Text), findsNothing);
+    });
+  });
+
+  group('오늘 도장을 이미 받았으면 "못 받는 날" 안내를 하지 않는다', () {
+    // 14:00 경기에서 13:00 에 도장을 받은 사람이 20:00 에도 구장 근처에서
+    // 앱을 다시 켜면, 창이 닫혔으므로 재판정 게이트가 열리고 판정이 다시 돌아
+    // `outsideTimeWindow` 가 남는다 — 판에는 자기 도장이 있는데 바로 그 위에
+    // "지금은 도장을 받을 시간이 아니에요"가 붙던 자리다.
+    //
+    // 그 사실을 얻는 자리는 **판이 이미 손에 든 칸 요약**이라, 4.3 이 지킨
+    // 읽기 성질("판을 여는 동안 읽는 문서가 사용자 문서 하나다")을 건드리지
+    // 않는다.
+    testWidgets('창이 닫힌 뒤여도 오늘 받은 도장이 있으면 안내가 없다', (tester) async {
+      await tester.pumpWidget(
+        _noticeHost(
+          visit: const StadiumVisitResult.rejected(
+            StadiumVisitReason.outsideTimeWindow,
+          ),
+          board: _boardStampedOn('2026-08-25'),
+          now: _afterWindowClosed,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(Text), findsNothing);
+    });
+
+    testWidgets('집으로 돌아가 반경 밖이어도 마찬가지다', (tester) async {
+      await tester.pumpWidget(
+        _noticeHost(
+          visit: const StadiumVisitResult.rejected(
+            StadiumVisitReason.outsideRadius,
+          ),
+          board: _boardStampedOn('2026-08-25'),
+          now: _afterWindowClosed,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text(VisitStatusNotice.outsideRadiusTitle), findsNothing);
+    });
+
+    testWidgets('권한 거부 안내도 뜨지 않는다', (tester) async {
+      await tester.pumpWidget(
+        _noticeHost(
+          visit: const StadiumVisitResult.rejected(
+            StadiumVisitReason.permissionMissing,
+          ),
+          gateway: FakeLocationPermissionGateway(
+            initial: LocationPermissionStatus.denied,
+          ),
+          board: _boardStampedOn('2026-08-25'),
+          now: _afterWindowClosed,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text(VisitStatusNotice.permissionMissingTitle), findsNothing);
+    });
+
+    testWidgets('어제 받은 도장은 오늘의 안내를 가리지 않는다', (tester) async {
+      await tester.pumpWidget(
+        _noticeHost(
+          visit: const StadiumVisitResult.rejected(
+            StadiumVisitReason.outsideTimeWindow,
+          ),
+          board: _boardStampedOn('2026-08-24'),
+          now: _afterWindowClosed,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text(VisitStatusNotice.outsideTimeWindowTitle),
+        findsOneWidget,
+        reason: '오늘 못 받은 사람에게는 이유를 그대로 알려야 한다',
+      );
+    });
+
+    testWidgets('배지 탭이 실제로 자기 칸 요약을 안내에 넘긴다', (tester) async {
+      // 위 시험들은 안내 위젯만 세우므로, 탭이 빈 판을 넘기도록 되돌려도
+      // 전부 초록불이다. 이 시험이 그 배선을 잡는다.
+      final store = FakeUserDataStore();
+      addTearDown(store.dispose);
+      final auth = FakeAuthService(signedIn: const AuthUser(uid: _uid));
+      addTearDown(auth.dispose);
+      await store.createProfile(
+        _uid,
+        const NewUserProfile(
+          nickname: '원정러',
+          favoriteTeamId: 'lg',
+          profileThemeKey: 'lg',
+        ),
+      );
+      await (await store.writeStamp(
+        _uid,
+        const StampWrite(
+          stadiumId: 'jamsil',
+          gameId: 'g-jamsil',
+          homeTeamId: 'lg',
+          gameDate: '2026-08-25',
+        ),
+      )).serverConfirmed;
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authServiceProvider.overrideWithValue(auth),
+            userDataStoreProvider.overrideWithValue(store),
+            clockProvider.overrideWithValue(() => _afterWindowClosed),
+            teamsProvider.overrideWith(
+              (ref) async => const ContentUnavailable<TeamsDocument>(
+                ContentIssue(ContentIssueKind.network, 'fixture'),
+              ),
+            ),
+            stadiumVisitProvider.overrideWith(
+              () => _FixedStadiumVisitCheck(
+                const StadiumVisitResult.rejected(
+                  StadiumVisitReason.outsideTimeWindow,
+                ),
+              ),
+            ),
+          ],
+          child: const MaterialApp(home: BadgesTabScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(StampBoard), findsOneWidget, reason: '판은 그대로 열린다');
+      expect(
+        find.text(VisitStatusNotice.outsideTimeWindowTitle),
+        findsNothing,
+        reason: '자기 도장 바로 위에 "도장을 받을 시간이 아니다"가 붙으면 안 된다',
+      );
     });
   });
 

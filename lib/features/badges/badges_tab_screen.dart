@@ -24,6 +24,9 @@
 /// 판 위에 [VisitStatusNotice] 를 얹는다(step 4.5) — 가장 최근 방문 판정이
 /// 방문이 아니면 왜 못 받았는지 안내한다. 그 위젯이 판을 가리지 않는 것도,
 /// 권한이 없어도 판이 열리는 것도 그 파일의 계약이지 이 화면의 몫이 아니다.
+/// 다만 **판을 그 위젯에 넘기는 것**은 이 화면의 몫이다 — 안내가 "오늘 이미
+/// 도장을 받았다"를 알아야 하고, 그 사실을 새 읽기 없이 아는 자리가 이 화면이
+/// 이미 손에 든 칸 요약이기 때문이다(그 위젯 문서 참조).
 library;
 
 import 'package:flutter/material.dart';
@@ -84,7 +87,7 @@ class BadgesTabScreen extends ConsumerWidget {
         children: [
           // 위치 확인이 안 되어 도장을 못 받은 이유(step 4.5) — 판이 없어도,
           // 권한이 없어도 판 자체는 그 아래에서 그대로 열린다.
-          const VisitStatusNotice(),
+          VisitStatusNotice(board: board),
           StampBoard(
             board: board,
             labels: boardCellLabels(teams),

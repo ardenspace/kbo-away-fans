@@ -49,9 +49,12 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../backend/user_data.dart' show BoardCell;
+import '../../content/kst.dart';
 import '../../design/tokens.dart';
 import '../../location/location.dart';
 import '../../location/visit_check.dart';
+import '../home/next_away_game.dart' show clockProvider;
 import 'stadium_visit.dart';
 
 /// [StadiumVisitReason.permissionMissing] 을 다시 물을 수 있는지 — 4.1 이
@@ -63,11 +66,53 @@ final _permissionMissingStatusProvider =
       ),
     );
 
+/// 이 판에 **[now] 의 KST 달력 날짜**로 찍힌 도장이 있는가.
+///
+/// 칸 요약의 `lastStampedOn` 은 그 칸에 마지막으로 찍힌 도장의 **경기 날짜**
+/// (KST)다. 시간 창은 경기 시작 3시간 전부터 5시간 뒤까지라 창 안에서 받은
+/// 도장의 경기 날짜는 곧 그날이고, 그래서 이 물음에 그 값을 그대로 쓸 수 있다.
+///
+/// 판 전체를 훑는 것은 도장이 어느 칸에 찍혔는지를 이 자리가 알 수 없기
+/// 때문이다 — 칸은 열이고, 열은 구장×홈팀이며, 오늘 간 구장은 판정이 이미
+/// 지나간 사실이다. 칸이 열 개뿐이라 훑는 값이 싸다.
+bool boardHasStampToday(Map<String, BoardCell> board, DateTime now) {
+  final today = kstDateOf(now);
+  for (final cell in board.values) {
+    final day = cell.lastStampedOn;
+    // 계약이 `YYYY-MM-DD` 로 막아 둔 값이라(`BoardCell` 생성자) 파싱이 던지지
+    // 않는다 — `gameDateOf` 가 일정 문서에 쓰는 표현과 같은 표현이다.
+    if (day != null && DateTime.parse('${day}T00:00:00Z') == today) return true;
+  }
+  return false;
+}
+
 /// 배지 탭에 얹는 안내 — 가장 최근 방문 판정([stadiumVisitProvider])이
 /// 방문이 아니면 이유를 보여주고, 아직 판정이 없거나(null) 방문이면 아무것도
 /// 그리지 않는다(판 자체는 이 위젯과 무관하게 항상 열려 있다).
+///
+/// **오늘 도장을 이미 받은 사람에게도 아무것도 그리지 않는다.** 14:00 경기의
+/// 창이 닫힌 뒤(19:00) 구장 근처에서 앱을 다시 켜면 재판정 게이트가 열리고
+/// (창을 덮는 후보가 없다) 판정이 다시 돌아 `outsideTimeWindow` 가 남는데,
+/// 그것을 그대로 안내하면 **판에 있는 자기 도장 바로 위에** "지금은 도장을
+/// 받을 시간이 아니에요"가 붙는다. 집으로 돌아간 사람에게는 `outsideRadius`
+/// ("구장에서 좀 떨어져 있어요")가 같은 자리에 붙는다. 그 사람에게 오늘은
+/// "못 받는 날"이 아니므로 안내할 것이 없다 — 방문 판정이 `visited` 일 때
+/// 아무것도 그리지 않는 것과 같은 갈래로 접는다.
+///
+/// **그 사실은 [board] 에서 온다** — 판이 이미 손에 들고 있는 칸 요약이라
+/// 도장 문서를 새로 읽지 않는다(4.3 의 "판을 여는 동안 읽는 문서가 사용자
+/// 문서 하나다"를 그대로 둔다). 부르는 쪽([BadgesTabScreen])이 자기 판을
+/// 그대로 넘긴다.
+///
+/// **남는 대가**: 오늘 한 구장에서 도장을 받고 저녁에 **다른** 구장으로 옮겨
+/// 간 사람은, 둘째 구장에서 못 받는 이유를 안내받지 못한다. 하루에 두 구장을
+/// 도는 실행이고, 그 실행은 재판정 게이트([StampAward.judgingAddsNothing])가
+/// 이미 같은 종류의 대가를 적어 둔 자리이기도 하다.
 class VisitStatusNotice extends ConsumerWidget {
-  const VisitStatusNotice({super.key});
+  const VisitStatusNotice({required this.board, super.key});
+
+  /// 배지 탭이 그리고 있는 칸 요약 — "오늘 이미 받았는가"의 유일한 근거다.
+  final Map<String, BoardCell> board;
 
   /// 권한 거부 안내 제목·설명.
   static const String permissionMissingTitle = '위치 권한이 없어서 도장을 확인하지 못했어요';
@@ -102,6 +147,9 @@ class VisitStatusNotice extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final visit = ref.watch(stadiumVisitProvider);
     if (visit == null || visit.isVisit) return const SizedBox.shrink();
+    if (boardHasStampToday(board, ref.watch(clockProvider)())) {
+      return const SizedBox.shrink();
+    }
 
     if (visit.reason == StadiumVisitReason.permissionMissing) {
       return const _PermissionMissingNotice();
