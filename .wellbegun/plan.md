@@ -258,7 +258,8 @@ cycle: 2
 1. **Goal:** 판정이 성공하면 `{stadiumId}_{gameId}` 문서를 쓰고 **같은 원자적 쓰기로** 사용자 문서의 칸별 요약(개수·등급)을 갱신한다. <!-- 2026-09-05 지휘자 [S] 교정: 원래 문구는 "같은 트랜잭션으로"였으나, Firestore 트랜잭션은 서버에 닿아야 끝나므로 바로 아래 acceptance 의 "오프라인에서 찍은 도장이 복구 후 한 번만 올라간다"와 양립하지 않는다. 이 저장소는 2.4 의 `createProfile` 주석에서 이미 "도장·좋아요처럼 구장에서 오프라인으로 쓰는 경로에는 이 방식을 쓰지 않는다"고 못 박았다. 계약의 의도는 SDK API 이름이 아니라 두 쓰기가 함께 확정되는 원자성이므로 표현만 교정한다. acceptance criteria 는 그대로 둔다. -->
 2. **Acceptance criteria:** 같은 경기에서 여러 번 판정해도 도장 문서가 하나다. 요약의 개수·등급이 실제 도장과 어긋나지 않는다. 오프라인에서 찍은 도장이 복구 후 한 번만 올라간다. 잠실은 그날 홈팀 칸에 찍힌다. 도장에 좌표가 담기지 않는다.
 3. **Boundary tests:**
-   - `flutter test test/backend/stamp_write_test.dart` → exit 0 (중복 쓰기 멱등, 요약과 도장의 일치, 잠실 홈팀 분기, 오프라인 큐 재전송)
+   - `flutter test test/backend/stamp_write_test.dart test/backend/stamp_write_offline_test.dart test/backend/user_data_firestore_store_test.dart` → exit 0 (중복 쓰기 멱등, 요약과 도장의 일치, 잠실 홈팀 분기, 오프라인 큐 재전송)
+     <!-- 2026-09-05 지휘자 [S] 교정: 원래는 `stamp_write_test.dart` 하나만 적혀 있었는데, 그 파일은 전부 `FakeUserDataStore` 위에서 돌아 실 구현 `FirestoreUserDataStore` 를 한 번도 지나지 않는다. round 2 검증자 실측 — 개수를 `+2` 로 / `_alreadyStamped` 게이트 제거 / 읽기 실패를 코드 구분 없이 접기 / 배치를 두 쓰기로 쪼개기 / `lastStampedOn` 을 null 로, 다섯 변이 전부 그 명령 하나로는 exit 0 이고 뒤의 두 파일을 넣어야 exit 1 이다. 4.3 이 이 목록을 물려받으므로 여기서 막는다. -->
    - `npm --prefix firebase test` → exit 0 (규칙: 남의 도장 쓰기 거부 케이스 포함)
    - `bash scripts/hooks/check-no-location-upload.sh` → exit 0
    - `flutter analyze` → exit 0
