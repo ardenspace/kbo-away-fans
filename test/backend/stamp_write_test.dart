@@ -920,6 +920,57 @@ void main() {
       expect(container.read(stampAwardProvider), isEmpty);
     });
 
+    test('로그아웃 뒤 다른 계정으로 로그인하면 세션 사본이 새 계정을 따라간다', () async {
+      // 검증자가 실사용에서 재현한 결함(마이페이지 로그아웃(3.4)으로 실제로
+      // 닿는 갈래) — 세션 사본([stampAwardProvider] 의 `state`)이 문서 id 만
+      // 알고 uid 는 모르면, 첫 사람이 받은 도장의 문서 id 를 둘째 사람(다른
+      // 계정)의 판정에도 그대로 들이대 둘째 사람은 같은 경기에서 도장을 아예
+      // 받지 못한다.
+      final store = FakeUserDataStore();
+      addTearDown(store.dispose);
+      await store.createProfile(_uid, _newProfile);
+      const kakaoUid = 'kakao-uid';
+      await store.createProfile(kakaoUid, _newProfile);
+
+      final recorder = _RecordingChecker(
+        fix: const DeviceFix(lat: _jamsilLat, lng: _jamsilLng),
+      );
+      final auth = FakeAuthService(signedIn: const AuthUser(uid: _uid));
+      addTearDown(auth.dispose);
+      final container = ProviderContainer(
+        overrides: [
+          clockProvider.overrideWithValue(() => duringPregame),
+          authServiceProvider.overrideWithValue(auth),
+          userDataStoreProvider.overrideWithValue(store),
+          stadiumsProvider.overrideWith((ref) async => ContentFresh(stadiums)),
+          scheduleProvider.overrideWith(
+            (ref) async => ContentFresh(lgHomeSchedule),
+          ),
+          stadiumVisitCheckerProvider.overrideWithValue(recorder.build()),
+        ],
+      );
+      addTearDown(container.dispose);
+      container.listen(authStateProvider, (_, _) {});
+      await pumpEventQueue();
+
+      await container.read(stadiumVisitProvider.notifier).run();
+      expect((await store.readStamps(_uid)).single.gameId, 'g-jamsil');
+      expect((await _cellOf(store, _uid, 'jamsil_lg'))!.count, 1);
+
+      await auth.signOut();
+      await auth.signIn(AuthProviderId.kakao);
+      await pumpEventQueue();
+
+      await container.read(stadiumVisitProvider.notifier).run();
+
+      expect(
+        await store.readStamps(kakaoUid),
+        hasLength(1),
+        reason: '같은 실행 안에서 계정이 바뀌어도 둘째 사람은 같은 경기의 도장을 받아야 한다',
+      );
+      expect((await _cellOf(store, kakaoUid, 'jamsil_lg'))!.count, 1);
+    });
+
     test('판에 없는 구장×홈팀 짝은 도장이 되지 않는다', () async {
       final store = FakeUserDataStore();
       addTearDown(store.dispose);

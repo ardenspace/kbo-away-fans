@@ -83,8 +83,32 @@ final NotifierProvider<StampAward, Set<String>> stampAwardProvider =
 
 /// 도장을 쓰고, 이번 실행에서 이미 받은 경기를 기억한다.
 class StampAward extends Notifier<Set<String>> {
+  /// 세션이 바뀌면 이 사본도 다시 짓는다 — `LikedPlaceIds`
+  /// (`user_data.dart`, `.wellbegun/decisions.md` 2026-09-04 `[S]` 296 번째
+  /// 줄)와 같은 판단이다.
+  ///
+  /// **이 사본이 담는 값(`{stadiumId}_{gameId}`)에는 uid 가 없다.** 그런데
+  /// 그 아래 [award] 의 모든 쓰기·판(`writeStamp`, `judgingAddsNothing`)은
+  /// uid 로 갈린다 — 뿌리 `ProviderScope` 는 로그아웃으로 버려지지 않고 이
+  /// provider 는 `autoDispose` 도 아니므로, 세션을 묻지 않으면 첫 사람이
+  /// 남긴 사본이 다음 계정까지 그대로 가서 둘째 사람의 [_documentIdOf] 가
+  /// "이미 있다"로 잘못 읽힌다(마이페이지 로그아웃(3.4)으로 실제로 닿는
+  /// 갈래, 검증자 재현).
+  ///
+  /// `.value` 로 읽고 그 값 자체는 쓰지 않는 것은 296 번째 줄과 같은 까닭이다:
+  /// 이 provider 를 쓰는 자리(`StadiumVisitTrigger`)는 로그인 게이트 안쪽이라
+  /// 실사용에서는 세션이 이미 확정돼 있고, `ref.watch` 라서 세션이 아직
+  /// "모름"인 채로 먼저 서더라도(콜드 스타트의 복원 대기) 세션이 확정되는
+  /// 순간 다시 지어져 빈 집합에서 새로 쌓는다. `.value` 로 좁혀 로딩·오류의
+  /// 일시적 흔들림에는 반응하지 않는다 — 같은 계정이 그대로면 이 사본이
+  /// 비워지지 않아야 "이미 받은 경기에서 판정이 다시 돌지 않는" 성질
+  /// (decisions.md 327)이 그대로 선다. uid 자체는 여기서 쓰지 않는다 —
+  /// [award] 가 쓸 때마다 `ref.read(authStateProvider)` 로 따로 읽는다.
   @override
-  Set<String> build() => const {};
+  Set<String> build() {
+    ref.watch(authStateProvider).value;
+    return const {};
+  }
 
   /// 이 경기의 도장이 이번 실행에서 이미 확인되었는가.
   bool knowsStampFor({required String stadiumId, required String gameId}) {
