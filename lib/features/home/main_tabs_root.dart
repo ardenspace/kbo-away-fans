@@ -5,6 +5,7 @@ import '../../ui/shared/content_fallback.dart';
 import '../../ui/shared/main_tab_scaffold.dart';
 import '../badges/badges_tab_screen.dart';
 import '../badges/stadium_visit.dart';
+import '../badges/stamp_reveal.dart';
 import '../likes/likes_tab_screen.dart';
 import '../places/recommend_tab_screen.dart';
 import '../profile/profile_tab_screen.dart';
@@ -42,12 +43,17 @@ import 'home_screen.dart';
 /// 문서에 적었다. 판이 서버에서 읽는 것이 사용자 문서 하나라는 4.3 의 성질과
 /// 어긋나지 않는다 — 이 판정은 서버를 읽지 않고, 그날 경기가 없거나 위치
 /// 권한이 없으면 OS 에 좌표도 묻지 않는다.
+///
+/// 그 안쪽을 [StampRevealOverlay] 가 한 겹 더 감싼다(4.4) — 판정이 도장을
+/// 찍으면 이 겹이 그 순간을 연출로 얹는다. `Stack` 으로 얹을 뿐 탭 골격을
+/// 대신하지 않으므로, 사람이 어느 탭에 있든 연출이 뜨고 탭을 옮기거나 뒤로
+/// 가도 아래 화면은 그대로 살아 있다.
 class MainTabsRoot extends StatelessWidget {
   const MainTabsRoot({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return StadiumVisitTrigger(child: _tabs());
+    return StadiumVisitTrigger(child: StampRevealOverlay(child: _tabs()));
   }
 
   Widget _tabs() {

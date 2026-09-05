@@ -18,15 +18,55 @@
 /// ([StadiumVisitResult]) 뿐이고 그 타입에는 좌표를 둘 자리가 없다 — 도장
 /// payload([StampWrite]) 도 마찬가지다. 이 파일이 하는 일은 결과의 구장·경기
 /// id 에 **일정 문서에서 찾은 홈팀·날짜**를 붙여 백엔드로 넘기는 것뿐이다.
+///
+/// **[award] 가 [StampWriteOutcome] 을 더 이상 버리지 않는다** (step 4.4).
+/// `.wellbegun/decisions.md` 2026-09-05 `[S]` 가 `writeStamp` 를 `void` 에서
+/// 그 열거값으로 바꾼 까닭이 "4.4 의 연출 조건('이번에 찍혔는가')도 같은
+/// 값이기 때문"이었는데, 그 이후로도 이 자리는 값을 받아 곧바로 버렸다. 이제
+/// [StampAwardResult] 로 다듬어 돌려준다 — "이번에 찍혔는가"에 "어느 칸에,
+/// 등급이 올랐는가"를 얹은 것뿐이고, 등급 판단에 별도 읽기를 쓰지 않는다
+/// ([userProfileProvider] 의 칸 요약이 이미 `tier` 를 들고 있다 — 결정 195).
 library;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../backend/auth.dart';
 import '../../backend/errors.dart';
 import '../../backend/user_data.dart';
 import '../../content/models.dart';
+import '../../design/tokens.dart' show BadgeTier, BadgeTierTokens;
 import '../../location/visit_check.dart';
+
+/// [StampAward.award] 의 결과 — 아무것도 찍지 않은 실행이면 null.
+///
+/// **값 동등성을 두지 않는다(`==`/`hashCode` 를 덮어쓰지 않는다).** 같은
+/// 칸에 같은 등급으로 두 번 찍혀도(등급이 안 오르는 재방문 둘) 서로 다른
+/// 사건이라, 연출을 여는 화면(`stamp_reveal.dart`)이 두 사건을 값으로
+/// 같다고 뭉개면 안 되고 `ObjectKey` 로 새 사건마다 위젯을 새로 세워 연출이
+/// 처음부터 다시 돌게 한다.
+@immutable
+class StampAwardResult {
+  const StampAwardResult({
+    required this.cellId,
+    required this.count,
+    required this.tier,
+    required this.tierIncreased,
+  });
+
+  /// 이번에 도장이 찍힌 칸.
+  final String cellId;
+
+  /// 그 칸의 새 도장 개수 (이번 도장을 포함한 값).
+  final int count;
+
+  /// 그 칸의 새 등급.
+  final BadgeTier tier;
+
+  /// 이번 도장으로 등급이 **오른** 것인가 (0→첫 방문 포함). false 면 등급은
+  /// 그대로 두고 개수만 늘었다.
+  final bool tierIncreased;
+}
 
 /// 이번 실행에서 **도장이 있다고 아는** 경기들 — 값은 도장 문서 id
 /// (`{stadiumId}_{gameId}`).
@@ -125,9 +165,9 @@ class StampAward extends Notifier<Set<String>> {
 
   /// 방문 판정 하나를 도장으로 옮긴다.
   ///
-  /// 아무것도 하지 않고 끝나는 갈래가 넷이다. 넷 다 **조용히** 끝나는 것은
-  /// 이 자리에 사람이 보고 있는 화면이 없기 때문이다(앱을 여는 순간 배경에서
-  /// 도는 판정이다):
+  /// 아무것도 하지 않고 `null` 로 끝나는 갈래가 다섯이다. 다섯 다 **조용히**
+  /// 끝나는 것은 이 자리에 사람이 보고 있는 화면이 없기 때문이다(앱을 여는
+  /// 순간 배경에서 도는 판정이다):
   ///  - 방문이 아닌 판정 — 쓸 것이 없다.
   ///  - 이번 실행에서 이미 받은 경기 — 두 번째 쓰기를 아예 내보내지 않는다.
   ///  - 로그인한 계정이 없는 실행 — 도장을 쓸 자리가 없다(트리거가 로그인
@@ -136,40 +176,78 @@ class StampAward extends Notifier<Set<String>> {
   ///    `gameId` 가 도장 계약의 모양이 아닌 실행([_documentIdOf]) — 후보를 짓는
   ///    자리가 구장 문서에 없는 구장을 조용히 건너뛰는 것과 같은 판단이다
   ///    (두 콘텐츠 문서가 어긋난 실행에서 던지지 않는다).
+  ///  - 같은 경기의 도장이 **서버에 이미 있던** 실행([StampWriteOutcome.alreadyStamped])
+  ///    — 이번 호출이 실제로는 아무것도 쓰지 않았다.
   ///
   /// **낙관적으로 먼저 기억한다.** 쓰기가 서버에 닿기 전에 기억해 두는 것은
   /// 오프라인 갈래 때문이다 — 구장에서 통신이 끊기면 서버 확인이 복구 뒤에나
   /// 오는데, 그 사이의 포그라운드 복귀마다 GPS 를 다시 켜면 이 단계가 고치려던
   /// 바로 그 낭비가 남는다. 쓰기가 **실패하면** 그 기억을 도로 지워 다음
   /// 트리거가 다시 판정하게 한다.
-  Future<void> award({
+  ///
+  /// **등급 판단은 쓰기 전에 읽은 "이전 개수" 하나로 계산한다.** 배치가
+  /// 도장 문서와 칸 요약을 한 원자 단위로 커밋하므로([UserDataStore.writeStamp]
+  /// 문서), 같은 칸에 두 번째 쓰기가 끼어들 수 있는 갈래는 이미 이 세션의
+  /// 앎([state])과 서버의 결정적 문서 id 가 좁혀 둔 아주 좁은 자리(다른
+  /// 기기가 동시에 같은 칸에 쓰는 경우)뿐이다 — 그 자리의 대가는 [readStamps]
+  /// 문서가 이미 적어 둔 것과 같은 종류다. `ref.read(userProfileProvider)` 의
+  /// **지금 손에 든 값**([AsyncValue.value])을 그대로 쓰고 서버에 다시 묻지
+  /// 않는 것은, 쓰기 앞에 읽기를 세우는 패턴을 2026-09-05 `[M]` 이 이미
+  /// "재판정 게이트"에서 걷어 낸 것과 같은 판단이다(오프라인에서 답하지
+  /// 못하는 읽기를 쓰기의 조건으로 세우지 않는다). **남는 대가**: 이 값을
+  /// 구독하는 화면(배지·마이페이지 탭)이 아직 한 번도 응답을 못 받은 콜드
+  /// 스타트의 아주 좁은 창에서는 이전 개수를 0으로 보아 실제로는 등급이 그대로인
+  /// 도장도 "등급이 올랐다"로 셀 수 있다 — 그 창은 두 탭이 이미 같은 provider 를
+  /// 구독해 두는 실행 순서(`MainTabsRoot` 의 `IndexedStack`)에서 거의 닫혀 있고,
+  /// 이 값은 연출의 재료일 뿐 서버에 쓰이지 않으므로 틀려도 도장 자체는
+  /// 어긋나지 않는다.
+  Future<StampAwardResult?> award({
     required StadiumVisitResult result,
     required ScheduleDocument schedule,
   }) async {
     final stadiumId = result.stadiumId;
     final gameId = result.gameId;
-    if (!result.isVisit || stadiumId == null || gameId == null) return;
+    if (!result.isVisit || stadiumId == null || gameId == null) return null;
 
     final documentId = _documentIdOf(stadiumId: stadiumId, gameId: gameId);
-    if (documentId == null || state.contains(documentId)) return;
+    if (documentId == null || state.contains(documentId)) return null;
 
     final user = ref.read(authStateProvider).value;
-    if (user == null) return;
+    if (user == null) return null;
 
     final stamp = _stampFor(
       stadiumId: stadiumId,
       gameId: gameId,
       schedule: schedule,
     );
-    if (stamp == null) return;
+    if (stamp == null) return null;
+
+    final cellId = stamp.cellId;
+    final previousCount =
+        ref.read(userProfileProvider).value?.board[cellId]?.count ?? 0;
 
     state = {...state, documentId};
+    final StampWriteOutcome outcome;
     try {
-      await ref.read(userDataStoreProvider).writeStamp(user.uid, stamp);
+      outcome = await ref
+          .read(userDataStoreProvider)
+          .writeStamp(user.uid, stamp);
     } on BackendError {
       // 못 썼으면 아는 척하지 않는다 — 다음 트리거가 다시 판정하고 다시 쓴다.
       state = {...state}..remove(documentId);
+      return null;
     }
+    if (outcome == StampWriteOutcome.alreadyStamped) return null;
+
+    final newCount = previousCount + 1;
+    final previousTier = BadgeTierTokens.tierFor(previousCount);
+    final newTier = BadgeTierTokens.tierFor(newCount)!;
+    return StampAwardResult(
+      cellId: cellId,
+      count: newCount,
+      tier: newTier,
+      tierIncreased: previousTier != newTier,
+    );
   }
 
   /// 판정 결과에 일정 문서의 홈팀·날짜를 붙여 도장 payload 를 짓는다.

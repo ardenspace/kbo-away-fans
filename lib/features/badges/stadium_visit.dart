@@ -29,6 +29,7 @@ import '../../content/models.dart';
 import '../../location/visit_check.dart';
 import '../home/next_away_game.dart' show clockProvider;
 import 'stamp_award.dart';
+import 'stamp_reveal.dart' show stampCelebrationProvider;
 
 /// 일정·구장 문서를 판정 후보 목록으로 옮긴다.
 ///
@@ -137,9 +138,24 @@ class StadiumVisitCheck extends Notifier<StadiumVisitResult?> {
 
     // 여기 닿았다는 것은 위 try 가 `return` 없이 끝났다는 뜻이라 둘 다 값이
     // 있다 (분석기가 그것을 알아 null 검사를 지우게 한다).
-    await ref
+    final awarded = await ref
         .read(stampAwardProvider.notifier)
         .award(result: result, schedule: schedule);
+    // 이번에 실제로 찍힌 도장만 연출 큐에 올린다(4.4) — award 가 null 을
+    // 돌려주는 나머지 갈래(방문이 아님·이미 받음·계정 없음 등)는 보여줄
+    // 것이 없는 실행이다.
+    //
+    // **버려진 뒤인지를 먼저 묻는다.** 이 자리는 도장 쓰기를 기다린 **뒤**
+    // 이고, 오프라인에서 그 기다림은 통신이 복구될 때까지 이어진다(위
+    // "[_running] 밖에서 기다린다" 문단이 그렇게 두기로 한 자리다). 그 사이에
+    // 이 provider 가 버려지면 버려진 `Ref` 로 다른 provider 를 읽는 셈이 되어
+    // 리버팟이 던진다 — `test/backend/stamp_write_test.dart` 의 "오프라인에서
+    // 아직 서버 확인이 안 온 도장이 다음 판정을 막지 않는다"가 실제로 그
+    // 던짐을 잡았다. 그 실행에서는 연출을 조용히 거른다: 큐를 받을 화면이
+    // 이미 없고, 도장은 이 줄과 무관하게 벌써 확정되어 있다.
+    if (awarded != null && ref.mounted) {
+      ref.read(stampCelebrationProvider.notifier).show(awarded);
+    }
   }
 
   /// 콘텐츠 문서 하나를 "값 아니면 null" 로 — 로드가 끝나기를 기다린 뒤

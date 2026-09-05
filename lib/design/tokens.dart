@@ -35,6 +35,11 @@ abstract final class ColorTokens {
 
   /// 빗줄기(RainLayer) 색 — 반투명 슬레이트 블루.
   static const Color rainDrop = Color(0x8C42557C);
+
+  /// 전체 화면 연출(도장 획득 등) 위에 깔리는 반투명 어둠 — 잉크색
+  /// ([textPrimary])에 알파를 얹었다. 화면 뒤 내용을 완전히 가리지 않으면서
+  /// 그 위 도장·문구가 확실히 도드라지게 한다.
+  static const Color overlayScrim = Color(0xCC1A1A1E);
 }
 
 /// `space.*` — 간격 스케일. 마진, 패딩, 갭.
@@ -404,6 +409,10 @@ abstract final class BadgeTokens {
 
   /// 등급 링을 칸 가장자리에서 안쪽으로 들이는 거리.
   static const double tierRingInset = 3;
+
+  /// 도장 획득 연출([motion.stamp])에서 배지가 커지는 크기 — 판의 칸
+  /// ([cellSize])보다 커야 "이 순간이 특별하다"가 화면 하나만 보고도 읽힌다.
+  static const double revealCellSize = 120;
 }
 
 /// 배지 등급 3단계. 값은 [BadgeTierTokens].
