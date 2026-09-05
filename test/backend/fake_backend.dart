@@ -50,8 +50,40 @@ class FakeUserDataStore implements UserDataStore {
   /// uid → (좋아요 문서 id → 본문).
   final Map<String, Map<String, Map<String, Object?>>> likes = {};
 
-  /// 읽기 호출 횟수 — 4.3 이 "판은 사용자 문서 하나만 읽는다"를 잴 때 쓴다.
+  /// **읽은 문서 수** — 4.3 이 "판을 여는 동안 읽는 문서가 사용자 문서
+  /// 하나다"를 잴 때 쓰는 자리.
+  ///
+  /// 메서드 호출 수가 아니라 **문서 읽기**를 센다. 둘은 다르고, 무료 할당량이
+  /// 세는 것은 뒤엣것이다(decisions.md 의 판 읽기 패턴 `[L]` 결정: 일 5만
+  /// 읽기). 그래서 실 구현(`FirestoreUserDataStore`)이 서버에 청구되는 자리를
+  /// 그대로 옮긴다.
+  ///
+  ///  - [readProfile] — 문서 하나(없는 문서의 `get()` 도 읽기 하나다).
+  ///  - [watchProfile] — **구독마다, 흘러간 스냅샷마다 하나.** 리스너는 초기
+  ///    스냅샷과 이후 변경마다 청구된다. 같은 문서에 리스너 둘을 붙였을 때
+  ///    실 SDK 가 어떻게 청구하는지는 이 저장소가 **실측한 바 없다** — 구독
+  ///    단위로 세면 실제보다 너그러운 쪽이 아니라 **엄한 쪽**으로 틀리므로
+  ///    (놓치는 대신 더 세는 쪽) 그렇게 둔다. 구독 자체의 수는
+  ///    [profileWatches] 가 따로 센다.
+  ///  - [readStamps]·[readLikes] — 질의가 돌려준 문서 수. 0건인 질의도 하나로
+  ///    친다(Firestore 는 결과가 빈 질의에 최소 한 건을 청구한다).
+  ///  - [writeStamp] — 도장 문서 존재 확인과 사용자 문서 읽기 둘
+  ///    (`_alreadyStamped` + `userReference.get()`). 쓰기 경로에도 읽기가
+  ///    있다는 사실을 감추지 않는다.
+  int documentReads = 0;
+
+  /// 읽기 호출 횟수 — [documentReads] 와 달리 **메서드 호출**을 센다.
   int profileReads = 0;
+
+  /// [watchProfile] 호출 횟수 = 사용자 문서에 붙은 **구독의 수**.
+  ///
+  /// 4.3 이 "앱 전체가 사용자 문서를 한 자리에서만 구독한다"를 재는 자리다.
+  /// [documentReads] 만으로는 그것을 잴 수 없다 — 화면 하나만 띄운 시험에서는
+  /// 공용 provider 를 거치든 저장소를 직접 구독하든 구독이 어차피 하나라
+  /// 읽기 수가 같다(실측: 배지 판이 `userProfileProvider` 를 거치지 않게
+  /// 바꾼 변이가 그 시험만으로는 초록불이었다). 탭 다섯이 함께 사는 골격
+  /// (`MainTabsRoot`)에서 이 수를 재야 그 변이가 드러난다.
+  int profileWatches = 0;
 
   /// 도장 조회 호출 횟수.
   int stampReads = 0;
@@ -158,6 +190,7 @@ class FakeUserDataStore implements UserDataStore {
   @override
   Future<UserProfile?> readProfile(String uid) async {
     profileReads++;
+    documentReads++;
     final data = documents[uid];
     if (data == null) return null;
     return UserProfile.fromData(uid: uid, data: data);
@@ -165,16 +198,24 @@ class FakeUserDataStore implements UserDataStore {
 
   @override
   Stream<UserProfile?> watchProfile(String uid) {
+    profileWatches++;
     final controller = _profileStreams.putIfAbsent(
       uid,
       () => StreamController<UserProfile?>.broadcast(),
     );
     // 구독이 붙은 뒤에 첫 스냅샷을 흘린다 (스트림은 언제나 비동기 전달이다).
     scheduleMicrotask(() => _emitProfile(uid));
+    // 스냅샷 하나가 곧 문서 읽기 하나다. 세는 자리를 상한 장치
+    // ([awaitServerConfirmation]) **앞**에 두는 것은, 붙잡혔다가 버려진 값도
+    // 서버에서는 이미 읽힌 값이기 때문이다.
+    final counted = controller.stream.map((profile) {
+      documentReads++;
+      return profile;
+    });
     final grace = profileConfirmGrace;
-    if (grace == null) return controller.stream;
+    if (grace == null) return counted;
     return awaitServerConfirmation(
-      controller.stream,
+      counted,
       isConfirmed: (_) => true,
       grace: grace,
     );
@@ -263,6 +304,7 @@ class FakeUserDataStore implements UserDataStore {
         .where((record) => cellId == null || record.cellId == cellId)
         .toList();
     records.sort((a, b) => b.gameDate.compareTo(a.gameDate));
+    documentReads += records.isEmpty ? 1 : records.length;
     return records;
   }
 
@@ -282,6 +324,8 @@ class FakeUserDataStore implements UserDataStore {
   @override
   Future<StampWriteOutcome> writeStamp(String uid, StampWrite stamp) async {
     stampWrites++;
+    // 실 구현은 도장 문서 존재 확인과 사용자 문서를 각각 읽는다.
+    documentReads += 2;
     final data = _accept(stamp.toData(), StampFields.all);
     final failure = stampWriteFailure;
     if (failure != null) throw failure;
@@ -362,9 +406,11 @@ class FakeUserDataStore implements UserDataStore {
   Future<List<LikeRecord>> readLikes(String uid) async {
     likeReads++;
     final byId = likes[uid] ?? const {};
-    return byId.entries
+    final records = byId.entries
         .map((entry) => LikeRecord.fromData(id: entry.key, data: entry.value))
         .toList();
+    documentReads += records.isEmpty ? 1 : records.length;
+    return records;
   }
 
   @override
