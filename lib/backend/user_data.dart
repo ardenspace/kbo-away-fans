@@ -22,6 +22,8 @@
 /// 옮긴다.
 library;
 
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -821,6 +823,42 @@ enum StampWriteOutcome {
   alreadyStamped,
 }
 
+/// 도장 쓰기 한 번의 영수증 — **로컬에 확정된 사실**과 **서버의 뒤늦은 답**을
+/// 나눠 든다.
+///
+/// 두 순간을 타입으로 갈라 두는 까닭은 phase 4 통합 검증이 REJECT 로 지목한
+/// 이음매가 정확히 그 자리였기 때문이다. 4.2 에게 "도장이 찍혔다"는 배치가
+/// 로컬 큐에 들어간 때이고(그것이 트랜잭션 대신 `WriteBatch` 를 고른 까닭이다
+/// — 구장은 통신이 잘 끊기는 자리이고, 도장이 찍히는 순간을 놓치면 시간 창이
+/// 닫힌 뒤에는 되찾을 길이 없다), 4.4 의 연출도 같은 순간에 서야 한다. 그런데
+/// 쓰기의 Future 하나가 두 순간을 겸하면 뒤엣것(서버 확인)만 남아, 오프라인
+/// 구장에서 도장은 확정되고 판도 그 값을 보는데 연출만 몇 시간 뒤에 뜬다.
+///
+/// 그래서 [writeStamp] 는 [outcome] 을 **로컬에 확정된 순간** 돌려주고,
+/// 서버의 답은 [serverConfirmed] 로 따로 흘린다.
+@immutable
+class StampWriteReceipt {
+  StampWriteReceipt({required this.outcome, required this.serverConfirmed}) {
+    // 아무도 듣지 않는 실패가 zone 오류로 터지지 않게 여기서 한 번 붙든다.
+    // 리스너를 하나 다는 것뿐이라 부르는 쪽의 리스너는 그대로 오류를 받는다.
+    unawaited(serverConfirmed.catchError((Object _) {}));
+  }
+
+  /// 이 호출이 **로컬에** 무엇을 남겼는가.
+  final StampWriteOutcome outcome;
+
+  /// 서버가 이 쓰기를 받아들이면 끝나고, 거부하면 [BackendError] 로 끝난다.
+  ///
+  /// [StampWriteOutcome.alreadyStamped] 처럼 아무것도 쓰지 않은 호출에서는
+  /// 기다릴 것이 없으므로 이미 끝나 있다. 오프라인 구간에서는 통신이 복구될
+  /// 때까지 끝나지 않으며, 그 오래 걸림은 실패가 아니다.
+  ///
+  /// **이 값을 도장의 조건으로 세우지 않는다.** 세우면 그 순간 오프라인
+  /// 구장이 다시 닫힌다 — 여기를 보는 자리는 "쓰기가 뒤늦게 거부됐다"를
+  /// 뒷정리하는 쪽뿐이다.
+  final Future<void> serverConfirmed;
+}
+
 /// 사용자 데이터 경계 — 사용자 문서·도장·좋아요 읽기/쓰기의 단일 경로.
 ///
 /// 구현은 실패를 `guardBackend` 로 감싸 도메인 오류만 던진다. 도장 쓰기는
@@ -870,9 +908,17 @@ abstract class UserDataStore {
   /// **오프라인에서도 받아 준다.** 구장에서 통신이 끊긴 채 도장을 받는 것이
   /// 이 경로의 흔한 모습이므로, 구현은 오프라인에서 완료되지 못하는 방식
   /// (Firestore 트랜잭션)을 쓰지 않는다 — 대신 로컬에 곧바로 반영하고 서버
-  /// 확인만 복구 뒤로 미룬다. 그래서 이 Future 는 **서버가 받았을 때** 끝나고,
-  /// 오프라인 구간에서는 오래 걸려도 실패가 아니다.
-  Future<StampWriteOutcome> writeStamp(String uid, StampWrite stamp);
+  /// 확인만 복구 뒤로 미룬다.
+  ///
+  /// **이 Future 는 쓰기가 로컬에 확정된 순간 끝난다** — 서버가 받았을 때가
+  /// 아니다([StampWriteReceipt] 문서가 그 두 순간을 가른 까닭을 적는다).
+  /// 서버의 답은 [StampWriteReceipt.serverConfirmed] 로 따로 온다.
+  ///
+  /// **로컬에 확정되기 전의 실패는 그대로 던진다.** 도장 문서 존재 확인이
+  /// 통신이 아닌 이유로 거부되거나(규칙 거부) 개수를 셀 사용자 문서를 얻지
+  /// 못하면 쓰기 자체가 서지 않으므로, 이 Future 가 [BackendError] 로 끝난다
+  /// — 부르는 쪽은 그 갈래를 "찍히지 않았다"로 읽는다.
+  Future<StampWriteReceipt> writeStamp(String uid, StampWrite stamp);
 
   /// 좋아요 목록.
   Future<List<LikeRecord>> readLikes(String uid);

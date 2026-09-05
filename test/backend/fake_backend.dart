@@ -95,9 +95,9 @@ class FakeUserDataStore implements UserDataStore {
   /// **로컬에 반영된** 도장 쓰기의 문서 id — 순서대로.
   ///
   /// 아래 [writeStamp] 는 서버 확인(`offline` 일 때의 `ack.future`)을
-  /// 기다리기 **전에** 이 목록에 더한다 — 실 SDK 가 `batch.commit()` 호출
-  /// 즉시 로컬 캐시에 반영하는 자리와 같다. 그래서 이 이름이 재는 것은
-  /// "서버로 나갔다"가 아니라 **"로컬에 반영됐다"** 이다.
+  /// **영수증에 실어 넘기고** 그 전에 이 목록에 더한다 — 실 SDK 가
+  /// `batch.commit()` 호출 즉시 로컬 캐시에 반영하는 자리와 같다. 그래서 이
+  /// 이름이 재는 것은 "서버로 나갔다"가 아니라 **"로컬에 반영됐다"** 이다.
   ///
   /// [stampWrites] 와 다른 것은 이미 있는 도장이 여기 쌓이지 않기 때문이다.
   /// "오프라인에서 찍은 도장이 복구 후 **한 번만** 올라간다"를 재는 성질은
@@ -138,6 +138,20 @@ class FakeUserDataStore implements UserDataStore {
       stamp.toData(),
       StampFields.all,
     );
+  }
+
+  /// 큐에 쌓인 쓰기를 서버가 **거부한** 실행 — 대기 중인 서버 확인을 전부
+  /// [error] 로 끝낸다.
+  ///
+  /// 로컬 확정 **뒤에** 오는 실패의 대역이라 [stampWriteFailure] 와 다르다:
+  /// 그쪽은 쓰기가 서지도 못한 갈래이고(부르는 쪽이 곧바로 잡는다), 이쪽은
+  /// 이미 로컬에 반영되고 연출까지 지난 도장을 서버가 뒤늦게 되돌리는
+  /// 갈래다([StampWriteReceipt.serverConfirmed]).
+  void rejectPendingWrites(Object error) {
+    for (final ack in _pendingAcks) {
+      if (!ack.isCompleted) ack.completeError(error);
+    }
+    _pendingAcks.clear();
   }
 
   /// 통신이 돌아왔다 — 큐에 쌓인 쓰기의 서버 확인을 한꺼번에 내보내고,
@@ -325,7 +339,7 @@ class FakeUserDataStore implements UserDataStore {
   /// 접어 쓰기를 계속한다). 그 갈래에서 두 기기가 같은 경기를 각각 큐에 넣어도
   /// 문서 id 가 결정적이라 도장은 하나로 수렴한다.
   @override
-  Future<StampWriteOutcome> writeStamp(String uid, StampWrite stamp) async {
+  Future<StampWriteReceipt> writeStamp(String uid, StampWrite stamp) async {
     stampWrites++;
     // 실 구현은 도장 문서 존재 확인과 사용자 문서를 각각 읽는다.
     documentReads += 2;
@@ -335,7 +349,10 @@ class FakeUserDataStore implements UserDataStore {
 
     final byId = stamps.putIfAbsent(uid, () => {});
     if (byId.containsKey(stamp.documentId)) {
-      return StampWriteOutcome.alreadyStamped;
+      return StampWriteReceipt(
+        outcome: StampWriteOutcome.alreadyStamped,
+        serverConfirmed: Future<void>.value(),
+      );
     }
 
     final document = documents[uid];
@@ -373,12 +390,21 @@ class FakeUserDataStore implements UserDataStore {
     stampUploads.add(stamp.documentId);
     _emitProfile(uid);
 
-    if (offline) {
-      final ack = Completer<void>();
-      _pendingAcks.add(ack);
-      await ack.future;
-    }
-    return StampWriteOutcome.created;
+    // 로컬 반영은 여기까지다 — 실 구현이 `batch.commit()` 을 부른 직후와 같은
+    // 자리이고, 그 호출의 Future(= 서버 확인)는 영수증이 따로 나른다.
+    return StampWriteReceipt(
+      outcome: StampWriteOutcome.created,
+      serverConfirmed: _serverAck(),
+    );
+  }
+
+  /// 서버 확인 하나 — 온라인이면 이미 끝나 있고, 오프라인이면 [goOnline] 까지
+  /// 기다린다.
+  Future<void> _serverAck() {
+    if (!offline) return Future<void>.value();
+    final ack = Completer<void>();
+    _pendingAcks.add(ack);
+    return ack.future;
   }
 
   /// 칸 요약 갱신 payload 를 규칙처럼 받아 든다 — 점 경로(`board.{cellId}`)와

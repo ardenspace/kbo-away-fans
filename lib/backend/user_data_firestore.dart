@@ -352,8 +352,20 @@ class FirestoreUserDataStore implements UserDataStore {
   /// 붙들어 둔다. 오프라인에서 두 번 판정해도 두 번째는 로컬 캐시에 이미
   /// 있는 문서를 보고 곧바로 끝나므로, 큐에 쌓이는 배치가 하나다
   /// ([_alreadyStamped] 가 그 "두 번째"의 자리다).
+  ///
+  /// **`batch.commit()` 을 기다리지 않고 돌아온다.** 그 Future 가 끝나는
+  /// 때는 서버가 배치를 받은 때이지 도장이 찍힌 때가 아니다 — 오프라인에서는
+  /// 통신이 복구되기 전에는 끝나지 않는데(실측:
+  /// `test/backend/stamp_write_offline_test.dart` 헤더의 "오프라인에서 commit
+  /// 완료? false"), 로컬 캐시에는 부르는 즉시 반영된다. 이 메서드가 배치를
+  /// 기다리면 이 파일이 배치를 고른 까닭("도장이 찍히는 순간")이 부르는 쪽에
+  /// 닿지 않으므로, 그 순간을 [StampWriteReceipt.outcome] 으로 돌려주고
+  /// 서버의 답은 [StampWriteReceipt.serverConfirmed] 로 넘긴다.
+  ///
+  /// 배치를 열기 **전**의 실패(존재 확인의 규칙 거부·사용자 문서를 못 얻음)는
+  /// 그대로 던진다 — 그 실행에는 로컬에 확정된 것도 없다.
   @override
-  Future<StampWriteOutcome> writeStamp(String uid, StampWrite stamp) {
+  Future<StampWriteReceipt> writeStamp(String uid, StampWrite stamp) {
     // 계약 위반(ArgumentError)은 guardBackend 밖에서 드러나야 한다 —
     // 이 계층의 다른 쓰기와 같은 순서다.
     final data = encodeBackendValues(stamp.toData());
@@ -365,7 +377,11 @@ class FirestoreUserDataStore implements UserDataStore {
           .doc(stamp.documentId);
 
       if (await _alreadyStamped(stampReference)) {
-        return StampWriteOutcome.alreadyStamped;
+        return StampWriteReceipt(
+          outcome: StampWriteOutcome.alreadyStamped,
+          // 아무것도 쓰지 않았으므로 서버에서 기다릴 답이 없다.
+          serverConfirmed: Future<void>.value(),
+        );
       }
 
       final profile = _profileOf(uid, await userReference.get());
@@ -377,8 +393,12 @@ class FirestoreUserDataStore implements UserDataStore {
       final batch = _db.batch();
       batch.set(stampReference, data);
       batch.update(userReference, encodeBackendValues(stamp.boardPatchData(cell)));
-      await batch.commit();
-      return StampWriteOutcome.created;
+      // 이 호출이 로컬 캐시를 갱신하는 자리다 — 돌려주는 Future 는 서버 확인.
+      final commit = guardBackend(() => batch.commit());
+      return StampWriteReceipt(
+        outcome: StampWriteOutcome.created,
+        serverConfirmed: commit,
+      );
     });
   }
 

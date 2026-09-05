@@ -55,7 +55,10 @@ void main() {
     final db = _OfflineSpyFirestore(userData: userData());
     final store = FirestoreUserDataStore(db);
 
-    expect(await store.writeStamp(uid, stamp), StampWriteOutcome.created);
+    expect(
+      (await store.writeStamp(uid, stamp)).outcome,
+      StampWriteOutcome.created,
+    );
 
     expect(db.calls, [
       // 존재 확인은 던졌지만(캐시에 없는 문서) 거기서 끝나지 않았다.
@@ -102,7 +105,7 @@ void main() {
     final store = FirestoreUserDataStore(db);
 
     expect(
-      await store.writeStamp(uid, stamp),
+      (await store.writeStamp(uid, stamp)).outcome,
       StampWriteOutcome.alreadyStamped,
     );
     expect(db.calls, ['get:jamsil_g-jamsil-1']);

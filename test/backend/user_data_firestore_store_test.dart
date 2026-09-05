@@ -200,10 +200,11 @@ void main() {
     test('새 도장은 문서와 그 칸의 요약을 함께 남긴다', () async {
       await seedDocument('lg'); // jamsil_lg 는 이미 2개다
 
-      expect(
-        await store.writeStamp(uid, stamp),
-        StampWriteOutcome.created,
-      );
+      final receipt = await store.writeStamp(uid, stamp);
+      expect(receipt.outcome, StampWriteOutcome.created);
+      // 이 대역(`fake_cloud_firestore`)은 실 SDK 와 달리 커밋을 로컬에 곧바로
+      // 반영하지 않는다 — 무엇이 **남았는지**를 재려면 서버 확인까지 기다린다.
+      await receipt.serverConfirmed;
 
       final written = await rawStamp('jamsil_g-jamsil-1');
       expect(written, isNotNull);
@@ -222,10 +223,10 @@ void main() {
 
     test('같은 경기를 다시 써도 개수가 오르지 않는다', () async {
       await seedDocument('lg');
-      await store.writeStamp(uid, stamp);
+      await (await store.writeStamp(uid, stamp)).serverConfirmed;
 
       expect(
-        await store.writeStamp(uid, stamp),
+        (await store.writeStamp(uid, stamp)).outcome,
         StampWriteOutcome.alreadyStamped,
       );
 
@@ -242,7 +243,7 @@ void main() {
     test('도장이 없던 칸은 첫 도장에서 count 1 로 생긴다', () async {
       await seedDocument('lg');
 
-      await store.writeStamp(
+      await (await store.writeStamp(
         uid,
         const StampWrite(
           stadiumId: 'sajik',
@@ -250,7 +251,7 @@ void main() {
           homeTeamId: 'lotte',
           gameDate: '2026-08-26',
         ),
-      );
+      )).serverConfirmed;
 
       final board =
           (await rawDocument())[UserFields.board]! as Map<String, Object?>;
@@ -311,30 +312,38 @@ void main() {
       final store = FirestoreUserDataStore(db);
 
       expect(
-        await store.writeStamp(uid, stamp),
+        (await store.writeStamp(uid, stamp)).outcome,
         StampWriteOutcome.alreadyStamped,
       );
       expect(db.calls, ['get:jamsil_g-jamsil-1']);
     });
 
-    test('쓰기가 아직 서버에 닿지 못해도 오류 없이 기다리다가 복구되면 끝난다', () async {
+    test('쓰기는 배치를 큐에 넣은 순간 끝나고 서버 확인만 복구를 기다린다', () async {
+      // 이 두 순간을 Future 하나로 겸하던 자리가 phase 4 통합 검증의 REJECT
+      // 사유였다 — 오프라인 구장에서 도장은 확정됐는데 연출(4.4)이 통신
+      // 복구까지 뜨지 않았다. 이제 `writeStamp` 는 앞엣것에서 끝나고 뒤엣것은
+      // `serverConfirmed` 가 나른다.
       final gate = Completer<void>();
       final db = _WriteSpyFirestore(userData: userData(), gate: gate);
       final store = FirestoreUserDataStore(db);
 
-      var settled = false;
-      final write = store.writeStamp(uid, stamp).then((_) => settled = true);
-      await pumpEventQueue();
-      expect(settled, isFalse, reason: '서버 왕복 전이라 아직 끝나지 않아야 재현이 된다');
+      final receipt = await store.writeStamp(uid, stamp);
+
+      expect(receipt.outcome, StampWriteOutcome.created);
       expect(
         db.calls,
         contains('batch.commit'),
         reason: '존재 확인이 오프라인에서 던져도 배치는 큐에 들어가야 한다',
       );
 
+      var confirmed = false;
+      unawaited(receipt.serverConfirmed.then((_) => confirmed = true));
+      await pumpEventQueue();
+      expect(confirmed, isFalse, reason: '서버 왕복 전이라 확인은 아직 오지 않는다');
+
       gate.complete(); // "복구" — 큐에 있던 배치가 이제 나간다.
-      await write;
-      expect(settled, isTrue);
+      await receipt.serverConfirmed;
+      expect(confirmed, isTrue);
     });
   });
 

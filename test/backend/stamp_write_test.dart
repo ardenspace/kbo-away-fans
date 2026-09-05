@@ -135,9 +135,9 @@ void main() {
     });
 
     test('새 도장은 문서 하나와 그 칸의 첫 요약을 남긴다', () async {
-      final outcome = await store.writeStamp(_uid, _jamsilLgStamp);
+      final receipt = await store.writeStamp(_uid, _jamsilLgStamp);
 
-      expect(outcome, StampWriteOutcome.created);
+      expect(receipt.outcome, StampWriteOutcome.created);
       final stamps = await store.readStamps(_uid);
       expect(stamps.single.documentId, 'jamsil_g-jamsil-lg');
       expect(stamps.single.cellId, 'jamsil_lg');
@@ -150,15 +150,15 @@ void main() {
 
     test('같은 경기를 여러 번 써도 문서가 하나고 개수도 하나다', () async {
       expect(
-        await store.writeStamp(_uid, _jamsilLgStamp),
+        (await store.writeStamp(_uid, _jamsilLgStamp)).outcome,
         StampWriteOutcome.created,
       );
       expect(
-        await store.writeStamp(_uid, _jamsilLgStamp),
+        (await store.writeStamp(_uid, _jamsilLgStamp)).outcome,
         StampWriteOutcome.alreadyStamped,
       );
       expect(
-        await store.writeStamp(_uid, _jamsilLgStamp),
+        (await store.writeStamp(_uid, _jamsilLgStamp)).outcome,
         StampWriteOutcome.alreadyStamped,
       );
 
@@ -310,16 +310,20 @@ void main() {
       await store.createProfile(_uid, _newProfile);
     });
 
-    test('오프라인 쓰기는 로컬에 곧바로 보이고 서버 확인은 복구 뒤에 온다', () async {
+    test('오프라인 쓰기는 그 자리에서 끝나고 서버 확인만 복구 뒤에 온다', () async {
       store.offline = true;
 
+      // 쓰기 자체는 로컬 확정에서 끝난다 — 4.4 의 연출이 걸려 있는 순간이다.
+      final receipt = await store.writeStamp(_uid, _jamsilLgStamp);
+      expect(receipt.outcome, StampWriteOutcome.created);
+
       var acked = false;
-      unawaited(store.writeStamp(_uid, _jamsilLgStamp).then((_) {
+      unawaited(receipt.serverConfirmed.then((_) {
         acked = true;
       }));
       await pumpEventQueue();
 
-      expect(acked, isFalse, reason: '서버에 닿기 전에는 확정되지 않는다');
+      expect(acked, isFalse, reason: '서버에 닿기 전에는 확인이 오지 않는다');
       expect(
         await store.readStamps(_uid),
         hasLength(1),
@@ -344,7 +348,7 @@ void main() {
       // 두 번째 쓰기는 로컬에 이미 있는 문서를 보고 곧바로 끝난다 —
       // 서버 확인을 기다릴 것이 없다.
       expect(
-        await store.writeStamp(_uid, _jamsilLgStamp),
+        (await store.writeStamp(_uid, _jamsilLgStamp)).outcome,
         StampWriteOutcome.alreadyStamped,
       );
 
@@ -787,6 +791,64 @@ void main() {
         2,
         reason: '서버 확인을 기다리는 동안에도 남은 경기의 판정은 돈다',
       );
+    });
+
+    test('서버가 뒤늦게 거부한 도장은 세션 사본에서 지워진다', () async {
+      // 로컬 확정 뒤에 오는 실패다 — `writeStamp` 는 이미 끝났고 연출도
+      // 지났다. 남은 일은 그 앎을 지워 다음 트리거가 다시 판정하게 하는 것뿐.
+      final store = FakeUserDataStore();
+      addTearDown(store.dispose);
+      await store.createProfile(_uid, _newProfile);
+      store.offline = true;
+      final recorder = _RecordingChecker(
+        fix: const DeviceFix(lat: _jamsilLat, lng: _jamsilLng),
+      );
+      final container = await buildContainer(
+        store: store,
+        recorder: recorder,
+        schedule: lgHomeSchedule,
+      );
+
+      await container.read(stadiumVisitProvider.notifier).run();
+      expect(
+        container.read(stampAwardProvider),
+        {'jamsil_g-jamsil'},
+        reason: '로컬에 확정된 도장은 그 자리에서 기억한다',
+      );
+
+      store.rejectPendingWrites(const BackendUnknownError(code: 'denied'));
+      await pumpEventQueue();
+
+      expect(
+        container.read(stampAwardProvider),
+        isEmpty,
+        reason: '서버가 되돌린 도장은 아는 척하지 않는다',
+      );
+    });
+
+    test('버려진 뒤에 온 서버의 거부는 조용히 지난다', () async {
+      // 서버 확인은 로컬 확정보다 한참 뒤에 오므로, 그 사이에 이 provider 가
+      // 버려질 수 있다 — 버려진 `Ref` 에 상태를 대입하면 리버팟이 던진다.
+      final store = FakeUserDataStore();
+      addTearDown(store.dispose);
+      await store.createProfile(_uid, _newProfile);
+      store.offline = true;
+      final recorder = _RecordingChecker(
+        fix: const DeviceFix(lat: _jamsilLat, lng: _jamsilLng),
+      );
+      final container = await buildContainer(
+        store: store,
+        recorder: recorder,
+        schedule: lgHomeSchedule,
+      );
+
+      await container.read(stadiumVisitProvider.notifier).run();
+      container.dispose();
+
+      store.rejectPendingWrites(const BackendUnknownError(code: 'denied'));
+      await pumpEventQueue();
+      // 여기까지 아무것도 던지지 않으면 통과다 (`ref.mounted` 가드가 없으면
+      // 위 `pumpEventQueue` 에서 리버팟의 던짐이 올라온다).
     });
 
     test('방문이 아닌 판정은 아무것도 쓰지 않는다', () async {

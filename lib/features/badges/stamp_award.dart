@@ -28,6 +28,8 @@
 /// ([userProfileProvider] 의 칸 요약이 이미 `tier` 를 들고 있다 — 결정 195).
 library;
 
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -227,9 +229,9 @@ class StampAward extends Notifier<Set<String>> {
         ref.read(userProfileProvider).value?.board[cellId]?.count ?? 0;
 
     state = {...state, documentId};
-    final StampWriteOutcome outcome;
+    final StampWriteReceipt receipt;
     try {
-      outcome = await ref
+      receipt = await ref
           .read(userDataStoreProvider)
           .writeStamp(user.uid, stamp);
     } on BackendError {
@@ -237,7 +239,8 @@ class StampAward extends Notifier<Set<String>> {
       state = {...state}..remove(documentId);
       return null;
     }
-    if (outcome == StampWriteOutcome.alreadyStamped) return null;
+    _forgetIfServerRejects(receipt, documentId);
+    if (receipt.outcome == StampWriteOutcome.alreadyStamped) return null;
 
     final newCount = previousCount + 1;
     final previousTier = BadgeTierTokens.tierFor(previousCount);
@@ -247,6 +250,34 @@ class StampAward extends Notifier<Set<String>> {
       count: newCount,
       tier: newTier,
       tierIncreased: previousTier != newTier,
+    );
+  }
+
+  /// 서버가 이 쓰기를 **뒤늦게 거부하면** 세션 사본에서 지운다.
+  ///
+  /// 이 자리를 기다리지 않는 것이 이번 사이클의 이음매다. [UserDataStore.writeStamp]
+  /// 는 쓰기가 **로컬에 확정된 순간** 돌아오고 서버의 답은
+  /// [StampWriteReceipt.serverConfirmed] 로 따로 오는데, 오프라인 구장에서
+  /// 그 답은 통신이 복구될 때까지 오지 않는다. 그것을 기다리면 도장이 찍힌
+  /// 순간의 연출(4.4)이 몇 시간 뒤로 밀리고, 그 사이 앱이 죽으면 영영 뜨지
+  /// 않는다.
+  ///
+  /// 그래서 답은 **뒷정리로만** 쓴다: 거부된 쓰기의 앎을 지워 다음 트리거가
+  /// 다시 판정하게 한다. 로컬에 확정되기 **전**의 실패는 이 길로 오지 않고
+  /// [award] 의 `on BackendError` 가 곧바로 잡으므로, 연출이 뜨는 갈래와
+  /// "쓰기가 서지도 못한" 갈래는 그대로 갈려 있다.
+  ///
+  /// 뒤늦게 거부된 쓰기를 **사람에게 알리는 자리는 아직 없다** — 그 몫은
+  /// 계약 문언 밖이라 다음 사이클로 미뤄져 있고, 여기서 지어내지 않는다.
+  ///
+  /// [ref.mounted] 를 묻는 것은 이 콜백이 provider 가 버려진 뒤에 올 수 있기
+  /// 때문이다 — 버려진 뒤의 `state` 대입은 리버팟이 던진다.
+  void _forgetIfServerRejects(StampWriteReceipt receipt, String documentId) {
+    unawaited(
+      receipt.serverConfirmed.catchError((Object _) {
+        if (!ref.mounted) return;
+        state = {...state}..remove(documentId);
+      }),
     );
   }
 

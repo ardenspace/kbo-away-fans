@@ -13,11 +13,9 @@
 ///     칸 요약**을 실제로 따른다 — 재방문이면 "등급 상승"이 뜨지 않고,
 ///     임계를 넘는 도장이면 뜬다.
 ///  3) 통신이 끊긴 구장에서 찍은 도장(4.2 가 `WriteBatch` 를 고른 바로 그
-///     갈래)에서 연출이 어떻게 되는가 — **phase 4 통합 검증의 REJECT 사유**.
-///     마지막 시험은 지금의 (어긋난) 거동을 값으로 붙잡아 둔 것이라,
-///     그 이음매를 고치면 **이 시험을 뒤집어야 한다.**
-///
-/// 대상 코드는 한 줄도 고치지 않는다.
+///     갈래)에서도 연출이 **그 자리에서** 뜬다 — phase 4 통합 검증이 REJECT
+///     로 지목했던 이음매이고, 마지막 시험이 그 자리를 반대 방향으로
+///     붙잡는다. `writeStamp` 를 서버 확인까지 기다리도록 되돌리면 빨간불이다.
 library;
 
 import 'package:flutter/material.dart';
@@ -247,22 +245,20 @@ void main() {
   );
 
   testWidgets(
-    '통신이 끊긴 구장에서 찍은 도장은 판에는 서지만 연출은 뜨지 않는다',
+    '통신이 끊긴 구장에서 찍은 도장은 판에도 서고 연출도 그 자리에서 뜬다',
     (tester) async {
       // 4.2 가 트랜잭션 대신 `WriteBatch` 를 고른 까닭이 바로 이 실행이다
       // ("구장은 사람이 몰려 통신이 잘 끊기는 자리이고, 도장이 찍히는 순간을
       // 놓치면 시간 창이 닫힌 뒤에는 되찾을 길이 없다").
       //
-      // **두 단계가 "찍혔다"를 다르게 정의한다.** 4.2 에게 그 순간은 배치가
+      // **두 단계가 "찍혔다"를 같게 정의한다.** 4.2 에게 그 순간은 배치가
       // 로컬 큐에 들어간 때이고(`stampUploads` 의 doc 이 그렇게 적는다:
-      // "재는 것은 '서버로 나갔다'가 아니라 '로컬에 반영됐다'"), 4.4 에게는
-      // `await writeStamp` 가 돌아온 때다. 오프라인에서 `batch.commit()` 은
-      // 복구 전에 끝나지 않으므로(저장소 실측 —
-      // `test/backend/stamp_write_offline_test.dart` 헤더의 "오프라인에서
-      // commit 완료? false") 4.4 의 acceptance 첫 줄("도장이 찍히는 순간
-      // 연출이 재생된다")이 그 갈래에서 서지 않는다.
+      // "재는 것은 '서버로 나갔다'가 아니라 '로컬에 반영됐다'"), `writeStamp`
+      // 가 그 순간에 [StampWriteReceipt] 로 돌아오므로 4.4 의 연출도 같은
+      // 순간에 선다. 서버 확인은 `receipt.serverConfirmed` 로 따로 흐른다.
       //
-      // 아래 단언들은 **결함을 붙잡아 둔 것**이다 — 고치면 뒤집어야 한다.
+      // 이 시험이 phase 4 통합 검증의 REJECT 사유를 반대 방향으로 붙잡는다 —
+      // `writeStamp` 를 서버 확인까지 기다리도록 되돌리면 여기가 빨간불이다.
       final store = await _pumpApp(tester, offline: true);
 
       // 도장은 이미 로컬에 확정됐고 판도 그 값을 본다.
@@ -271,11 +267,11 @@ void main() {
 
       expect(
         find.byType(StampReveal),
-        findsNothing,
-        reason: '연출은 서버 확인을 기다린다 — 그 기다림이 오프라인에서는 끝나지 않는다',
+        findsOneWidget,
+        reason: '연출은 서버 확인이 아니라 로컬 확정을 따른다',
       );
 
-      // 통신이 돌아오면 그제서야 뜬다.
+      // 통신이 돌아와도 같은 도장의 연출이 한 번 더 쌓이지 않는다.
       store.goOnline();
       await tester.pumpAndSettle(const Duration(seconds: 5));
       expect(find.byType(StampReveal), findsOneWidget);
