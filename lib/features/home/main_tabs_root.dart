@@ -46,8 +46,16 @@ import 'home_screen.dart';
 ///
 /// 그 안쪽을 [StampRevealOverlay] 가 한 겹 더 감싼다(4.4) — 판정이 도장을
 /// 찍으면 이 겹이 그 순간을 연출로 얹는다. `Stack` 으로 얹을 뿐 탭 골격을
-/// 대신하지 않으므로, 사람이 어느 탭에 있든 연출이 뜨고 탭을 옮기거나 뒤로
-/// 가도 아래 화면은 그대로 살아 있다.
+/// 대신하지 않으므로, 사람이 어느 탭에 있든 연출이 뜨고 연출이 닫히면 보고
+/// 있던 탭·스크롤·입력이 그 자리에 그대로 있다(아래 화면의 **상태**가 살아
+/// 있다는 뜻이다).
+///
+/// **다만 연출이 떠 있는 동안 탭 바는 눌리지 않는다.** `StampReveal` 이
+/// `SizedBox.expand` + `HitTestBehavior.opaque` 로 하단 탭 바까지 덮으므로
+/// 첫 탭은 연출을 닫는 데 쓰이고, 탭이 옮겨지려면 두 번째 탭이 필요하다
+/// (`test/features/badges/phase4_journey_probe_test.dart` 의 "연출이 떠 있는
+/// 동안 첫 탭은 연출을 닫는 데 쓰인다"가 그 두 번을 값으로 잰다). 탭 한 번에
+/// 언제든 닫히는 연출이라 그 한 번을 막지 않고 그대로 둔다.
 class MainTabsRoot extends StatelessWidget {
   const MainTabsRoot({super.key});
 

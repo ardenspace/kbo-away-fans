@@ -9,10 +9,12 @@
 /// 가 그 큐를 지켜보다 화면 위에 얹는다.
 ///
 /// **데이터가 언제나 먼저다.** 이 파일의 어떤 위젯도 쓰기를 시작하지 않는다
-/// — [StampAward.award] 가 이미 커밋을 끝낸 결과만 여기로 흘러온다. 그래서
-/// 연출을 탭으로 건너뛰거나 다른 탭으로 옮겨 가도([StampRevealOverlay] 는
+/// — [StampAward.award] 가 **로컬에 확정된** 도장의 결과만 여기로 흘러온다
+/// (2026-09-06 `[M]`: 그 확정의 순간이 곧 4.2 가 `WriteBatch` 를 고르며 정한
+/// "도장이 찍히는 순간"이라, 통신이 끊긴 구장에서도 연출이 그 자리에서 선다).
+/// 그래서 연출을 탭으로 건너뛰고 다른 탭으로 옮겨 가도([StampRevealOverlay] 는
 /// `Stack` 으로 얹혀 있을 뿐 아래 화면을 걷어내지 않는다) 도장은 이미
-/// 서버(가짜 저장소 포함)에 있다 — `test/features/badges/stamp_reveal_test.dart`
+/// 저장소에 있다 — `test/features/badges/stamp_reveal_test.dart`
 /// 가 위젯을 그리기도 전에 그 사실을 확인한다.
 ///
 /// **한 번에 하나씩, 놓치지 않는다.** [StampCelebration] 의 상태는 큐다 —
@@ -65,7 +67,15 @@ class StampCelebration extends Notifier<List<StampAwardResult>> {
 /// `MainTabsRoot` 가 `StadiumVisitTrigger` 와 함께 골격을 감싼다 — 어느
 /// 탭을 보고 있어도 연출이 뜨지만, 판정 트리거의 계약대로 사람이 보통 보고
 /// 있는 화면은 홈이다(4.1). `Stack` 으로 얹을 뿐 [child] 를 대신하지 않으므로,
-/// 연출이 떠 있는 동안에도 탭을 옮기거나 뒤로 갈 수 있다.
+/// 연출을 닫으면 아래 화면이 보고 있던 그 **상태** 그대로 돌아온다.
+///
+/// **연출이 떠 있는 동안에는 아래 화면이 눌리지 않는다** — [StampReveal] 이
+/// `SizedBox.expand` + `HitTestBehavior.opaque` 로 하단 탭 바까지 덮기
+/// 때문이다. 탭을 옮기려면 두 번 눌러야 한다(첫 번째는 연출을 닫는 데
+/// 쓰인다): 실측으로 못 박은 자리는
+/// `test/features/badges/phase4_journey_probe_test.dart` 의 "연출이 떠 있는
+/// 동안 첫 탭은 연출을 닫는 데 쓰인다"다. 탭 한 번이면 언제든 닫히므로 그
+/// 한 번을 막지 않고 그대로 둔다(4.4 의 재량 안이다).
 class StampRevealOverlay extends ConsumerWidget {
   const StampRevealOverlay({required this.child, super.key});
 

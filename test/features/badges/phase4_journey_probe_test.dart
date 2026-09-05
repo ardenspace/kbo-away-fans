@@ -6,13 +6,15 @@
 /// 판만 그린다. 그래서 **판정 → 도장 → 연출 → 판**이 실제 앱 골격
 /// (`MainTabsRoot`) 위에서 한 번에 이어지는 것을 재는 자리가 없다.
 ///
-/// 이 파일이 그 자리다. 재는 것은 셋이다.
+/// 이 파일이 그 자리다. 재는 것은 넷이다.
 ///
 ///  1) 사람이 구장에서 앱을 여는 실행 하나가 도장·연출·판을 **함께** 만든다.
 ///  2) 연출이 나르는 개수·등급 상승([StampAwardResult])이 그 사람의 **이전
 ///     칸 요약**을 실제로 따른다 — 재방문이면 "등급 상승"이 뜨지 않고,
 ///     임계를 넘는 도장이면 뜬다.
-///  3) 통신이 끊긴 구장에서 찍은 도장(4.2 가 `WriteBatch` 를 고른 바로 그
+///  3) 연출이 떠 있는 동안 하단 탭 바가 어떻게 반응하는가 — 첫 탭은 연출을
+///     닫는 데 쓰이고 탭은 두 번째에 옮겨진다(4.4 의 재량 안에서 고른 거동).
+///  4) 통신이 끊긴 구장에서 찍은 도장(4.2 가 `WriteBatch` 를 고른 바로 그
 ///     갈래)에서도 연출이 **그 자리에서** 뜬다 — phase 4 통합 검증이 REJECT
 ///     로 지목했던 이음매이고, 마지막 시험이 그 자리를 반대 방향으로
 ///     붙잡는다. `writeStamp` 를 서버 확인까지 기다리도록 되돌리면 빨간불이다.
@@ -240,6 +242,35 @@ void main() {
         3,
         reason: '연출의 배지는 이번 도장을 포함한 새 개수를 든다',
       );
+    },
+    timeout: const Timeout(Duration(seconds: 30)),
+  );
+
+  testWidgets(
+    '연출이 떠 있는 동안 첫 탭은 연출을 닫는 데 쓰인다',
+    (tester) async {
+      // `StampReveal` 이 `SizedBox.expand` + `HitTestBehavior.opaque` 로 하단
+      // 탭 바까지 덮으므로 탭이 옮겨지려면 두 번 눌러야 한다. 4.4 의 재량
+      // 안에서 고른 거동이고(탭 한 번이면 언제든 닫힌다), 문서 셋이 한동안
+      // 이것을 "연출 중에도 탭을 옮길 수 있다"로 적고 있었다 — 그 문장을
+      // 사실에 맞추면서 이 자리를 값으로 못 박는다.
+      await _pumpApp(tester);
+      expect(find.byType(StampReveal), findsOneWidget);
+
+      int currentIndex() => tester
+          .widget<BottomNavigationBar>(find.byType(BottomNavigationBar))
+          .currentIndex;
+
+      expect(currentIndex(), 0, reason: '연출은 홈 위에 떴다');
+
+      await tester.tap(find.text('배지'));
+      await tester.pumpAndSettle(const Duration(seconds: 5));
+      expect(find.byType(StampReveal), findsNothing, reason: '첫 탭이 연출을 닫는다');
+      expect(currentIndex(), 0, reason: '첫 탭은 탭 바에 닿지 않는다');
+
+      await tester.tap(find.text('배지'));
+      await tester.pumpAndSettle(const Duration(seconds: 5));
+      expect(currentIndex(), 1, reason: '두 번째 탭에서 비로소 옮겨진다');
     },
     timeout: const Timeout(Duration(seconds: 30)),
   );
