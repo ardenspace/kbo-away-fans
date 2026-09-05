@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../design/tokens.dart';
 import '../../ui/shared/content_fallback.dart';
 import '../../ui/shared/main_tab_scaffold.dart';
+import '../badges/badges_tab_screen.dart';
 import '../badges/stadium_visit.dart';
 import '../likes/likes_tab_screen.dart';
 import '../places/recommend_tab_screen.dart';
@@ -30,15 +30,18 @@ import 'home_screen.dart';
 /// - **마이페이지** 탭(3.4)은 [ProfileTabScreen] — `userProfileProvider` 를
 ///   직접 구독한다(그 위젯 문서 참조. 위 [_HomeTab] 과 같은 얼어붙음을 피하는
 ///   이유다).
-/// - **배지**(4.3)는 아직 화면이 없다. 그 자리 표시([_ComingSoonTab])가
-///   provider 를 하나도 구독하지 않는 것은 의도다 — 아직 없는 화면이 서버를
-///   읽는 자리를 만들면 그 비용이 탭을 열어 보지 않아도 항상 켜져 있게 된다.
+/// - **배지** 탭(4.3)은 [BadgesTabScreen] — [userProfileProvider] 를 직접
+///   구독한다(위 두 탭과 같은 이유다). [IndexedStack] 이 다섯 탭을 전부 살려
+///   두므로 이 탭도 앱이 뜨는 순간 구독을 붙이는데, 그 provider 는 마이페이지
+///   탭이 이미 보고 있던 **같은** 자리라 읽기가 늘지 않는다 — 판이 도장 문서를
+///   읽지 않는 것이 4.3 의 성질이고, 자리 표시가 provider 를 하나도 구독하지
+///   않던 까닭(아직 없는 화면이 비용을 늘 켜 두지 않게)도 그 성질로 이어진다.
 ///
 /// 골격 전체를 [StadiumVisitTrigger] 가 감싼다(4.1) — 구장 방문 판정은
 /// 배지 탭이 아니라 **앱을 여는 것 자체**에 걸린다. 그 까닭은 그 위젯의
-/// 문서에 적었다. 위 [_ComingSoonTab] 의 "아직 없는 화면이 서버를 읽지
-/// 않는다"와 어긋나지 않는다 — 이 판정은 서버를 읽지 않고, 그날 경기가
-/// 없거나 위치 권한이 없으면 OS 에 좌표도 묻지 않는다.
+/// 문서에 적었다. 판이 서버에서 읽는 것이 사용자 문서 하나라는 4.3 의 성질과
+/// 어긋나지 않는다 — 이 판정은 서버를 읽지 않고, 그날 경기가 없거나 위치
+/// 권한이 없으면 OS 에 좌표도 묻지 않는다.
 class MainTabsRoot extends StatelessWidget {
   const MainTabsRoot({super.key});
 
@@ -60,7 +63,7 @@ class MainTabsRoot extends StatelessWidget {
           label: '배지',
           icon: Icons.workspace_premium_outlined,
           selectedIcon: Icons.workspace_premium_rounded,
-          builder: (_) => const _ComingSoonTab(label: '배지'),
+          builder: (_) => const BadgesTabScreen(),
         ),
         MainTab(
           label: '추천',
@@ -116,23 +119,5 @@ class _HomeTab extends ConsumerWidget {
       return const Scaffold(body: ContentFallback(loading: true));
     }
     return HomeScreen(teamId: teamId);
-  }
-}
-
-/// 아직 화면이 없는 탭의 자리 표시 — provider 를 구독하지 않는다(비용 없음).
-class _ComingSoonTab extends StatelessWidget {
-  const _ComingSoonTab({required this.label});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: ColorTokens.background,
-      appBar: AppBar(title: Text(label)),
-      body: Center(
-        child: Text('$label 탭은 곧 만나요', style: TextTokens.bodyMuted),
-      ),
-    );
   }
 }

@@ -930,6 +930,49 @@ final StreamProvider<UserProfile?> userProfileProvider =
     }, retry: (retryCount, error) => null);
 
 // ---------------------------------------------------------------------------
+// 배지 판의 칸 상세 — 칸을 **열 때만** 도장을 읽는다
+// ---------------------------------------------------------------------------
+
+/// 칸 하나에 쌓인 도장 목록 (최신 경기 날짜 순).
+///
+/// **판은 이것을 구독하지 않는다.** 판이 그리는 것은 사용자 문서의 칸별
+/// 요약([UserProfile.board]) 뿐이고, 이 provider 는 사람이 칸을 열어 그
+/// 칸의 상세를 볼 때 비로소 선다 — decisions.md 의 판 읽기 패턴 `[L]` 결정이
+/// 지키려는 것이 그 순서다. 판을 열 때마다 도장을 전부 읽으면 읽기 수가
+/// 사용자 수 × 도장 수로 늘어 오래 쓴 사람일수록 비싸지고, 무료 할당량(일 5만
+/// 읽기) 기준 약 800명에서 한도에 닿는다.
+///
+/// **`autoDispose` 다.** 칸을 닫으면 버리고 다시 열면 다시 읽는다. 캐시로
+/// 남겨 두면 그 사이에 찍힌 도장(같은 실행 안에서 [StampWriteOutcome.created]
+/// 가 난 경기)이 상세에서 빠져, 판의 개수와 상세의 줄 수가 어긋나 보인다 —
+/// 칸을 여는 것은 드문 행동이라 그 신선함을 읽기 하나로 사는 편이 낫다.
+///
+/// **[cellId] 로 좁혀 질의한다.** 그 좁힘은 실 구현에서 복합 인덱스
+/// `(stadiumId ASC, homeTeamId ASC, gameDate DESC)` 를 타고, 그 인덱스는
+/// `firestore.indexes.json` 에 있다 — 배포되지 않은 프로젝트에서는 이 질의가
+/// `failed-precondition` 으로 실패하고 화면은 "도장을 불러오지 못했어요"
+/// (`BoardCellDetail.loadFailureTitle`) 를 보여준다. 판 자체는 사용자 문서만
+/// 읽으므로 인덱스와 무관하게 열린다.
+///
+/// 세션이 없으면(로그아웃) 빈 목록이다 — 도장은 로그인한 사람의 것이다.
+///
+/// 자동 재시도는 끈다 — 이 파일의 다른 provider 들과 같은 판단이고, 여기에는
+/// 하나가 더 있다: 칸 상세는 실패했을 때 사람이 누르는 재시도를 이미 보여준다
+/// (`BoardCellDetail`). 자동 재시도가 그 뒤에서 계속 다시 세우면 사람이
+/// 누르지도 않은 질의가 열한 번까지 나간다.
+final boardCellStampsProvider =
+    FutureProvider.autoDispose.family<List<StampRecord>, String>((
+      ref,
+      cellId,
+    ) async {
+      final user = ref.watch(authStateProvider).value;
+      if (user == null) return const <StampRecord>[];
+      return ref
+          .watch(userDataStoreProvider)
+          .readStamps(user.uid, cellId: cellId);
+    }, retry: (retryCount, error) => null);
+
+// ---------------------------------------------------------------------------
 // 좋아요 — 화면이 구독·토글하는 자리
 // ---------------------------------------------------------------------------
 
