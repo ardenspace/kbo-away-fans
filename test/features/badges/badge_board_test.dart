@@ -348,10 +348,23 @@ void main() {
         child: const MaterialApp(home: MainTabsRoot()),
       ),
     );
-    await tester.pumpAndSettle();
+    // 상한을 짧게 준다 — 배지 탭이 저장소를 직접 구독하도록 어긋나면(아래
+    // 주석의 변이) IndexedStack 이 다섯 탭을 한꺼번에 살리는 이 골격에서
+    // 구독이 매 프레임 다시 걸려 결코 잠잠해지지 않는다. 기본 10분 상한을
+    // 그대로 두면 그 변이가 "구독이 둘"이 아니라 "테스트가 10분을 넘겼다"는
+    // TimeoutException 으로만 드러나 원인을 가리키지 못한다.
+    await tester.pumpAndSettle(
+      const Duration(milliseconds: 100),
+      EnginePhase.sendSemanticsUpdate,
+      const Duration(seconds: 10),
+    );
 
     await tester.tap(find.text('배지'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(
+      const Duration(milliseconds: 100),
+      EnginePhase.sendSemanticsUpdate,
+      const Duration(seconds: 10),
+    );
 
     expect(find.byType(BadgesTabScreen), findsOneWidget);
     expect(find.byType(StampBoard), findsOneWidget);
