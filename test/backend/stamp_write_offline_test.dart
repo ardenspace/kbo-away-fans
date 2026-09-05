@@ -11,14 +11,15 @@
 /// ```text
 /// 없는 문서 get 던짐: code=unavailable / Failed to get document because the client is offline.
 /// 있는 문서 get: exists=true fromCache=true
+/// 오프라인에서 commit 완료? false
 /// 큐에 넣은 뒤 get: exists=true fromCache=true
 /// ```
 ///
-/// (에뮬레이터 실측 — `firebase/test/helpers.mjs` 의 하네스에 `disableNetwork()`
-/// 를 걸고 잰 세 줄이다.)
+/// (에뮬레이터 실측 — `firebase/test/helpers.mjs` 의 하네스로 띄운 8791 포트에
+/// `disableNetwork()` 를 걸고 잰 네 줄이며, 이 시험을 쓰면서 다시 재현했다.)
 ///
 /// 그래서 **첫 도장만** 그 갈래에 든다. 두 번째 판정부터는 큐에 넣은 쓰기가
-/// 캐시에 이미 반영돼 있어 읽기가 답한다. 이 파일은 그 셋을 SDK 자리에 놓고
+/// 캐시에 이미 반영돼 있어 읽기가 답한다. 이 파일은 그 거동을 SDK 자리에 놓고
 /// [FirestoreUserDataStore.writeStamp] 가 무엇을 하는지 잰다.
 ///
 /// **짝 파일:** 같은 쓰기 경로를 온라인에서 재는 자리는
