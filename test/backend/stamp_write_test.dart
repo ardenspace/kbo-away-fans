@@ -416,12 +416,13 @@ void main() {
       required _RecordingChecker recorder,
       required ScheduleDocument schedule,
       AuthUser? user = const AuthUser(uid: _uid),
+      DateTime? now,
     }) async {
       final auth = FakeAuthService(signedIn: user);
       addTearDown(auth.dispose);
       final container = ProviderContainer(
         overrides: [
-          clockProvider.overrideWithValue(() => duringPregame),
+          clockProvider.overrideWithValue(() => now ?? duringPregame),
           authServiceProvider.overrideWithValue(auth),
           userDataStoreProvider.overrideWithValue(store),
           stadiumsProvider.overrideWith((ref) async => ContentFresh(stadiums)),
@@ -511,7 +512,10 @@ void main() {
       expect(store.stampWrites, 1, reason: '쓰기 자체도 다시 시도하지 않는다');
     });
 
-    test('아직 못 받은 경기가 하나라도 남아 있으면 다시 판정한다', () async {
+    test('다른 구장에 경기가 남아 있어도 도장을 받은 구장에서는 다시 측위하지 않는다', () async {
+      // 배포되는 일정에는 경기가 하나뿐인 날이 없다(총 168경기, 날짜당 2~5경기).
+      // 그래서 게이트가 "리그 전체의 후보가 전부 도장을 받았는가"를 물으면
+      // 실전에서 한 번도 닫히지 않는다 — 사람은 한 구장에서만 도장을 받는다.
       final store = FakeUserDataStore();
       addTearDown(store.dispose);
       await store.createProfile(_uid, _newProfile);
@@ -521,7 +525,6 @@ void main() {
       final container = await buildContainer(
         store: store,
         recorder: recorder,
-        // 같은 날 두 구장에 경기가 있다 — 하나를 받아도 나머지가 남는다.
         schedule: scheduleOf([
           _game(
             id: 'g-jamsil',
@@ -541,9 +544,177 @@ void main() {
       );
 
       await container.read(stadiumVisitProvider.notifier).run();
+      expect(recorder.fixReads, 1);
+
+      await container.read(stadiumVisitProvider.notifier).run();
       await container.read(stadiumVisitProvider.notifier).run();
 
-      expect(recorder.fixReads, 2);
+      expect(
+        recorder.fixReads,
+        1,
+        reason: '잠실에서 더 받을 도장이 없으면 사직 경기가 남아 있어도 GPS 를 켜지 않는다',
+      );
+    });
+
+    test('같은 구장에 아직 못 받은 경기가 남아 있으면 다시 판정한다 (더블헤더)', () async {
+      // 게이트가 닫히는 근거는 "이 사람은 도장을 받은 그 구장에 있다"이므로,
+      // 그 구장에서 더 받을 도장이 남아 있으면 닫히지 않아야 한다.
+      final store = FakeUserDataStore();
+      addTearDown(store.dispose);
+      await store.createProfile(_uid, _newProfile);
+      final recorder = _RecordingChecker(
+        fix: const DeviceFix(lat: _jamsilLat, lng: _jamsilLng),
+      );
+      final container = await buildContainer(
+        store: store,
+        recorder: recorder,
+        schedule: scheduleOf([
+          _game(
+            id: 'g-jamsil-1',
+            date: '2026-08-25',
+            startTime: '14:00',
+            home: 'lg',
+            away: 'lotte',
+            stadium: 'jamsil',
+          ),
+          _game(
+            id: 'g-jamsil-2',
+            date: '2026-08-25',
+            startTime: '18:30',
+            home: 'lg',
+            away: 'lotte',
+            stadium: 'jamsil',
+          ),
+        ]),
+      );
+
+      await container.read(stadiumVisitProvider.notifier).run();
+      await container.read(stadiumVisitProvider.notifier).run();
+
+      expect(
+        recorder.fixReads,
+        2,
+        reason: '2차전의 도장이 아직 남아 있으므로 판정을 막지 않는다',
+      );
+    });
+
+    test('1차전의 창이 닫히면 2차전의 도장이 그 칸에 얹힌다 (더블헤더)', () async {
+      // 앞 시험이 "막지 않는다"만 재므로, 실제로 받아지는 것까지 여기서 잰다.
+      // 20:00 은 14:00 경기의 창(19:00 에 닫힌다) 밖이고 18:30 경기의 창 안이다.
+      final store = FakeUserDataStore();
+      addTearDown(store.dispose);
+      await store.createProfile(_uid, _newProfile);
+      final recorder = _RecordingChecker(
+        fix: const DeviceFix(lat: _jamsilLat, lng: _jamsilLng),
+      );
+      final schedule = scheduleOf([
+        _game(
+          id: 'g-jamsil-1',
+          date: '2026-08-25',
+          startTime: '14:00',
+          home: 'lg',
+          away: 'lotte',
+          stadium: 'jamsil',
+        ),
+        _game(
+          id: 'g-jamsil-2',
+          date: '2026-08-25',
+          startTime: '18:30',
+          home: 'lg',
+          away: 'lotte',
+          stadium: 'jamsil',
+        ),
+      ]);
+      final container = await buildContainer(
+        store: store,
+        recorder: recorder,
+        schedule: schedule,
+        now: DateTime.parse('2026-08-25T15:00:00+09:00'),
+      );
+      await container.read(stadiumVisitProvider.notifier).run();
+      expect((await store.readStamps(_uid)).single.gameId, 'g-jamsil-1');
+
+      // 같은 세션의 앎을 이어받은 채 시각만 옮긴다.
+      final later = await buildContainer(
+        store: store,
+        recorder: recorder,
+        schedule: schedule,
+        now: DateTime.parse('2026-08-25T20:00:00+09:00'),
+      );
+      await later
+          .read(stampAwardProvider.notifier)
+          .award(
+            result: const StadiumVisitResult.visited(
+              stadiumId: 'jamsil',
+              gameId: 'g-jamsil-1',
+            ),
+            schedule: schedule,
+          );
+      await later.read(stadiumVisitProvider.notifier).run();
+
+      final stamps = await store.readStamps(_uid);
+      expect(
+        stamps.map((stamp) => stamp.gameId),
+        unorderedEquals(<String>['g-jamsil-1', 'g-jamsil-2']),
+      );
+      expect((await _cellOf(store, _uid, 'jamsil_lg'))!.count, 2);
+    });
+
+    test('도장을 받은 경기의 창이 지나면 게이트가 다시 열린다', () async {
+      // 게이트가 "창이 지금을 덮는 후보"만 보는 자리 — 창이 닫힌 도장은
+      // 다음 날의 판정까지 막지 않는다.
+      final store = FakeUserDataStore();
+      addTearDown(store.dispose);
+      await store.createProfile(_uid, _newProfile);
+      final recorder = _RecordingChecker(
+        fix: const DeviceFix(lat: _jamsilLat, lng: _jamsilLng),
+      );
+      final schedule = scheduleOf([
+        _game(
+          id: 'g-jamsil',
+          date: '2026-08-25',
+          home: 'lg',
+          away: 'lotte',
+          stadium: 'jamsil',
+        ),
+        _game(
+          id: 'g-jamsil-next',
+          date: '2026-08-26',
+          home: 'lg',
+          away: 'lotte',
+          stadium: 'jamsil',
+        ),
+      ]);
+      final container = await buildContainer(
+        store: store,
+        recorder: recorder,
+        schedule: schedule,
+      );
+      await container.read(stadiumVisitProvider.notifier).run();
+      expect(recorder.fixReads, 1);
+
+      final nextDay = await buildContainer(
+        store: store,
+        recorder: recorder,
+        schedule: schedule,
+        now: DateTime.parse('2026-08-26T17:30:00+09:00'),
+      );
+      await nextDay
+          .read(stampAwardProvider.notifier)
+          .award(
+            result: const StadiumVisitResult.visited(
+              stadiumId: 'jamsil',
+              gameId: 'g-jamsil',
+            ),
+            schedule: schedule,
+          );
+      await nextDay.read(stadiumVisitProvider.notifier).run();
+
+      expect(
+        recorder.fixReads,
+        2,
+        reason: '창이 닫힌 도장은 다음 판정을 막지 않는다',
+      );
     });
 
     test('경기가 없는 날에도 판정은 돌아 이유가 남는다', () async {
@@ -583,20 +754,23 @@ void main() {
       final container = await buildContainer(
         store: store,
         recorder: recorder,
+        // 같은 구장의 더블헤더 — 2차전이 남아 있어 게이트가 닫히지 않는다.
         schedule: scheduleOf([
           _game(
-            id: 'g-jamsil',
+            id: 'g-jamsil-1',
             date: '2026-08-25',
+            startTime: '14:00',
             home: 'lg',
             away: 'lotte',
             stadium: 'jamsil',
           ),
           _game(
-            id: 'g-sajik',
+            id: 'g-jamsil-2',
             date: '2026-08-25',
-            home: 'lotte',
-            away: 'nc',
-            stadium: 'sajik',
+            startTime: '18:30',
+            home: 'lg',
+            away: 'lotte',
+            stadium: 'jamsil',
           ),
         ]),
       );

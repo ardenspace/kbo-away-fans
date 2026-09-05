@@ -48,19 +48,61 @@ class StampAward extends Notifier<Set<String>> {
   bool knowsStampFor({required String stadiumId, required String gameId}) =>
       state.contains(stampDocumentIdOf(stadiumId: stadiumId, gameId: gameId));
 
-  /// 지금 판정에 넣을 후보가 **전부** 이미 받은 경기인가.
+  /// 지금 다시 판정해도 **새 도장이 나올 수 없는가** — 참이면 측위를 건너뛴다.
   ///
-  /// 비어 있으면 false 다 — 후보가 없는 실행은 판정을 돌려야
+  /// **왜 "후보가 전부 도장을 받았는가"가 아닌가.** 후보는 리그 전체의 그날
+  /// 경기이고 사람은 그중 한 구장에서만 도장을 받는다. 배포되는 일정에는
+  /// 경기가 하나뿐인 날이 아예 없으므로(`content-pipeline/data/schedule.json`:
+  /// 168경기, 날짜당 2~5경기), 그 물음으로 세운 게이트는 실전에서 한 번도
+  /// 닫히지 않는다 — 2026-09-04 `[S]` 가 이 단계로 넘긴 낭비("경기가 있는 날에는
+  /// 앱을 다시 켤 때마다 GPS 를 켜고 이미 도장을 받은 뒤에도 계속 돈다")가
+  /// 그대로 남는다.
+  ///
+  /// 그래서 **도장이 말해 주는 사실**로 좁힌다: 창이 지금을 덮는 경기의 도장을
+  /// 받았다면 그 사람은 그 구장에 있다. 그 구장에서 지금 더 받을 도장이 없으면
+  /// 좌표를 다시 읽어도 나올 답은 이미 받은 도장뿐이다 — [judgeStadiumVisit] 도
+  /// 같은 창으로 답을 고르므로, 이 게이트가 닫히는 구간은 판정이 새것을 내놓을
+  /// 수 없는 구간과 같다.
+  ///
+  /// 재는 것이 [candidatesToJudge] 가 아니라 **[visitWindowCovers] 인 후보**인
+  /// 것은 도장이 붙는 범위가 시간 창이기 때문이다. 오늘 경기지만 창이 아직
+  /// 열리지 않은 후보는 지금 도장이 되지 않으므로 게이트의 근거도 되지 못한다.
+  ///
+  /// **남는 대가** 하나를 적어 둔다: 1차전의 창이 아직 열려 있는 동안 다른
+  /// 구장으로 옮겨 간 사람은 그 창이 닫힐 때까지 판정을 받지 못한다. 몸이
+  /// 어디에 있는지는 측위 없이 알 수 없고, 이 게이트가 아끼려는 것이 바로 그
+  /// 측위다. 낮 경기(창이 시작 5시간 뒤 닫힌다)와 저녁 경기의 창은 뒤끝이
+  /// 어긋나므로 두 구장을 도는 사람의 둘째 도장은 늦어질 뿐 사라지지 않는다.
+  ///
+  /// 창을 덮는 도장이 하나도 없으면 false 다 — 경기가 없는 날에도 판정이 돌아야
   /// [StadiumVisitReason.noGameToday] 가 남고, 4.5("못 받는 날")가 그 이유를
   /// 신호로 쓴다. 여기서 조용히 건너뛰면 그 갈래가 영영 서지 않는다.
-  bool coversAll(List<StadiumVisitCandidate> candidates) =>
-      candidates.isNotEmpty &&
-      candidates.every(
-        (candidate) => knowsStampFor(
+  bool judgingAddsNothing(
+    List<StadiumVisitCandidate> candidates,
+    DateTime now,
+  ) {
+    final inWindow = [
+      for (final candidate in candidates)
+        if (visitWindowCovers(candidate, now)) candidate,
+    ];
+    final visited = {
+      for (final candidate in inWindow)
+        if (knowsStampFor(
           stadiumId: candidate.stadiumId,
           gameId: candidate.gameId,
-        ),
-      );
+        ))
+          candidate.stadiumId,
+    };
+    if (visited.isEmpty) return false;
+    return inWindow.every(
+      (candidate) =>
+          !visited.contains(candidate.stadiumId) ||
+          knowsStampFor(
+            stadiumId: candidate.stadiumId,
+            gameId: candidate.gameId,
+          ),
+    );
+  }
 
   /// 방문 판정 하나를 도장으로 옮긴다.
   ///

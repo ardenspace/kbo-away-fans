@@ -96,11 +96,13 @@ class StadiumVisitCheck extends Notifier<StadiumVisitResult?> {
   /// 일정을 모르면 "그날 경기가 없다"와 "일정을 못 읽었다"를 구분할 수 없고,
   /// 후자를 전자로 적으면 4.2 가 도장을 놓친 이유를 잘못 알게 된다.
   ///
-  /// **이미 도장을 받은 경기만 남았으면 판정 자체를 건너뛴다** (4.2,
+  /// **다시 판정해도 새 도장이 나올 수 없으면 판정 자체를 건너뛴다** (4.2,
   /// decisions.md 2026-09-04 `[S]`). 트리거가 포그라운드 복귀마다 도는데,
   /// 도장을 이미 받은 뒤에도 계속 돌면 경기가 있는 날 앱을 켤 때마다 GPS 가
   /// 켜진다. 그 앎을 가진 계층이 [StampAward] 다 — 판정만 하는
-  /// `lib/location/` 은 백엔드를 모른다.
+  /// `lib/location/` 은 백엔드를 모른다. 무엇을 근거로 닫히는지는
+  /// [StampAward.judgingAddsNothing] 이 적는다(리그 전체가 아니라 **도장이
+  /// 말해 주는 그 구장**을 본다).
   ///
   /// **도장 쓰기는 [_running] 밖에서 기다린다.** 이 빗장이 막으려는 것은
   /// 겹쳐 도는 **측위**이지 쓰기가 아니고, 오프라인에서는 서버 확인이 복구
@@ -123,7 +125,7 @@ class StadiumVisitCheck extends Notifier<StadiumVisitResult?> {
       );
       final now = ref.read(clockProvider)();
       final award = ref.read(stampAwardProvider.notifier);
-      if (award.coversAll(candidatesToJudge(candidates, now))) return;
+      if (award.judgingAddsNothing(candidates, now)) return;
 
       result = await ref
           .read(stadiumVisitCheckerProvider)
