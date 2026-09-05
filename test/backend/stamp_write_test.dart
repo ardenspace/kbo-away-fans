@@ -355,6 +355,29 @@ void main() {
       expect((await _cellOf(store, _uid, 'jamsil_lg'))!.count, 1);
       expect(store.stampUploads, ['jamsil_g-jamsil-lg']);
     });
+
+    test('다른 기기가 찍어 서버에만 있는 도장도 복구 뒤 하나로 수렴한다', () async {
+      // 오프라인에서는 이 기기 캐시에 없는 문서를 읽을 수 없다 — 실 SDK 는
+      // 스냅샷 대신 `unavailable` 로 던지고, 이 계층은 그것을 "없다"로 접어
+      // 쓰기를 계속한다(도장을 잃지 않는 쪽을 고른 자리).
+      store.seedServerOnlyStamp(_uid, _jamsilLgStamp);
+      store.offline = true;
+
+      unawaited(store.writeStamp(_uid, _jamsilLgStamp));
+      await pumpEventQueue();
+      expect(
+        await store.readStamps(_uid),
+        hasLength(1),
+        reason: '서버에만 있던 도장은 오프라인에서 보이지 않는다',
+      );
+
+      store.goOnline();
+      await pumpEventQueue();
+
+      // 문서 id 가 결정적이라 두 기기의 쓰기가 같은 문서로 수렴한다.
+      expect(await store.readStamps(_uid), hasLength(1));
+      expect((await _cellOf(store, _uid, 'jamsil_lg'))!.count, 1);
+    });
   });
 
   group('판정 → 도장 — 앱이 두 계층을 잇는 자리', () {

@@ -326,6 +326,11 @@ void main() {
       final write = store.writeStamp(uid, stamp).then((_) => settled = true);
       await pumpEventQueue();
       expect(settled, isFalse, reason: '서버 왕복 전이라 아직 끝나지 않아야 재현이 된다');
+      expect(
+        db.calls,
+        contains('batch.commit'),
+        reason: '존재 확인이 오프라인에서 던져도 배치는 큐에 들어가야 한다',
+      );
 
       gate.complete(); // "복구" — 큐에 있던 배치가 이제 나간다.
       await write;
@@ -398,9 +403,14 @@ void main() {
 class _WriteSpyFirestore implements FirebaseFirestore {
   _WriteSpyFirestore({this.gate, this.userData, this.stampData});
 
-  /// null 이 아니면 쓰기(좋아요의 `set`·`delete`, 도장 배치의 `commit`)가 이
-  /// 완료를 기다린 뒤에야 끝난다 — "쓰기가 아직 서버에 닿지 못한 구간"의
-  /// 대역이다.
+  /// null 이 아니면 **통신이 아직 없다** — 쓰기(좋아요의 `set`·`delete`, 도장
+  /// 배치의 `commit`)는 이 완료를 기다린 뒤에야 끝나고, **읽기는 캐시에 없는
+  /// 문서에서 곧바로 `unavailable` 로 던진다.**
+  ///
+  /// 뒤엣것이 없으면 이 대역이 재는 것은 오프라인이 아니라 "쓰기가 느린
+  /// 온라인"이다 — 실 SDK 는 오프라인에서 캐시에 없는 문서를 읽으면 스냅샷
+  /// 대신 던지고(에뮬레이터 실측), 오프라인에서 찍는 첫 도장이 정확히 그
+  /// 갈래다. 그 갈래만 따로 재는 자리는 `stamp_write_offline_test.dart` 다.
   final Completer<void>? gate;
 
   /// `users/{uid}` 문서의 내용 (null 이면 문서 없음).
@@ -467,6 +477,15 @@ class _SpyDoc implements DocumentReference<Map<String, dynamic>> {
   @override
   Future<DocumentSnapshot<Map<String, dynamic>>> get([GetOptions? options]) async {
     db.calls.add('get:$id');
+    final gate = db.gate;
+    if (gate != null && !gate.isCompleted && _data == null) {
+      // 오프라인 + 캐시에 없는 문서 — 실 SDK 가 스냅샷 대신 던지는 자리.
+      throw FirebaseException(
+        plugin: 'cloud_firestore',
+        code: 'unavailable',
+        message: 'Failed to get document because the client is offline.',
+      );
+    }
     return _SpySnapshot(_data);
   }
 

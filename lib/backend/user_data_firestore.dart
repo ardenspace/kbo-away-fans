@@ -332,17 +332,20 @@ class FirestoreUserDataStore implements UserDataStore {
   /// 쓰기 큐에 쌓였다가 복구 뒤에 한 번 올라간다.
   ///
   /// 그 대신 개수를 세는 읽기가 배치 **밖**에 있다. 트랜잭션이 막아 주던
-  /// "읽고 쓰는 사이에 남이 끼어드는" 갈래가 여기서는 열려 있는데, 그 갈래는
-  /// **같은 계정이 두 기기로 같은 시간대에 서로 다른 경기의 도장을 받는**
-  /// 실행이라 이 앱에서는 사실상 서지 않는다(도장은 그 구장에 몸이 있어야
-  /// 받는다). 어긋나더라도 규칙이 지키는 것은 그대로다 —
+  /// "읽고 쓰는 사이에 남이 끼어드는" 갈래가 여기서는 열려 있다. 그 갈래는
+  /// 같은 계정이 두 기기로 도장을 받는 실행만이 아니라 **한 기기에서도**
+  /// 선다: 도장 쓰기를 기다리는 자리가 판정의 겹침 방지 빗장
+  /// (`StadiumVisitCheck._running`) 밖이라 두 `award` 가 겹칠 수 있고, 같은
+  /// 칸의 두 경기가 겹쳐 들어오면 두 쓰기가 각각 `count = 0 + 1` 을 읽어 개수
+  /// 하나를 잃는다. 어긋나더라도 규칙이 지키는 것은 그대로다 —
   /// `tier == tierFor(count)` 는 어느 경로로 써도 강제된다.
   ///
   /// 멱등의 자리는 **두 겹**이다. 문서 id 가 결정적이라 같은 경기의 도장은
   /// 언제나 같은 문서로 수렴하고(재시도·중복 탭·여러 기기), 그 위에 이
   /// 메서드가 "이미 있으면 아무것도 쓰지 않는다"를 얹어 칸 요약의 개수까지
   /// 붙들어 둔다. 오프라인에서 두 번 판정해도 두 번째는 로컬 캐시에 이미
-  /// 있는 문서를 보고 곧바로 끝나므로, 큐에 쌓이는 배치가 하나다.
+  /// 있는 문서를 보고 곧바로 끝나므로, 큐에 쌓이는 배치가 하나다
+  /// ([_alreadyStamped] 가 그 "두 번째"의 자리다).
   @override
   Future<StampWriteOutcome> writeStamp(String uid, StampWrite stamp) {
     // 계약 위반(ArgumentError)은 guardBackend 밖에서 드러나야 한다 —
@@ -355,10 +358,7 @@ class FirestoreUserDataStore implements UserDataStore {
           .collection(kStampsCollection)
           .doc(stamp.documentId);
 
-      // 오프라인이면 이 읽기는 로컬 캐시가 답한다 — 방금 큐에 넣은 쓰기도
-      // 캐시에 이미 반영돼 있어서(SDK 의 로컬 반영) 두 번째 판정이 여기서
-      // 걸린다.
-      if ((await stampReference.get()).exists) {
+      if (await _alreadyStamped(stampReference)) {
         return StampWriteOutcome.alreadyStamped;
       }
 
@@ -374,6 +374,46 @@ class FirestoreUserDataStore implements UserDataStore {
       await batch.commit();
       return StampWriteOutcome.created;
     });
+  }
+
+  /// 이 도장 문서가 **이미 있다고 말할 수 있는가** — 읽지 못한 실행은 false 다.
+  ///
+  /// **오프라인에서 캐시에 없는 문서를 읽으면 SDK 는 스냅샷을 주지 않고
+  /// `unavailable` 로 던진다** (에뮬레이터 실측: "Failed to get document
+  /// because the client is offline."). 오프라인에서 찍는 **첫** 도장이 정확히
+  /// 그 갈래다 — 그 던짐을 그대로 위로 올리면 배치가 열리지도 않아 로컬 쓰기
+  /// 큐에 아무것도 들어가지 않고, 복구 뒤에 올라갈 것 자체가 없다. 이 파일이
+  /// 배치를 고른 까닭("도장이 찍히는 순간을 놓치면 시간 창이 닫힌 뒤에는
+  /// 되찾을 길이 없다")이 그 자리에서 무너진다.
+  ///
+  /// 그래서 **통신 때문에 읽지 못한 것은 "없다"로 접고 쓰기를 계속한다.**
+  /// 그렇게 해도 같은 경기가 두 번 쌓이지 않는 것은 세 겹 덕분이다.
+  ///  1. 문서 id 가 결정적이라 도장 문서 자체는 같은 문서로 수렴한다
+  ///     (decisions.md 의 `[L]` 결정 150).
+  ///  2. 큐에 넣은 쓰기는 SDK 가 캐시에 곧바로 반영하므로, 같은 오프라인
+  ///     구간의 **두 번째** 판정에서는 이 읽기가 답한다(실측 셋째 줄).
+  ///  3. 그 앞에 `StampAward` 의 세션 사본이 같은 경기의 두 번째 쓰기를 아예
+  ///     내보내지 않는다.
+  ///
+  /// **남는 대가**는 하나다: 이 계정이 다른 기기에서 이미 찍은 도장이 서버에만
+  /// 있고 이 기기 캐시에는 없는 채로 오프라인이면, 이 기기도 배치를 하나 더
+  /// 큐에 넣는다. 도장 문서는 1번 때문에 하나로 수렴하지만 칸 요약의 개수는
+  /// 이 기기가 센 값으로 덮인다. 같은 경기를 두 기기에서 오프라인으로 찍어야
+  /// 서는 갈래이고(도장은 그 구장에 몸이 있어야 받는다), 그 대가를 치르는
+  /// 쪽이 "도장을 아예 잃는다"보다 낫다는 것이 이 선택이다.
+  ///
+  /// **통신이 아닌 실패는 그대로 던진다.** 규칙 거부(`permission-denied`)는
+  /// "모르겠다"가 아니라 "쓸 수 없다"이고, 그것까지 없는 도장으로 접으면 쓸
+  /// 수 없는 문서를 향한 배치가 조용히 큐에 쌓인다.
+  Future<bool> _alreadyStamped(
+    DocumentReference<Map<String, dynamic>> reference,
+  ) async {
+    try {
+      return (await reference.get()).exists;
+    } on FirebaseException catch (error) {
+      if (kNetworkErrorCodes.contains(error.code)) return false;
+      rethrow;
+    }
   }
 
   @override

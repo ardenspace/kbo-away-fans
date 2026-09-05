@@ -70,16 +70,49 @@ class FakeUserDataStore implements UserDataStore {
   /// 대역(다음 트리거가 다시 시도하는지를 잰다).
   Object? stampWriteFailure;
 
-  /// true 인 동안 도장 쓰기의 **서버 확인만** 미룬다 — 로컬 반영은 즉시다
-  /// (Firestore 의 로컬 쓰기 큐가 그렇게 동작한다). [goOnline] 이 큐를 비운다.
+  /// true 인 동안 통신이 없다 — 도장 쓰기의 **서버 확인은** 미뤄지고(로컬
+  /// 반영은 즉시다, Firestore 의 로컬 쓰기 큐가 그렇게 동작한다), **이 기기가
+  /// 아직 받지 못한 문서는 보이지 않는다**([seedServerOnlyStamp]).
+  ///
+  /// 뒤엣것을 함께 모델하는 까닭은 이 대역의 map 이 "서버"가 아니라 **이 기기의
+  /// 로컬 캐시**이기 때문이다. 오프라인에서 읽기는 캐시가 답하거나 답하지 못할
+  /// 뿐 서버에 닿지 않는데, map 하나로 둘을 겸하면 오프라인 시험이 언제나
+  /// 서버의 진실을 손에 쥔 채 돌아 "쓰기가 느린 온라인"을 재게 된다.
+  ///
+  /// [goOnline] 이 큐를 비우고 서버에만 있던 문서를 캐시로 들인다.
   bool offline = false;
 
   /// 서버 확인을 기다리는 쓰기들.
   final List<Completer<void>> _pendingAcks = [];
 
-  /// 통신이 돌아왔다 — 큐에 쌓인 쓰기의 서버 확인을 한꺼번에 내보낸다.
+  /// 서버에는 있지만 **이 기기가 아직 받지 못한** 도장 — uid → (문서 id → 본문).
+  final Map<String, Map<String, Map<String, Object?>>> _serverOnlyStamps = {};
+
+  /// 다른 기기가 찍어 **서버에만** 있는 도장을 심는다.
+  ///
+  /// 오프라인인 동안 이 도장은 [readStamps] 에도 [writeStamp] 의 존재 확인에도
+  /// 보이지 않는다 — 실 SDK 에서 캐시에 없는 문서를 읽으면 스냅샷이 아니라
+  /// `unavailable` 이 오는 그 자리다. [goOnline] 이 캐시로 들인다.
+  void seedServerOnlyStamp(String uid, StampWrite stamp) {
+    _serverOnlyStamps.putIfAbsent(uid, () => {})[stamp.documentId] = _accept(
+      stamp.toData(),
+      StampFields.all,
+    );
+  }
+
+  /// 통신이 돌아왔다 — 큐에 쌓인 쓰기의 서버 확인을 한꺼번에 내보내고,
+  /// 서버에만 있던 문서를 이 기기의 캐시로 들인다.
   void goOnline() {
     offline = false;
+    for (final entry in _serverOnlyStamps.entries) {
+      final byId = stamps.putIfAbsent(entry.key, () => {});
+      // 문서 id 가 결정적이라 같은 경기의 도장은 같은 자리로 수렴한다 —
+      // 이 기기가 오프라인에서 쓴 것이 이미 있으면 덮지 않는다.
+      for (final stamp in entry.value.entries) {
+        byId.putIfAbsent(stamp.key, () => stamp.value);
+      }
+    }
+    _serverOnlyStamps.clear();
     for (final ack in _pendingAcks) {
       if (!ack.isCompleted) ack.complete();
     }
@@ -232,6 +265,12 @@ class FakeUserDataStore implements UserDataStore {
   /// Firestore 의 로컬 쓰기 큐가 하는 일이 그것이다. 그래서 이 대역에서도
   /// "오프라인에서 찍은 도장이 판정한 사람에게 곧바로 보이고, 복구 뒤에 한 번
   /// 올라간다"를 그대로 잰다.
+  ///
+  /// **존재 확인이 보는 것은 이 기기의 캐시다** — 오프라인이면 서버에만 있는
+  /// 도장([seedServerOnlyStamp])이 여기 보이지 않고, 실 구현도 같다(캐시에
+  /// 없는 문서의 읽기는 던지고, `FirestoreUserDataStore` 는 그것을 "없다"로
+  /// 접어 쓰기를 계속한다). 그 갈래에서 두 기기가 같은 경기를 각각 큐에 넣어도
+  /// 문서 id 가 결정적이라 도장은 하나로 수렴한다.
   @override
   Future<StampWriteOutcome> writeStamp(String uid, StampWrite stamp) async {
     stampWrites++;
