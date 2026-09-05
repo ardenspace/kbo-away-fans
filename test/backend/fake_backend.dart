@@ -60,10 +60,18 @@ class FakeUserDataStore implements UserDataStore {
   /// 4.2 가 "이미 받은 경기에서는 쓰기도 다시 시도하지 않는다"를 잴 때 쓴다.
   int stampWrites = 0;
 
-  /// **서버로 실제로 나간** 도장 쓰기의 문서 id — 순서대로.
+  /// **로컬에 반영된** 도장 쓰기의 문서 id — 순서대로.
+  ///
+  /// 아래 [writeStamp] 는 서버 확인(`offline` 일 때의 `ack.future`)을
+  /// 기다리기 **전에** 이 목록에 더한다 — 실 SDK 가 `batch.commit()` 호출
+  /// 즉시 로컬 캐시에 반영하는 자리와 같다. 그래서 이 이름이 재는 것은
+  /// "서버로 나갔다"가 아니라 **"로컬에 반영됐다"** 이다.
   ///
   /// [stampWrites] 와 다른 것은 이미 있는 도장이 여기 쌓이지 않기 때문이다.
-  /// "오프라인에서 찍은 도장이 복구 후 **한 번만** 올라간다"를 재는 자리다.
+  /// "오프라인에서 찍은 도장이 복구 후 **한 번만** 올라간다"를 재는 성질은
+  /// 어느 쪽으로 읽어도 참이다 — 같은 경기의 두 번째 쓰기는 [writeStamp] 의
+  /// `byId.containsKey` 확인에서 [StampWriteOutcome.alreadyStamped] 로 먼저
+  /// 끝나 이 목록에 닿지 않는다.
   final List<String> stampUploads = [];
 
   /// null 이 아니면 [writeStamp] 가 이것을 던진다 — 도장 쓰기가 실패한 실행의
