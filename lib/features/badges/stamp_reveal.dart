@@ -32,7 +32,7 @@ import '../../content/content_providers.dart';
 import '../../design/team_themes.dart';
 import '../../design/tokens.dart';
 import '../../ui/shared/stamp_badge.dart';
-import 'badges_tab_screen.dart' show boardCellLabels;
+import 'board_cell_labels.dart';
 import 'stamp_award.dart';
 
 /// 아직 보여주지 못한 도장 연출의 줄 — 여러 연출을 순서대로, 하나도 잃지

@@ -20,6 +20,10 @@
 ///
 /// 구독하는 [userProfileProvider] 는 마이페이지 탭도 보는 **같은** provider 라,
 /// 이 탭이 생겼다고 읽기가 늘지 않는다(구독은 한 자리, 스냅샷도 한 벌).
+///
+/// 판 위에 [VisitStatusNotice] 를 얹는다(step 4.5) — 가장 최근 방문 판정이
+/// 방문이 아니면 왜 못 받았는지 안내한다. 그 위젯이 판을 가리지 않는 것도,
+/// 권한이 없어도 판이 열리는 것도 그 파일의 계약이지 이 화면의 몫이 아니다.
 library;
 
 import 'package:flutter/material.dart';
@@ -27,11 +31,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../backend/user_data.dart';
 import '../../content/content_providers.dart';
-import '../../content/models.dart';
 import '../../design/tokens.dart';
 import '../../ui/shared/content_fallback.dart';
 import '../../ui/shared/stamp_board.dart';
 import 'board_cell_detail.dart';
+import 'board_cell_labels.dart';
+import 'visit_status_notice.dart';
 
 class BadgesTabScreen extends ConsumerWidget {
   const BadgesTabScreen({super.key});
@@ -74,29 +79,23 @@ class BadgesTabScreen extends ConsumerWidget {
 
     return SingleChildScrollView(
       padding: const EdgeInsets.only(bottom: SpaceTokens.xxl),
-      child: StampBoard(
-        board: board,
-        labels: boardCellLabels(teams),
-        onCellTap: (cellId) => BoardCellDetail.show(
-          context,
-          cellId: cellId,
-          cell: board[cellId],
-        ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // 위치 확인이 안 되어 도장을 못 받은 이유(step 4.5) — 판이 없어도,
+          // 권한이 없어도 판 자체는 그 아래에서 그대로 열린다.
+          const VisitStatusNotice(),
+          StampBoard(
+            board: board,
+            labels: boardCellLabels(teams),
+            onCellTap: (cellId) => BoardCellDetail.show(
+              context,
+              cellId: cellId,
+              cell: board[cellId],
+            ),
+          ),
+        ],
       ),
     );
   }
-}
-
-/// 칸 id → 칸에 적을 팀 약칭.
-///
-/// 콘텐츠를 못 얻은 실행에서는 그 칸의 글자가 빠질 뿐 판은 그대로 열린다 —
-/// 칸의 정체는 팀 색과 자리가 이미 말하고, 이름 하나 때문에 판 전체를 막을
-/// 값어치가 없다. 잠실 두 칸이 갈리는 것도 여기서 온다(같은 구장, 다른 팀).
-Map<String, String> boardCellLabels(TeamsDocument? teams) {
-  if (teams == null) return const {};
-  return {
-    for (final cellId in kBoardCellIds)
-      if (teams.byId(boardCellTeamId(cellId))?.shortName case final String name)
-        cellId: name,
-  };
 }
