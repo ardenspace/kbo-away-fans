@@ -6,6 +6,7 @@ import '../../content/models.dart';
 import '../../design/tokens.dart';
 import '../../ui/shared/category_labels.dart';
 import '../../ui/shared/dday_header.dart';
+import '../../ui/shared/empty_state_notice.dart';
 import '../../ui/shared/place_card.dart';
 import '../../ui/shared/stadium_picker.dart';
 import '../../ui/shared/team_theme_scope.dart';
@@ -14,6 +15,7 @@ import '../../weather/weather.dart';
 import '../places/stadium_places_screen.dart';
 import '../team_select/team_select_screen.dart';
 import 'next_away_game.dart';
+import 'recent_games.dart';
 import 'stadium_browse.dart';
 
 /// 홈 화면 (step 2.3) — 다음 원정 경기 D-day 기본 얼굴.
@@ -81,6 +83,7 @@ class HomeScreen extends ConsumerWidget {
 
     final team = teamsDoc?.byId(teamId);
     final scaffold = _HomeScaffold(
+      teamId: teamId,
       team: team,
       teams: teamsDoc,
       stadiums: stadiumsDoc,
@@ -105,6 +108,7 @@ const int _previewPlaceCount = 3;
 
 class _HomeScaffold extends StatelessWidget {
   const _HomeScaffold({
+    required this.teamId,
     required this.team,
     required this.teams,
     required this.stadiums,
@@ -117,6 +121,10 @@ class _HomeScaffold extends StatelessWidget {
     required this.scheduleLoading,
     required this.onRetrySchedule,
   });
+
+  /// 선택된 응원 팀 id — teams 문서를 못 얻어 [team] 이 null 이어도
+  /// 최근 5경기 요약(step 5.1)은 schedule 문서만으로 계산할 수 있다.
+  final String teamId;
 
   /// 응원 팀 — teams 문서를 아직 얻지 못했으면 null.
   final Team? team;
@@ -176,7 +184,12 @@ class _HomeScaffold extends StatelessWidget {
         raining: raining,
         child: ListView(
           padding: const EdgeInsets.only(bottom: SpaceTokens.xxl),
-          children: [..._planB(context), _face(context), ..._explore(context)],
+          children: [
+            ..._planB(context),
+            _face(context),
+            ..._recentGames(context),
+            ..._explore(context),
+          ],
         ),
       ),
     );
@@ -253,6 +266,48 @@ class _HomeScaffold extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  /// 최근 5경기 결과 요약 (step 5.1) — 홈 중단, D-day 얼굴과 탐색 진입점
+  /// 사이. 내 팀이 홈이든 원정이든 상관없이 종료 경기를 최신순으로 최대
+  /// [kRecentGamesLimit] 개 보여준다. schedule 문서를 못 얻었으면(로딩·실패)
+  /// 자리 자체를 접는다 — 그 상태는 이미 [_scheduleFallback] 이 안내한다.
+  List<Widget> _recentGames(BuildContext context) {
+    final scheduleDoc = schedule;
+    if (scheduleDoc == null) return const [];
+
+    final games = recentGamesFor(schedule: scheduleDoc, teamId: teamId);
+    return [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(
+          SpaceTokens.lg,
+          SpaceTokens.xl,
+          SpaceTokens.lg,
+          SpaceTokens.sm,
+        ),
+        child: Text('최근 5경기', style: TextTokens.sectionTitle),
+      ),
+      if (games.isEmpty)
+        const EmptyStateNotice(
+          title: '아직 경기 결과가 없어요',
+          message: '경기가 끝나면 이 자리에 최근 결과가 쌓여요.',
+        )
+      else
+        for (final game in games)
+          Padding(
+            padding: const EdgeInsets.only(
+              left: SpaceTokens.lg,
+              right: SpaceTokens.lg,
+              bottom: SpaceTokens.sm,
+            ),
+            child: _RecentGameRow(
+              game: game,
+              teamId: teamId,
+              teams: teams,
+              stadiums: stadiums,
+            ),
+          ),
+    ];
   }
 
   /// 구장 골라 구경하기 (step 4.3) — 경기 없는 날의 두 번째 진입점.
@@ -446,4 +501,83 @@ class _HomeScaffold extends StatelessWidget {
           ),
     ];
   }
+}
+
+/// 최근 5경기 요약 한 줄 (step 5.1) — 날짜·구장·상대(홈/원정)·점수·승패.
+///
+/// 선발 투수·날씨 자리는 만들지 않는다(이번 사이클 범위 밖 — decisions.md
+/// 2026-09-01). 이 화면 한 곳에서만 렌더되는 요약 카드라 `lib/ui/shared/`
+/// 로 승격하지 않았다(공통 요소 규칙: 두 군데 이상에서 쓰일 때 승격).
+class _RecentGameRow extends StatelessWidget {
+  const _RecentGameRow({
+    required this.game,
+    required this.teamId,
+    required this.teams,
+    required this.stadiums,
+  });
+
+  final Game game;
+
+  /// 이 요약을 보는 기준 팀 — 홈/원정 판정과 승패 뒤집기의 기준.
+  final String teamId;
+  final TeamsDocument? teams;
+  final StadiumsDocument? stadiums;
+
+  static const List<String> _weekdays = ['월', '화', '수', '목', '금', '토', '일'];
+
+  @override
+  Widget build(BuildContext context) {
+    final isHome = game.homeTeamId == teamId;
+    final opponentId = isHome ? game.awayTeamId : game.homeTeamId;
+    final opponentName = teams?.byId(opponentId)?.shortName ?? opponentId;
+    final stadiumName = stadiums?.byId(game.stadiumId)?.name ?? game.stadiumId;
+    final myScore = isHome ? game.homeScore : game.awayScore;
+    final opponentScore = isHome ? game.awayScore : game.homeScore;
+    final outcome = outcomeFor(game, teamId);
+
+    final date = gameDateOf(game);
+    final dateLabel =
+        '${date.month}/${date.day}(${_weekdays[date.weekday - 1]})';
+
+    return Container(
+      padding: const EdgeInsets.all(SpaceTokens.md),
+      decoration: BoxDecoration(
+        color: ColorTokens.surface,
+        borderRadius: BorderRadius.circular(RadiusTokens.sm),
+        border: Border.all(color: ColorTokens.outline),
+      ),
+      child: Row(
+        children: [
+          Text(dateLabel, style: TextTokens.caption),
+          const SizedBox(width: SpaceTokens.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${isHome ? '홈' : '원정'} · $opponentName',
+                  style: TextTokens.bodyStrong,
+                ),
+                Text(stadiumName, style: TextTokens.caption),
+              ],
+            ),
+          ),
+          Text('$myScore : $opponentScore', style: TextTokens.bodyStrong),
+          const SizedBox(width: SpaceTokens.sm),
+          Text(
+            outcomeLabel(outcome),
+            style: TextTokens.bodyStrong.copyWith(
+              color: _outcomeColor(outcome),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Color _outcomeColor(TeamGameOutcome outcome) => switch (outcome) {
+        TeamGameOutcome.win => ColorTokens.success,
+        TeamGameOutcome.loss => ColorTokens.danger,
+        TeamGameOutcome.draw => ColorTokens.textSecondary,
+      };
 }
