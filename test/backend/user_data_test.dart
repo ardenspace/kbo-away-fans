@@ -73,6 +73,45 @@ void main() {
     });
   });
 
+  group('도장 문서 id', () {
+    test('구장과 경기 id 를 붙인다', () {
+      expect(
+        stampDocumentIdOf(stadiumId: 'jamsil', gameId: 'g-2026-08-25-lg'),
+        'jamsil_g-2026-08-25-lg',
+      );
+    });
+
+    test('로스터 밖 구장은 거부한다 — 짝인 boardCellIdOf 와 같은 세기다', () {
+      expect(
+        () => stampDocumentIdOf(stadiumId: 'dongdaemun', gameId: 'g-1'),
+        throwsArgumentError,
+      );
+    });
+
+    test('계약의 모양이 아닌 경기 id 는 거부한다', () {
+      // 규칙의 `gameId.matches('^[A-Za-z0-9-]{1,64}$')` 와 같은 모양이다 —
+      // 밑줄이 섞이면 id 를 되읽는 자리가 구장과 경기를 잘못 가른다.
+      expect(
+        () => stampDocumentIdOf(stadiumId: 'jamsil', gameId: 'g_1'),
+        throwsArgumentError,
+      );
+      expect(
+        () => stampDocumentIdOf(stadiumId: 'jamsil', gameId: ''),
+        throwsArgumentError,
+      );
+    });
+
+    test('write 타입의 documentId 도 같은 검사를 지난다', () {
+      const stamp = StampWrite(
+        stadiumId: 'jamsil',
+        gameId: 'g_1',
+        homeTeamId: 'lg',
+        gameDate: '2026-08-25',
+      );
+      expect(() => stamp.documentId, throwsArgumentError);
+    });
+  });
+
   group('첫 문서의 닉네임 씨앗 (2.4)', () {
     test('제공자 표시 이름이 있으면 그것을 쓴다', () {
       expect(seedNickname(uid: 'kakao:1', displayName: '원정러'), '원정러');

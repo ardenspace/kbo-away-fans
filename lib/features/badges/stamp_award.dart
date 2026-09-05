@@ -45,8 +45,27 @@ class StampAward extends Notifier<Set<String>> {
   Set<String> build() => const {};
 
   /// 이 경기의 도장이 이번 실행에서 이미 확인되었는가.
-  bool knowsStampFor({required String stadiumId, required String gameId}) =>
-      state.contains(stampDocumentIdOf(stadiumId: stadiumId, gameId: gameId));
+  bool knowsStampFor({required String stadiumId, required String gameId}) {
+    final documentId = _documentIdOf(stadiumId: stadiumId, gameId: gameId);
+    return documentId != null && state.contains(documentId);
+  }
+
+  /// 도장 문서 id — **계약 밖 값이면 null.**
+  ///
+  /// [stampDocumentIdOf] 는 구장 로스터와 `gameId` 의 모양을 [ArgumentError] 로
+  /// 막는데(짝인 `boardCellIdOf` 와 같은 세기다), 이 파일이 그것을 묻는 값은
+  /// 콘텐츠 문서에서 온다 — 일정 계약은 `gameId` 를 `nonEmptyString` 으로만
+  /// 적으므로 도장 계약을 어기는 값이 흘러들 수 있다. 그런 경기는 도장이
+  /// 만들어질 수 없으니 "아직 못 받은 경기"로 두고 조용히 지난다: 후보를 짓는
+  /// 자리가 구장 문서에 없는 구장을 건너뛰는 것과 같은 판단이고, 여기서
+  /// 던지면 리그 어딘가의 잘못된 한 줄이 그날의 판정을 통째로 멈춘다.
+  String? _documentIdOf({required String stadiumId, required String gameId}) {
+    try {
+      return stampDocumentIdOf(stadiumId: stadiumId, gameId: gameId);
+    } on ArgumentError {
+      return null;
+    }
+  }
 
   /// 지금 다시 판정해도 **새 도장이 나올 수 없는가** — 참이면 측위를 건너뛴다.
   ///
@@ -113,9 +132,10 @@ class StampAward extends Notifier<Set<String>> {
   ///  - 이번 실행에서 이미 받은 경기 — 두 번째 쓰기를 아예 내보내지 않는다.
   ///  - 로그인한 계정이 없는 실행 — 도장을 쓸 자리가 없다(트리거가 로그인
   ///    게이트 안쪽이라 실사용에서는 서지 않는다).
-  ///  - 일정에서 그 경기를 못 찾았거나, 구장×홈팀 짝이 판의 10칸 밖인 실행 —
-  ///    후보를 짓는 자리가 구장 문서에 없는 구장을 조용히 건너뛰는 것과 같은
-  ///    판단이다(두 콘텐츠 문서가 어긋난 실행에서 던지지 않는다).
+  ///  - 일정에서 그 경기를 못 찾았거나, 구장×홈팀 짝이 판의 10칸 밖이거나,
+  ///    `gameId` 가 도장 계약의 모양이 아닌 실행([_documentIdOf]) — 후보를 짓는
+  ///    자리가 구장 문서에 없는 구장을 조용히 건너뛰는 것과 같은 판단이다
+  ///    (두 콘텐츠 문서가 어긋난 실행에서 던지지 않는다).
   ///
   /// **낙관적으로 먼저 기억한다.** 쓰기가 서버에 닿기 전에 기억해 두는 것은
   /// 오프라인 갈래 때문이다 — 구장에서 통신이 끊기면 서버 확인이 복구 뒤에나
@@ -130,11 +150,8 @@ class StampAward extends Notifier<Set<String>> {
     final gameId = result.gameId;
     if (!result.isVisit || stadiumId == null || gameId == null) return;
 
-    final documentId = stampDocumentIdOf(
-      stadiumId: stadiumId,
-      gameId: gameId,
-    );
-    if (state.contains(documentId)) return;
+    final documentId = _documentIdOf(stadiumId: stadiumId, gameId: gameId);
+    if (documentId == null || state.contains(documentId)) return;
 
     final user = ref.read(authStateProvider).value;
     if (user == null) return;

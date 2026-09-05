@@ -885,5 +885,36 @@ void main() {
       expect(store.stampWrites, 0);
       expect((await store.readProfile(_uid))!.board, isEmpty);
     });
+
+    test('도장 계약의 모양이 아닌 경기 id 는 판정을 멈추지 않고 조용히 지난다', () async {
+      // 일정 계약은 `gameId` 를 nonEmptyString 으로만 적으므로 도장 계약
+      // (`^[A-Za-z0-9-]{1,64}$`)을 어기는 값이 흘러들 수 있다. 그런 한 줄이
+      // 그날의 판정을 통째로 멈추면 다른 구장의 도장까지 함께 잃는다.
+      final store = FakeUserDataStore();
+      addTearDown(store.dispose);
+      await store.createProfile(_uid, _newProfile);
+      final recorder = _RecordingChecker(
+        fix: const DeviceFix(lat: _jamsilLat, lng: _jamsilLng),
+      );
+      final container = await buildContainer(
+        store: store,
+        recorder: recorder,
+        schedule: scheduleOf([
+          _game(
+            id: 'g_jamsil',
+            date: '2026-08-25',
+            home: 'lg',
+            away: 'lotte',
+            stadium: 'jamsil',
+          ),
+        ]),
+      );
+
+      await container.read(stadiumVisitProvider.notifier).run();
+
+      expect(container.read(stadiumVisitProvider)!.isVisit, isTrue);
+      expect(store.stampWrites, 0);
+      expect(container.read(stampAwardProvider), isEmpty);
+    });
   });
 }

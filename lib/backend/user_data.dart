@@ -200,10 +200,19 @@ const Set<String> kBoardCellIds = {
 ///
 /// 규칙(`firestore.rules` 의 `stampId == d.stadiumId + '_' + d.gameId`)이
 /// 이 형태만 받으므로, 다른 조합으로는 문서가 만들어지지 않는다.
+///
+/// **짝인 [boardCellIdOf] 와 같은 세기로 막는다** — 구장 로스터 밖이거나
+/// 계약의 모양이 아닌 `gameId` 는 [ArgumentError] 다. 붙이기만 하면 이 함수를
+/// 지나 서버에서야 규칙에 걸리는데, 그 실패는 실기기에서만 보이고 도장이
+/// 찍히는 순간을 놓치면 시간 창이 닫힌 뒤에는 되찾을 길이 없다. 밑줄을 담은
+/// `gameId` 는 특히 조용한데, 문서 id 로는 멀쩡해 보이면서 구장과 경기를
+/// 가르는 자리를 어긋나게 만든다.
 String stampDocumentIdOf({
   required String stadiumId,
   required String gameId,
-}) => '${stadiumId}_$gameId';
+}) =>
+    '${_checkStadiumId(stadiumId, StampFields.stadiumId)}_'
+    '${_checkGameId(gameId)}';
 
 /// 구장과 그날 홈팀으로 칸 id 를 만든다. 판에 없는 짝이면 [ArgumentError].
 String boardCellIdOf({required String stadiumId, required String homeTeamId}) {
