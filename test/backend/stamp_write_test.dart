@@ -516,6 +516,63 @@ void main() {
       expect(store.stampWrites, 1, reason: '쓰기 자체도 다시 시도하지 않는다');
     });
 
+    test('게이트에 막힌 실행은 판정의 나이를 지우지 않는다 (5.2 가 읽는 기록)', () async {
+      // 4.2 의 게이트는 측위만 건너뛰는 것이지 **손에 든 판정을 낡게 만드는
+      // 것이 아니다.** 그 둘이 한 값에 겹쳐 있던 동안에는, 도장을 받고 구장에
+      // 그대로 선 사람이 앱을 한 번 오가기만 해도(야구장에서 매우 흔하다)
+      // 홈 상단 구장 이름이 곧바로 일반 문구로 내려갔다(계약 밖 발견 F1.
+      // 실측: 도장 5분 뒤 복귀에 구장명 1 → 0). 그러면 5.2 의 15분 신선도가
+      // 실제로 쓰이는 구간이 "도장을 못 받은 갈래"로 좁아진다.
+      //
+      // 이 시험이 그 기록을 실 배선 위에서 잰다 — 화면 시험은
+      // `stadiumVisitRunProvider` 를 대역으로 갈아 끼우므로 여기까지 못 온다.
+      final store = FakeUserDataStore();
+      addTearDown(store.dispose);
+      await store.createProfile(_uid, _newProfile);
+      final recorder = _RecordingChecker(
+        fix: const DeviceFix(lat: _jamsilLat, lng: _jamsilLng),
+      );
+      final auth = FakeAuthService(signedIn: const AuthUser(uid: _uid));
+      addTearDown(auth.dispose);
+      var now = duringPregame;
+      final container = ProviderContainer(
+        overrides: [
+          clockProvider.overrideWithValue(() => now),
+          authServiceProvider.overrideWithValue(auth),
+          userDataStoreProvider.overrideWithValue(store),
+          stadiumsProvider.overrideWith((ref) async => ContentFresh(stadiums)),
+          scheduleProvider.overrideWith(
+            (ref) async => ContentFresh(lgHomeSchedule),
+          ),
+          stadiumVisitCheckerProvider.overrideWithValue(recorder.build()),
+        ],
+      );
+      addTearDown(container.dispose);
+      container.listen(authStateProvider, (_, _) {});
+      await pumpEventQueue();
+
+      await container.read(stadiumVisitProvider.notifier).run();
+      expect(container.read(stadiumVisitRunProvider)?.judged, isTrue);
+      expect(container.read(stadiumVisitRunProvider)?.judgedAt, duringPregame);
+
+      // 구장에 그대로 선 채 5분 뒤 앱을 배경 → 포그라운드.
+      now = duringPregame.add(const Duration(minutes: 5));
+      await container.read(stadiumVisitProvider.notifier).run();
+
+      expect(recorder.fixReads, 1, reason: '4.2 의 절제 — 측위는 늘지 않는다');
+      final skipped = container.read(stadiumVisitRunProvider);
+      expect(
+        skipped?.judged,
+        isFalse,
+        reason: '이 실행은 판정까지 가지 못했다 — 5.2 는 그때 권한을 다시 묻는다',
+      );
+      expect(
+        skipped?.judgedAt,
+        duringPregame,
+        reason: '건너뛴 실행이 판정의 나이를 지우면 구장에 선 사람이 구장 이름을 잃는다',
+      );
+    });
+
     test('다른 구장에 경기가 남아 있어도 도장을 받은 구장에서는 다시 측위하지 않는다', () async {
       // 배포되는 일정에는 경기가 하나뿐인 날이 없다(총 168경기, 날짜당 2~5경기).
       // 그래서 게이트가 "리그 전체의 후보가 전부 도장을 받았는가"를 물으면

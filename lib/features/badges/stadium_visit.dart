@@ -96,6 +96,12 @@ final stadiumVisitProvider =
 /// 그러려면 판정 결과와 함께 **그 답이 언제 난 것인지**가 필요하고, 이
 /// 기록이 그 자리다. 이 값은 좌표가 아니라 **시각과 참·거짓 하나**다.
 ///
+/// 두 물음을 두 자리로 가른다 — [judged] 는 "**이** 실행이 판정했는가",
+/// [judgedAt] 은 "손에 든 판정이 **언제** 난 것인가". 앞엣것은 판정 안의
+/// 권한을 지금으로 읽어도 되는지를 5.2 가 가르는 데 쓰고(round 3), 뒤엣것은
+/// 구장 이름의 나이를 재는 데 쓴다(round 1·2). 한 값에 겹쳐 두었을 때는
+/// 건너뛴 실행 하나가 나이를 통째로 지워 버렸다([judgedAt] 문서 참조).
+///
 /// **이 타입은 판정 계층의 값이 화면 계층으로 나가는 통로다.** phase 5 가 그
 /// 통로를 처음 열었고, 처음에는 못이 하나도 없었다 — 여기에 `this.lat`·
 /// `this.lng` 를 더해도 `flutter analyze` 가 무지적이고 훅 4종이 전부 exit 0
@@ -107,18 +113,30 @@ final stadiumVisitProvider =
 /// 방식이고, 같은 세기의 약속이다("실수로는 지나갈 수 없다"). 여기 값 자리를
 /// 하나라도 더하거나 이름을 바꾸면 그 시험이 빨간불이다.
 class StadiumVisitRun {
-  const StadiumVisitRun({required this.at, required this.judged});
+  const StadiumVisitRun({required this.judged, required this.judgedAt});
 
-  /// 그 실행이 본 "지금"([clockProvider]) — 판정까지 갔으면 곧 판정 시각이다.
-  final DateTime at;
-
-  /// 판정이 실제로 돌았는가. 거짓이면 그 실행은 게이트에서(또는 콘텐츠를 못
-  /// 얻어) 일찍 끝났고, [stadiumVisitProvider] 의 값은 그 **이전** 실행의
-  /// 답이다.
+  /// **이** 실행이 판정까지 갔는가. 거짓이면 그 실행은 게이트에서(또는
+  /// 콘텐츠를 못 얻어) 일찍 끝났고, [stadiumVisitProvider] 의 값은 그
+  /// **이전** 실행의 답이다 — 그 답 안의 "권한이 있었다"까지 함께 옛
+  /// 것이라, 5.2 는 그때 권한을 다시 묻는다(phase 5 통합 검증 round 3).
   final bool judged;
 
+  /// 손에 든 판정([stadiumVisitProvider] 의 값)이 **난 시각** — 한 번도
+  /// 판정된 적이 없으면 null.
+  ///
+  /// **건너뛴 실행을 지나도 이 값은 그대로 남는다.** 이 자리가 갈려 있지
+  /// 않던 동안에는 "이 실행이 판정했는가"와 "손에 든 판정이 언제 난
+  /// 것인가"가 한 값에 겹쳐 있었고, 그래서 도장을 받은 사람이 구장에 **그대로
+  /// 선 채** 앱을 한 번 오가기만 해도 나이가 잴 수 없는 것이 되어 구장 이름이
+  /// 곧바로 일반 문구로 내려갔다(실측: 도장 5분 뒤 복귀에 구장명 1 → 0).
+  /// 그러면 [kCurrentLocationFreshness] 가 실제로 쓰이는 구간이 "도장을 못
+  /// 받은 갈래"로 좁아진다 — 나이를 재라고 둔 잣대가 정작 구장에 선 사람
+  /// 에게는 한 번도 쓰이지 않는 셈이다(계약 밖 발견 F1). 두 물음을 두
+  /// 자리로 가른다.
+  final DateTime? judgedAt;
+
   @override
-  String toString() => 'StadiumVisitRun($at, judged: $judged)';
+  String toString() => 'StadiumVisitRun(judged: $judged, judgedAt: $judgedAt)';
 }
 
 /// 마지막 판정 시도의 기록 — 아직 한 번도 시도하지 않았으면 null.
@@ -182,11 +200,10 @@ class StadiumVisitCheck extends Notifier<StadiumVisitResult?> {
     _running = true;
     ScheduleDocument? schedule;
     StadiumVisitResult? result;
-    // 이 실행이 본 "지금" — 아래 [stadiumVisitRunProvider] 에 남길 값이다.
-    // 콘텐츠를 기다리기 **전에** 한 번 읽어 두는 것은, 일찍 반환하는 갈래도
-    // "언제 돌았는가"를 남겨야 하기 때문이다(그 갈래가 곧 5.2 가 옛 답을
-    // 현재로 말하던 자리다).
-    DateTime at = ref.read(clockProvider)();
+    // 손에 든 판정이 난 시각 — 이 실행이 판정하면 그때의 "지금"으로 바뀌고,
+    // 판정까지 가지 못하면 **이전 값 그대로** 남는다(그래야 게이트에 막힌
+    // 실행 하나가 구장 이름의 나이를 통째로 지우지 않는다).
+    DateTime? judgedAt = ref.read(stadiumVisitRunProvider)?.judgedAt;
     try {
       schedule = await _document(scheduleProvider);
       final stadiums = await _document(stadiumsProvider);
@@ -197,7 +214,6 @@ class StadiumVisitCheck extends Notifier<StadiumVisitResult?> {
         stadiums: stadiums,
       );
       final now = ref.read(clockProvider)();
-      at = now;
       final award = ref.read(stampAwardProvider.notifier);
       if (award.judgingAddsNothing(candidates, now)) return;
 
@@ -205,19 +221,27 @@ class StadiumVisitCheck extends Notifier<StadiumVisitResult?> {
           .read(stadiumVisitCheckerProvider)
           .check(candidates: candidates, now: now);
       state = result;
+      judgedAt = now;
     } finally {
       _running = false;
       // **일찍 반환한 실행도 기록을 남긴다.** 이 자리가 (A) 를 닫는 못이다 —
       // 게이트가 닫혀 판정을 건너뛴 실행 뒤에는 `judged: false` 가 남고, 그
-      // 값을 읽는 5.2 는 손에 든 판정이 "지금"이 아님을 알게 된다. 판정
-      // 결과([state])는 건드리지 않으므로 4.5 의 안내와 4.3 의 판은 그대로다.
+      // 값을 읽는 5.2 는 손에 든 판정이 "지금"이 아님을 알게 된다(구장
+      // 이름을 쓰지 않고, 그 안의 권한도 다시 묻는다). 판정 결과([state])는
+      // 건드리지 않으므로 4.5 의 안내와 4.3 의 판은 그대로다.
+      //
+      // **그러면서 [StadiumVisitRun.judgedAt] 은 그대로 이어 준다** — 건너뛴
+      // 실행은 판정을 낡게 만들지 않는다. 그 실행이 나이까지 지우면 구장에
+      // 그대로 선 사람이 앱을 한 번 오간 것만으로 구장 이름을 잃는다(F1).
       //
       // 버려진 뒤인지를 먼저 묻는 것은 아래 연출 큐와 같은 까닭이다 — 콘텐츠
       // 로드·측위를 기다리는 사이에 이 provider 가 버려질 수 있다.
       if (ref.mounted) {
         ref
             .read(stadiumVisitRunProvider.notifier)
-            .record(StadiumVisitRun(at: at, judged: result != null));
+            .record(
+              StadiumVisitRun(judged: result != null, judgedAt: judgedAt),
+            );
       }
     }
 

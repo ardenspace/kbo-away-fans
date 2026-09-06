@@ -1555,8 +1555,8 @@ void main() {
       );
 
       expect(_declaredStorage(body), {
-        'at': 'final DateTime',
         'judged': 'final bool',
+        'judgedAt': 'final DateTime?',
       }, reason: '이 타입은 판정 계층의 값을 화면 계층으로 나르는 통로다 — 시각과 참·거짓뿐이다');
     });
 

@@ -179,7 +179,7 @@ void main() {
           () => _FixedStadiumVisitRunLog(
             stadiumVisitRun ??
                 (stadiumVisit != null && defaultVisitRun
-                    ? StadiumVisitRun(at: now, judged: true)
+                    ? StadiumVisitRun(judged: true, judgedAt: now)
                     : null),
           ),
         ),
@@ -891,21 +891,34 @@ void main() {
         gameId: '2026-08-25-sajik-lotte-kt',
       );
 
-      testWidgets('마지막 시도가 건너뛰어졌으면(judged: false) 구장 이름을 쓰지 않는다',
+      testWidgets('마지막 시도가 건너뛰어졌어도 판정이 낡았으면 구장 이름을 쓰지 않는다',
           (tester) async {
+        // **기대를 사실에 맞춘 자리다.** 이 시험은 원래 "건너뛴 실행 뒤에는
+        // 구장 이름을 쓰지 않는다"를 쟀는데, 그때는 건너뛴 실행 하나가
+        // 판정의 **나이까지** 지웠기 때문이다(`judged: false` 면 잴 기준점이
+        // 없었다). 그 겹침이 계약 밖 발견 F1 이었다 — 구장에 그대로 선
+        // 사람이 앱을 한 번 오가기만 해도 구장 이름을 잃었다. 지금은 두
+        // 물음이 갈렸으므로(`StadiumVisitRun.judgedAt` 문서) 이름을 내리는
+        // 것은 **나이**다. 건너뛴 실행 + 낡은 판정이라는 실제 조합을 그대로
+        // 잰다.
+        //
         // **권한 대역을 granted 로 준다.** round 3 의 수정 뒤로 이 갈래
         // (마지막 시도가 판정까지 못 감)는 자리를 그릴지도 권한을 **다시 물어**
         // 정하므로, 대역이 기본값(denied)이면 자리가 통째로 접혀 이 시험이
-        // 재려는 것(문구)을 잴 수 없다. 자리가 접히는 쪽은 바로 아래 짝이
-        // 잰다.
+        // 재려는 것(문구)을 잴 수 없다. 자리가 접히는 쪽은 아래 짝이 잰다.
         await tester.pumpWidget(home(
           teamId: 'lotte',
           games: const [],
           now: now,
           stadiumVisit: visited,
-          // 판정은 두 시간 전 것이고, 방금 돈 시도는 게이트에 막혀 판정까지
-          // 가지 못했다.
-          stadiumVisitRun: StadiumVisitRun(at: now, judged: false),
+          // 판정은 신선도 상한을 넘긴 것이고, 방금 돈 시도는 게이트에 막혀
+          // 판정까지 가지 못했다 — 그래서 나이가 갱신되지 않았다.
+          stadiumVisitRun: StadiumVisitRun(
+            judged: false,
+            judgedAt: now
+                .subtract(kCurrentLocationFreshness)
+                .subtract(const Duration(minutes: 1)),
+          ),
           locationGateway: FakeLocationPermissionGateway(
             initial: LocationPermissionStatus.granted,
           ),
@@ -920,6 +933,32 @@ void main() {
           find.text(kCurrentLocationGenericLabel, skipOffstage: false),
           findsOneWidget,
         );
+      });
+
+      testWidgets('건너뛴 실행 하나가 판정의 나이를 지우지는 않는다 (계약 밖 발견 F1)',
+          (tester) async {
+        // 도장을 받고 구장에 **그대로 선 채** 앱을 한 번 오가면 4.2 의
+        // 게이트가 닫혀 `judged: false` 가 기록된다(야구장에서 매우 흔한
+        // 행동이다). 그 실행이 나이까지 지우면 구장 이름이 곧바로 일반
+        // 문구로 내려가, 15분 신선도가 실제로 쓰이는 구간이 "도장을 못 받은
+        // 갈래"로 좁아진다(실측: 도장 5분 뒤 복귀에 구장명 1 → 0).
+        await tester.pumpWidget(home(
+          teamId: 'lotte',
+          games: const [],
+          now: now,
+          stadiumVisit: visited,
+          // 판정은 5분 전 것이고, 방금 돈 시도는 게이트에 막혔다.
+          stadiumVisitRun: StadiumVisitRun(
+            judged: false,
+            judgedAt: now.subtract(const Duration(minutes: 5)),
+          ),
+          locationGateway: FakeLocationPermissionGateway(
+            initial: LocationPermissionStatus.granted,
+          ),
+        ));
+        await tester.pumpAndSettle();
+
+        expect(find.text('사직야구장 근처예요', skipOffstage: false), findsOneWidget);
       });
 
       testWidgets('그 갈래에서 권한이 꺼져 있으면 자리가 접힌다 (round 3 의 REJECT)',
@@ -937,7 +976,7 @@ void main() {
           games: const [],
           now: now,
           stadiumVisit: visited,
-          stadiumVisitRun: StadiumVisitRun(at: now, judged: false),
+          stadiumVisitRun: StadiumVisitRun(judged: false, judgedAt: now),
           locationGateway: gateway,
         ));
         await tester.pumpAndSettle();
@@ -964,10 +1003,10 @@ void main() {
           now: now,
           stadiumVisit: visited,
           stadiumVisitRun: StadiumVisitRun(
-            at: now.subtract(kCurrentLocationFreshness).subtract(
+            judged: true,
+            judgedAt: now.subtract(kCurrentLocationFreshness).subtract(
               const Duration(minutes: 1),
             ),
-            judged: true,
           ),
         ));
         await tester.pumpAndSettle();
@@ -986,8 +1025,8 @@ void main() {
           now: now,
           stadiumVisit: visited,
           stadiumVisitRun: StadiumVisitRun(
-            at: now.subtract(kCurrentLocationFreshness),
             judged: true,
+            judgedAt: now.subtract(kCurrentLocationFreshness),
           ),
         ));
         await tester.pumpAndSettle();
@@ -1009,7 +1048,7 @@ void main() {
         games: const [],
         now: now,
         // 판정 결과는 없고(null), 트리거는 돌아 기록만 남았다.
-        stadiumVisitRun: StadiumVisitRun(at: now, judged: false),
+        stadiumVisitRun: StadiumVisitRun(judged: false, judgedAt: now),
         locationGateway: gateway,
       ));
       await tester.pumpAndSettle();

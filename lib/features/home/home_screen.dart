@@ -94,19 +94,19 @@ class HomeScreen extends ConsumerWidget {
     // 깨진 실측이 있다).
     final stadiumVisit = ref.watch(stadiumVisitProvider);
 
-    // 그 판정이 **언제** 난 것인지 — 4.2 는 새 도장이 나올 수 없는 구간에서
-    // 측위를 건너뛰므로, 결과값만으로는 그것이 지금의 답인지 알 수 없다
-    // (`stadiumVisitRunProvider` 문서 참조). 판정까지 가지 못한 실행 뒤에는
-    // `judged` 가 거짓이고, 그때 홈은 구장 이름을 쓰지 않는다.
+    // 4.2 는 새 도장이 나올 수 없는 구간에서 측위를 건너뛰므로, 판정 결과값
+    // 만으로는 그것이 지금의 답인지 알 수 없다(`stadiumVisitRunProvider`
+    // 문서 참조). 그 기록이 두 물음에 따로 답한다.
     final lastVisitRun = ref.watch(stadiumVisitRunProvider);
     final judgmentAttempted = lastVisitRun != null;
-    // 마지막 시도가 **판정까지 갔는가** — 이 한 값이 손에 든 판정을 "지금"으로
-    // 읽어도 되는지를 정한다. 구장 이름(`visitJudgedAt`)뿐 아니라 **자리를
-    // 그릴지**도 여기에 매단다: 게이트가 닫힌 구간에서는 판정 안의 "권한이
-    // 있었다"도 옛 사실이라, 그 값을 그대로 믿으면 권한을 끄고 돌아온 사람의
-    // 홈 상단이 다섯 시간까지 그대로 선다(round 3 의 REJECT 사유).
+    // (1) **이** 실행이 판정까지 갔는가 — 아니면 판정 안의 "권한이 있었다"도
+    // 옛 사실이라, 자리를 그릴지를 권한을 다시 물어 정한다(round 3 의
+    // REJECT 사유. 그 값을 그대로 믿으면 권한을 끄고 돌아온 사람의 홈 상단이
+    // 다섯 시간까지 그대로 선다).
     final lastRunJudged = lastVisitRun != null && lastVisitRun.judged;
-    final judgedAt = lastRunJudged ? lastVisitRun.at : null;
+    // (2) 손에 든 판정이 **언제** 난 것인가 — 구장 이름을 쓸지를 정하는 나이의
+    // 기준점이고, 건너뛴 실행을 지나도 그대로 이어진다.
+    final judgedAt = lastVisitRun?.judgedAt;
 
     // 판정이 권한을 대신 말해 주지 못하는 갈래에서만 권한을 다시 묻는다
     // (`noGameToday`, 콘텐츠를 못 얻어 판정이 아예 없는 실행, 그리고 마지막
@@ -230,8 +230,11 @@ class _HomeScaffold extends StatelessWidget {
   /// [askedPermission] 이 정한다([currentLocationVisible] 문서 참조).
   final bool lastRunJudged;
 
-  /// [stadiumVisit] 이 **난 시각** — 마지막 시도가 판정까지 가지 못했으면
-  /// null 이다(그 뒤로 앱은 사람이 어디 있는지 알지 못한다).
+  /// [stadiumVisit] 이 **난 시각** — 한 번도 판정된 적이 없으면 null.
+  ///
+  /// 건너뛴 실행([lastRunJudged] 이 거짓)을 지나도 이 값은 그대로다 — 그
+  /// 실행은 판정을 낡게 만들지 않는다. 나이가 실제로 자라는 것은 시각이
+  /// 흐르는 것뿐이고, 그 나이를 재는 자리가 [CurrentLocationRow] 다.
   final DateTime? visitJudgedAt;
 
   /// 판정이 권한을 대신 말해 주지 못하는 갈래에서 [HomeScreen] 이 한 번 더
