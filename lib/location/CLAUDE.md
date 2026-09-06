@@ -295,17 +295,33 @@
      우회하지 말고 허용 목록을 넓히고 ADR 을 남길 것(까닭은 그 스크립트
      헤더의 4) 에 적혀 있다).
   5. 경계를 넘는 값(`StadiumVisitResult`)에 좌표가 없고, 후보
-     (`StadiumVisitCandidate`)에 팀 id 가 없다. 두 타입 다 **값을 두는 자리
+     (`StadiumVisitCandidate`)에 팀 id 가 없다. **판정 계층이 화면 계층으로
+     내보내는 기록(`StadiumVisitRun`)에도 좌표가 없다** (phase 5 가 연 통로 —
+     아래 문단 참조). 두 타입 다 **값을 두는 자리
      집합 자체**를 소스에서 읽어 표와 대조한다 — 결과 타입에 좌표 필드나
      `static` 필드나 좌표 게터를 더하면, 후보 타입에 `homeTeamId` 를 더하면
      빨간불이다.
      **지키는 것:** `test/features/badges/visit_check_test.dart` 의 타입
-     파수꾼 셋(후보 타입 쪽이 round 5 에서 생겼다). **round 6 이 그 셋을
+     파수꾼 넷(후보 타입 쪽이 round 5 에서, `StadiumVisitRun` 쪽이 phase 5
+     통합 검증 round 2 에서 생겼다). **round 6 이 그 셋을
      줄에서 문장으로 옮겨 겹 4 와 세기를 맞췄다** — 그 전에는 표가 두 칸
      들여쓰기(`^  `)에 못 박혀 있어서, 결과 타입에 `final DeviceFix? at;` 를
      네 칸 들여쓰고 생성자에 `this.at` 을 더하면 훅 4종·analyze·시험 665개가
      전부 초록불인 채로 라이브러리 밖에서 좌표가 읽혔다(실측). 겹 4 의 훅은
      같은 표기를 이미 막고 있었으므로 두 겹의 세기가 어긋나 있었다.
+     **phase 5 가 이 겹이 지키는 통로를 하나 더 만들었다.** 5.2 는 "손에 든
+     판정이 언제 난 것인가"를 알아야 해서 `StadiumVisitRun`(시각 하나 +
+     참·거짓 하나)을 `lib/features/badges/stadium_visit.dart` 에 두고
+     `lib/features/home/` 이 그것을 읽게 했는데, **그 자리는 겹 4 의 훅이
+     보지 않는다** — 그 검사의 선언 범위가 `lib/location`·
+     `lib/content/kst.dart`·`lib/backend` 뿐이기 때문이다(실측: 그 타입에
+     `this.lat`·`this.lng` 를 더해도 훅 4종 exit 0 · `flutter analyze`
+     무지적이었다. phase 5 통합 검증 round 2 의 계약 밖 발견). 훅의 범위를
+     `lib/features/` 로 넓히는 대신 **같은 파일의 네 번째 타입 파수꾼**으로
+     못 박았다 — 훅은 강제 장치라 오탐 하나가 저장소 전체의 커밋과 CI 를
+     막고(round 6·7·8 의 거부 사유가 전부 그 오탐이다), 시험은 같은 변이를
+     같은 세기로 잡으면서 그 위험이 없다. 실측: 그 변이를 넣으면 시험 둘이
+     빨간불이고, 빼면 전부 초록불이다.
 
   이 목록의 "지키는 것"은 전부 위반을 실제로 만들어 빨간불(시험) 또는 exit 2
   (훅)를 확인한 것이고, "막지 않는 것"도 실제로 우회를 써 보고 초록불인 것을
@@ -346,7 +362,16 @@
   `status()`(다이얼로그 없는 조회)만 쓴다. 그 조회 자체는 화면이 필요할 때
   다시 할 수 있고, 그 자리가 `locationPermissionStatusProvider` 다(4.5 의 배지
   탭 안내와 5.2 의 홈 상단이 함께 쓴다 — `request()` 는 그 provider 를 지나지
-  않는다). 이 규칙을 재는 자리는
+  않는다). **그 답은 포그라운드 복귀마다 새로 난다** —
+  `lib/features/badges/stadium_visit.dart` 의 `StadiumVisitTrigger` 가
+  `resumed` 에서 판정을 다시 돌리기 직전에 그 provider 를 무효화한다. 사람이
+  OS 설정에서 권한을 끄고(또는 켜고) 돌아오는 갈래를 판정만으로는 알 수 없기
+  때문이다: 경기 없는 날의 재판정은 후보 게이트에서 권한을 묻지 않고 끝나므로
+  그 답만 갱신되지 않은 채 홈 상단이 옛 권한을 계속 읽었다(phase 5 통합 검증
+  round 2 의 REJECT 사유 — 실측으로 권한 조회 횟수가 복귀 전후 1 → 1 이었다).
+  되묻는 것은 **복귀당 한 번**이고 여전히 `status()` 뿐이며, 아무도 구독하지
+  않는 동안에는 무효화가 그 provider 를 만들지도 않는다(실측: 구독 없는
+  `autoDispose` 를 invalidate 해도 생성 횟수가 0 이다). 이 규칙을 재는 자리는
   `test/location/stadium_visit_fix_contract_test.dart` 다 — 판정기를 만드는
   `stadiumVisitCheckerProvider` 가 `status` 대신 `request` 를 쥐면 빨간불이
   된다(그 한 글자가 바뀌면 경기가 있는 날마다 앱을 열 때 OS 다이얼로그가

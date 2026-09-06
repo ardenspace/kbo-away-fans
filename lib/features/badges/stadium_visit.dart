@@ -26,6 +26,7 @@ import '../../content/content_loader.dart';
 import '../../content/content_providers.dart';
 import '../../content/kst.dart';
 import '../../content/models.dart';
+import '../../location/location.dart' show locationPermissionStatusProvider;
 import '../../location/visit_check.dart';
 import '../home/next_away_game.dart' show clockProvider;
 import 'stamp_award.dart';
@@ -94,6 +95,17 @@ final stadiumVisitProvider =
 /// 것이다(decisions.md 2026-09-04 `[S]`). 앱이 모르면 모른다고 말하면 된다.
 /// 그러려면 판정 결과와 함께 **그 답이 언제 난 것인지**가 필요하고, 이
 /// 기록이 그 자리다. 이 값은 좌표가 아니라 **시각과 참·거짓 하나**다.
+///
+/// **이 타입은 판정 계층의 값이 화면 계층으로 나가는 통로다.** phase 5 가 그
+/// 통로를 처음 열었고, 처음에는 못이 하나도 없었다 — 여기에 `this.lat`·
+/// `this.lng` 를 더해도 `flutter analyze` 가 무지적이고 훅 4종이 전부 exit 0
+/// 이었다(phase 5 통합 검증 round 2 의 실측. `check-no-location-upload.sh` 의
+/// 선언 검사 범위가 `lib/location`·`lib/content/kst.dart`·`lib/backend` 뿐이라
+/// `lib/features/` 는 그 시야 밖이다). 지금은 **값을 두는 자리 집합 자체**가
+/// `test/features/badges/visit_check_test.dart` 에 못 박혀 있다 —
+/// `StadiumVisitResult`·`StadiumVisitCandidate` 를 재는 그 파수꾼들과 같은
+/// 방식이고, 같은 세기의 약속이다("실수로는 지나갈 수 없다"). 여기 값 자리를
+/// 하나라도 더하거나 이름을 바꾸면 그 시험이 빨간불이다.
 class StadiumVisitRun {
   const StadiumVisitRun({required this.at, required this.judged});
 
@@ -273,6 +285,26 @@ class StadiumVisitCheck extends Notifier<StadiumVisitResult?> {
 ///
 /// 로그인 게이트 안쪽인 것도 의도다 — 판정 결과를 쓸 계정이 없는 실행에서는
 /// OS 에 측위를 물을 이유가 없다.
+///
+/// **복귀마다 판정과 함께 [locationPermissionStatusProvider] 도 새로 낸다.**
+/// 판정 하나로는 권한을 다 말하지 못한다 — [judgeStadiumVisit] 이 후보
+/// 게이트를 권한보다 먼저 보므로, 경기 없는 날(월요일·비시즌 전체)의 재판정은
+/// 권한을 묻지 않고 [StadiumVisitReason.noGameToday] 로 끝난다. 그 갈래에서
+/// 권한을 대신 답하는 자리가 그 provider 이고(4.5 의 배지 탭 안내와 5.2 의 홈
+/// 상단이 함께 쓴다), 그것이 [FutureProvider.autoDispose] 라 **한 실행에서 딱
+/// 한 번만 답이 났다**: 사람이 OS 설정에서 권한을 끄고(또는 켜고) 돌아와도
+/// 홈 상단은 옛 답을 계속 읽었다(phase 5 통합 검증 round 2 의 REJECT 사유,
+/// 실측으로 권한 조회 횟수가 복귀 전후 1 → 1 이었다). 이 자리가 그 답을
+/// 판정과 같은 신호에 매단다.
+///
+/// **[LocationPermissionGateway.request] 는 여전히 지나지 않는다** — 다시
+/// 여는 것은 다이얼로그 없는 조회 하나뿐이고, 그 진입점은 4.5 의 몫이다.
+/// 되묻는 주기도 **복귀당 한 번**이다: 홈이 빌드될 때마다 묻는 모양은 위치
+/// 게이트웨이를 override 하지 않는 부팅 시험들을 무더기로 깨뜨린 적이 있다
+/// (`current_location.dart` 첫머리 참조). 아무도 구독하지 않는 동안에는
+/// [Ref.invalidate] 가 그 provider 를 **만들지도 않는다**(실측: 구독 없는
+/// `autoDispose` 를 invalidate 해도 생성 횟수가 0 이다) — 그래서 권한을 물을
+/// 까닭이 없는 갈래에서는 이 줄이 조회를 하나도 만들지 않는다.
 class StadiumVisitTrigger extends ConsumerStatefulWidget {
   const StadiumVisitTrigger({required this.child, super.key});
 
@@ -302,7 +334,12 @@ class _StadiumVisitTriggerState extends ConsumerState<StadiumVisitTrigger>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) _check();
+    if (state != AppLifecycleState.resumed) return;
+    // 판정보다 먼저 권한 답을 버린다 — 그래야 이 복귀에서 다시 그리는 화면이
+    // 옛 답을 한 프레임도 참으로 쓰지 않는다. 구독하는 화면이 없으면 아무
+    // 조회도 생기지 않는다(위 문서 참조).
+    if (mounted) ref.invalidate(locationPermissionStatusProvider);
+    _check();
   }
 
   void _check() {

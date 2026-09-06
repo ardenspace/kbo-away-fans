@@ -16,6 +16,12 @@
 ///     (b) 좌표를 얻는 통로가 `lib/location/` 안에서만 보인다는 것
 ///     (`visit_check.dart` 첫 문단의 겹 1)을 같은 방식으로 소스에서 잰다 —
 ///     round 3 이전에는 그 겹을 재는 검사도 시험도 하나도 없었다.
+///     (c) phase 5 가 **판정 계층에서 화면 계층으로** 새로 연 통로
+///     ([StadiumVisitRun], `lib/features/badges/stadium_visit.dart`)의 필드
+///     집합도 같은 방식으로 못 박는다 — 훅의 선언 검사 범위가 `lib/location`·
+///     `lib/content/kst.dart`·`lib/backend` 뿐이라 그 자리는 훅의 시야 밖이다
+///     (phase 5 통합 검증 round 2 의 실측: 그 타입에 `lat`·`lng` 를 더해도
+///     analyze 무지적·훅 4종 exit 0 이었다).
 ///   - "홈·원정을 구분하지 않는다" — 두 자리에서 잰다. 후보를 짓는 자리가
 ///     팀으로 거르지 않는다는 것을 **응원 팀이 어느 쪽도 아닌 경기**와
 ///     **응원 팀의 원정 경기**로 재고, 짝으로 후보 타입의 **필드 집합
@@ -1520,6 +1526,50 @@ void main() {
         RegExp(r'\b(lat|lng|latitude|longitude|coord)\b').hasMatch(body),
         isFalse,
         reason: '결과 타입이 좌표를 이름으로도 들고 나가지 않는다',
+      );
+    });
+
+    // **phase 5 가 판정 계층에서 화면 계층으로 나가는 통로를 하나 더 열었다.**
+    // 위 두 파수꾼은 `lib/location/` 이 내놓는 타입만 본다. 5.2 는 "손에 든
+    // 판정이 언제 난 것인가"를 알아야 해서 [StadiumVisitRun] 이라는 값 객체를
+    // 이 폴더(`lib/features/badges/`)에 새로 두고 `lib/features/home/` 이
+    // 그것을 읽게 했는데, 그 통로에는 못이 하나도 없었다 — phase 5 통합 검증
+    // round 2 의 실측: 그 타입에 `this.lat`·`this.lng` 를 더해도
+    // `flutter analyze` 무지적이고 훅 4종이 전부 exit 0 이다
+    // (`check-no-location-upload.sh` 의 선언 검사 범위가 `lib/location`·
+    // `lib/content/kst.dart`·`lib/backend` 뿐이기 때문이다).
+    //
+    // **훅을 넓히는 대신 여기에 못을 박는다.** 훅은 강제 장치라 검사 범위를
+    // `lib/features/` 로 넓히면 그 검사의 허용 목록(담을 수 없는 타입)이 저장소
+    // 전체의 feature 코드에 걸리고, 오탐 하나가 곧 모든 커밋과 CI 를 막는다
+    // (round 6·7·8 의 거부 사유가 전부 그 오탐이었다). 시험은 같은 변이를
+    // 같은 세기로 잡으면서 그 위험이 없다.
+    //
+    // 오늘 그 값이 서버로 가지는 않으므로 `[XL]` 결정이 깨진 것은 아니었다 —
+    // 이 파수꾼이 막는 것은 **다음 사람이 무심코 그 통로에 좌표를 얹는 것**
+    // 이다(위 두 파수꾼과 같은 세기의 약속이다: "실수로는 지나갈 수 없다").
+    test('판정 시각 기록이 값을 두는 자리는 이 둘뿐이다 (소스 대조)', () {
+      final body = _classBody(
+        File('lib/features/badges/stadium_visit.dart').readAsStringSync(),
+        'StadiumVisitRun',
+      );
+
+      expect(_declaredStorage(body), {
+        'at': 'final DateTime',
+        'judged': 'final bool',
+      }, reason: '이 타입은 판정 계층의 값을 화면 계층으로 나르는 통로다 — 시각과 참·거짓뿐이다');
+    });
+
+    test('판정 시각 기록에는 좌표 어휘가 없다 (소스 대조)', () {
+      final body = _classBody(
+        File('lib/features/badges/stadium_visit.dart').readAsStringSync(),
+        'StadiumVisitRun',
+      );
+
+      expect(
+        RegExp(r'\b(lat|lng|latitude|longitude|coord)\b').hasMatch(body),
+        isFalse,
+        reason: '결과 타입과 같은 규칙 — 이름으로도 좌표를 들고 나가지 않는다',
       );
     });
   });
