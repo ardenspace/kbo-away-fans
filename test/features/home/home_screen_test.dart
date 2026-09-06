@@ -52,6 +52,19 @@ class _FixedStadiumVisitCheck extends StadiumVisitCheck {
   Future<void> run() async {}
 }
 
+/// [stadiumVisitRunProvider] 를 고정 값으로 갈아 끼우는 대역 — 실 판정을
+/// 돌리지 않는 이 파일에서 "마지막 시도가 언제였고 판정까지 갔는가"를
+/// 시나리오가 직접 정한다. 실 앱에서 이 값을 남기는 자리는
+/// [StadiumVisitCheck.run] 하나뿐이다.
+class _FixedStadiumVisitRunLog extends StadiumVisitRunLog {
+  _FixedStadiumVisitRunLog(this._fixed);
+
+  final StadiumVisitRun? _fixed;
+
+  @override
+  StadiumVisitRun? build() => _fixed;
+}
+
 void main() {
   late TeamsDocument teamsDoc;
   late StadiumsDocument stadiumsDoc;
@@ -124,6 +137,12 @@ void main() {
     // step 5.2 — 기본값 null 이라 이 인자를 주지 않는 기존 시나리오는 전부
     // 홈 상단 위치 자리가 접힌 채로 그대로 지나간다.
     StadiumVisitResult? stadiumVisit,
+    // step 5.2 — 마지막 판정 시도의 기록. 기본값은 "[stadiumVisit] 이 있으면
+    // 방금 [now] 에 판정이 났다"라, 이 인자를 주지 않는 시나리오는 실 앱에서
+    // 판정이 막 끝난 순간과 같은 상태가 된다. 판정이 오래됐거나 마지막 시도가
+    // 건너뛰어진 실행은 이 인자로 직접 짓는다.
+    StadiumVisitRun? stadiumVisitRun,
+    bool defaultVisitRun = true,
     // noGameToday 갈래에서만 홈이 다시 묻는 권한 상태(계약 위반 시정) — 대역이
     // 없으면 실 플랫폼 채널(DevicePermissionHandlerGateway)이 물려 위젯 트리
     // 해제 뒤까지 남는 타이머로 부팅 시험이 깨진다(`current_location.dart`
@@ -153,6 +172,14 @@ void main() {
         ),
         stadiumVisitProvider.overrideWith(
           () => _FixedStadiumVisitCheck(stadiumVisit),
+        ),
+        stadiumVisitRunProvider.overrideWith(
+          () => _FixedStadiumVisitRunLog(
+            stadiumVisitRun ??
+                (stadiumVisit != null && defaultVisitRun
+                    ? StadiumVisitRun(at: now, judged: true)
+                    : null),
+          ),
         ),
         locationPermissionGatewayProvider.overrideWithValue(
           locationGateway ??
@@ -802,6 +829,120 @@ void main() {
         find.text(kCurrentLocationGenericLabel, skipOffstage: false),
         findsNothing,
       );
+    });
+
+    group('판정을 "지금"이라고 말해도 되는지 (phase 5 통합 검증의 REJECT 사유)', () {
+      // 4.2 는 새 도장이 나올 수 없는 구간에서 측위를 건너뛴다. 그동안 사람이
+      // 구장을 떠나도 판정은 그대로라, 그것을 현재 위치로 세우면 홈 상단이
+      // 이미 떠난 구장을 가리킨다. 실 배선 위에서 걷는 짝은
+      // `phase5_seam_probe_test.dart` 의 시험 B 다.
+      const visited = StadiumVisitResult.visited(
+        stadiumId: 'sajik',
+        gameId: '2026-08-25-sajik-lotte-kt',
+      );
+
+      testWidgets('마지막 시도가 건너뛰어졌으면(judged: false) 구장 이름을 쓰지 않는다',
+          (tester) async {
+        await tester.pumpWidget(home(
+          teamId: 'lotte',
+          games: const [],
+          now: now,
+          stadiumVisit: visited,
+          // 판정은 두 시간 전 것이고, 방금 돈 시도는 게이트에 막혀 판정까지
+          // 가지 못했다.
+          stadiumVisitRun: StadiumVisitRun(at: now, judged: false),
+        ));
+        await tester.pumpAndSettle();
+
+        expect(find.text('사직야구장 근처예요', skipOffstage: false), findsNothing);
+        // 자리 자체는 남는다 — 권한이 있는 사람의 화면이 거부한 사람의
+        // 화면과 구분되지 않으면 안 된다(acceptance 첫 문장).
+        expect(locationRow(), findsOneWidget);
+        expect(
+          find.text(kCurrentLocationGenericLabel, skipOffstage: false),
+          findsOneWidget,
+        );
+      });
+
+      testWidgets('판정이 새로 갱신되지 않은 채 오래되면 구장 이름을 쓰지 않는다',
+          (tester) async {
+        await tester.pumpWidget(home(
+          teamId: 'lotte',
+          games: const [],
+          now: now,
+          stadiumVisit: visited,
+          stadiumVisitRun: StadiumVisitRun(
+            at: now.subtract(kCurrentLocationFreshness).subtract(
+              const Duration(minutes: 1),
+            ),
+            judged: true,
+          ),
+        ));
+        await tester.pumpAndSettle();
+
+        expect(find.text('사직야구장 근처예요', skipOffstage: false), findsNothing);
+        expect(
+          find.text(kCurrentLocationGenericLabel, skipOffstage: false),
+          findsOneWidget,
+        );
+      });
+
+      testWidgets('상한 안의 판정은 그대로 그 구장 이름이다', (tester) async {
+        await tester.pumpWidget(home(
+          teamId: 'lotte',
+          games: const [],
+          now: now,
+          stadiumVisit: visited,
+          stadiumVisitRun: StadiumVisitRun(
+            at: now.subtract(kCurrentLocationFreshness),
+            judged: true,
+          ),
+        ));
+        await tester.pumpAndSettle();
+
+        expect(find.text('사직야구장 근처예요', skipOffstage: false), findsOneWidget);
+      });
+    });
+
+    testWidgets('콘텐츠를 못 얻어 판정이 없어도, 트리거가 돌았고 권한이 있으면 자리가 뜬다',
+        (tester) async {
+      // 통합 검증 탐침 E 가 잰 자리 — 판정 자체가 콘텐츠 문서 위에 서므로
+      // 일정을 못 얻으면 판정이 아예 돌지 못하는데, 그때 권한이 있는 사람의
+      // 위치 자리까지 통째로 접히면 acceptance 첫 문장을 어긴다.
+      final gateway = FakeLocationPermissionGateway(
+        initial: LocationPermissionStatus.granted,
+      );
+      await tester.pumpWidget(home(
+        teamId: 'lotte',
+        games: const [],
+        now: now,
+        // 판정 결과는 없고(null), 트리거는 돌아 기록만 남았다.
+        stadiumVisitRun: StadiumVisitRun(at: now, judged: false),
+        locationGateway: gateway,
+      ));
+      await tester.pumpAndSettle();
+
+      expect(locationRow(), findsOneWidget);
+      expect(
+        find.text(kCurrentLocationGenericLabel, skipOffstage: false),
+        findsOneWidget,
+      );
+      expect(gateway.requestCalls, 0, reason: '홈은 OS 다이얼로그를 띄우지 않는다');
+    });
+
+    testWidgets('판정도 없고 트리거도 안 돌았으면 권한이 있어도 자리가 없다',
+        (tester) async {
+      await tester.pumpWidget(home(
+        teamId: 'lotte',
+        games: const [],
+        now: now,
+        locationGateway: FakeLocationPermissionGateway(
+          initial: LocationPermissionStatus.granted,
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      expect(locationRow(), findsNothing);
     });
 
     testWidgets('위치 자리가 있어도 홈의 나머지(D-day·최근 5경기·탐색)는 그대로다',

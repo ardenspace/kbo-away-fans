@@ -39,6 +39,7 @@ import 'package:kbo_away_fans/weather/weather.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../backend/fake_backend.dart';
+import '../../location/fake_location_permission_gateway.dart';
 
 const _uid = 'kakao:1234567890';
 
@@ -133,6 +134,12 @@ List<StampWrite> _manyStamps() => [
 
 Widget _host(FakeAuthService auth, FakeUserDataStore store) => ProviderScope(
   overrides: [
+// 홈 상단 위치 자리(5.2)가 판정이 없는 실행에서 권한을 한 번 묻는다 —
+// 대역이 없으면 실 플랫폼 채널이 물려 위젯 트리 해제 뒤까지 타이머가
+// 남는다(`lib/features/home/current_location.dart` docstring 참조).
+locationPermissionGatewayProvider.overrideWithValue(
+  FakeLocationPermissionGateway(),
+),
     authServiceProvider.overrideWithValue(auth),
     userDataStoreProvider.overrideWithValue(store),
     teamsProvider.overrideWith(
@@ -321,6 +328,12 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+      // 홈 상단 위치 자리(5.2)가 판정이 없는 실행에서 권한을 한 번 묻는다 —
+      // 대역이 없으면 실 플랫폼 채널이 물려 위젯 트리 해제 뒤까지 타이머가
+      // 남는다(`lib/features/home/current_location.dart` docstring 참조).
+      locationPermissionGatewayProvider.overrideWithValue(
+        FakeLocationPermissionGateway(),
+      ),
           authServiceProvider.overrideWithValue(auth),
           userDataStoreProvider.overrideWithValue(store),
           weatherEffectProvider.overrideWith(

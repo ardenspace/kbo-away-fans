@@ -23,10 +23,12 @@ import 'package:kbo_away_fans/features/auth/sign_in_screen.dart';
 import 'package:kbo_away_fans/features/home/home_screen.dart';
 import 'package:kbo_away_fans/features/home/main_tabs_root.dart';
 import 'package:kbo_away_fans/features/profile/profile_tab_screen.dart';
+import 'package:kbo_away_fans/location/location.dart';
 import 'package:kbo_away_fans/ui/shared/social_sign_in_button.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../backend/fake_backend.dart';
+import '../../location/fake_location_permission_gateway.dart';
 
 const ContentIssue _issue = ContentIssue(ContentIssueKind.network, 'fixture');
 final AuthUser _signedInUser = AuthUser(
@@ -49,6 +51,12 @@ void main() {
   Widget gate(AuthService auth) {
     return ProviderScope(
       overrides: [
+    // 홈 상단 위치 자리(5.2)가 판정이 없는 실행에서 권한을 한 번 묻는다 —
+    // 대역이 없으면 실 플랫폼 채널이 물려 위젯 트리 해제 뒤까지 타이머가
+    // 남는다(`lib/features/home/current_location.dart` docstring 참조).
+    locationPermissionGatewayProvider.overrideWithValue(
+      FakeLocationPermissionGateway(),
+    ),
         authServiceProvider.overrideWithValue(auth),
         userDataStoreProvider.overrideWithValue(store),
         teamsProvider.overrideWith(

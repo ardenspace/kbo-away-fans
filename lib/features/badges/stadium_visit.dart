@@ -80,6 +80,54 @@ final stadiumVisitProvider =
       StadiumVisitCheck.new,
     );
 
+/// 마지막 판정 **시도**가 남긴 기록 — 언제 돌았고, 판정까지 갔는가.
+///
+/// [stadiumVisitProvider] 하나로는 "지금 어디에 있는가"에 답할 수 없다. 그
+/// 값은 마지막으로 **판정이 난** 결과일 뿐, 그 뒤로 트리거가 몇 번 더 돌았고
+/// 그 실행들이 측위를 건너뛰었는지는 말해 주지 않는다. 5.2 가 그 값을 "현재
+/// 위치"로 읽으면서 그 틈이 드러났다 — 도장을 받고 나면
+/// [StampAward.judgingAddsNothing] 게이트가 시간 창이 닫힐 때까지 판정을
+/// 건너뛰므로, 구장을 떠나 집에 온 사람의 홈 상단이 몇 시간 동안 그 구장을
+/// 계속 가리켰다(phase 5 통합 검증의 REJECT 사유).
+///
+/// **답은 측위를 다시 켜는 쪽이 아니다** — 그것은 4.2 의 절제를 되돌리는
+/// 것이다(decisions.md 2026-09-04 `[S]`). 앱이 모르면 모른다고 말하면 된다.
+/// 그러려면 판정 결과와 함께 **그 답이 언제 난 것인지**가 필요하고, 이
+/// 기록이 그 자리다. 이 값은 좌표가 아니라 **시각과 참·거짓 하나**다.
+class StadiumVisitRun {
+  const StadiumVisitRun({required this.at, required this.judged});
+
+  /// 그 실행이 본 "지금"([clockProvider]) — 판정까지 갔으면 곧 판정 시각이다.
+  final DateTime at;
+
+  /// 판정이 실제로 돌았는가. 거짓이면 그 실행은 게이트에서(또는 콘텐츠를 못
+  /// 얻어) 일찍 끝났고, [stadiumVisitProvider] 의 값은 그 **이전** 실행의
+  /// 답이다.
+  final bool judged;
+
+  @override
+  String toString() => 'StadiumVisitRun($at, judged: $judged)';
+}
+
+/// 마지막 판정 시도의 기록 — 아직 한 번도 시도하지 않았으면 null.
+///
+/// [stadiumVisitProvider] 와 짝으로 [StadiumVisitCheck.run] 이 함께 남긴다.
+/// 두 값을 한 provider 에 담지 않은 것은 판정 결과를 읽는 자리(4.5 의
+/// `VisitStatusNotice`·5.2 의 홈 상단)가 이미 여럿이라 그 타입을 바꾸면
+/// 판정과 무관한 자리까지 함께 흔들리기 때문이다.
+final stadiumVisitRunProvider =
+    NotifierProvider<StadiumVisitRunLog, StadiumVisitRun?>(
+      StadiumVisitRunLog.new,
+    );
+
+/// [stadiumVisitRunProvider] 의 쓰기 자리 — [StadiumVisitCheck.run] 만 쓴다.
+class StadiumVisitRunLog extends Notifier<StadiumVisitRun?> {
+  @override
+  StadiumVisitRun? build() => null;
+
+  void record(StadiumVisitRun run) => state = run;
+}
+
 /// 판정을 한 번 돌리는 자리.
 class StadiumVisitCheck extends Notifier<StadiumVisitResult?> {
   @override
@@ -92,6 +140,11 @@ class StadiumVisitCheck extends Notifier<StadiumVisitResult?> {
   bool _running = false;
 
   /// 판정을 한 번 돌리고 결과를 [state] 에 남긴 뒤, 방문이면 도장을 쓴다.
+  ///
+  /// **어떻게 끝났든 [stadiumVisitRunProvider] 에 기록을 남긴다** — 판정이
+  /// 돌았는지(`judged`)와 그 실행이 본 시각. 상태를 그대로 두고 일찍 반환하는
+  /// 두 갈래(콘텐츠를 못 얻음·재판정 게이트)가 있는 한, 결과값만으로는 그것이
+  /// **지금**의 답인지 알 수 없기 때문이다.
   ///
   /// **콘텐츠를 읽지 못한 실행에서는 판정하지 않고 상태를 그대로 둔다.**
   /// 일정을 모르면 "그날 경기가 없다"와 "일정을 못 읽었다"를 구분할 수 없고,
@@ -117,6 +170,11 @@ class StadiumVisitCheck extends Notifier<StadiumVisitResult?> {
     _running = true;
     ScheduleDocument? schedule;
     StadiumVisitResult? result;
+    // 이 실행이 본 "지금" — 아래 [stadiumVisitRunProvider] 에 남길 값이다.
+    // 콘텐츠를 기다리기 **전에** 한 번 읽어 두는 것은, 일찍 반환하는 갈래도
+    // "언제 돌았는가"를 남겨야 하기 때문이다(그 갈래가 곧 5.2 가 옛 답을
+    // 현재로 말하던 자리다).
+    DateTime at = ref.read(clockProvider)();
     try {
       schedule = await _document(scheduleProvider);
       final stadiums = await _document(stadiumsProvider);
@@ -127,6 +185,7 @@ class StadiumVisitCheck extends Notifier<StadiumVisitResult?> {
         stadiums: stadiums,
       );
       final now = ref.read(clockProvider)();
+      at = now;
       final award = ref.read(stampAwardProvider.notifier);
       if (award.judgingAddsNothing(candidates, now)) return;
 
@@ -136,6 +195,18 @@ class StadiumVisitCheck extends Notifier<StadiumVisitResult?> {
       state = result;
     } finally {
       _running = false;
+      // **일찍 반환한 실행도 기록을 남긴다.** 이 자리가 (A) 를 닫는 못이다 —
+      // 게이트가 닫혀 판정을 건너뛴 실행 뒤에는 `judged: false` 가 남고, 그
+      // 값을 읽는 5.2 는 손에 든 판정이 "지금"이 아님을 알게 된다. 판정
+      // 결과([state])는 건드리지 않으므로 4.5 의 안내와 4.3 의 판은 그대로다.
+      //
+      // 버려진 뒤인지를 먼저 묻는 것은 아래 연출 큐와 같은 까닭이다 — 콘텐츠
+      // 로드·측위를 기다리는 사이에 이 provider 가 버려질 수 있다.
+      if (ref.mounted) {
+        ref
+            .read(stadiumVisitRunProvider.notifier)
+            .record(StadiumVisitRun(at: at, judged: result != null));
+      }
     }
 
     // 여기 닿았다는 것은 위 try 가 `return` 없이 끝났다는 뜻이라 둘 다 값이

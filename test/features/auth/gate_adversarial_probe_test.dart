@@ -51,6 +51,12 @@ Future<void> _turn(WidgetTester tester, [int frames = 20]) async {
 
 Widget _scoped(AuthService? auth, Widget child) => ProviderScope(
   overrides: [
+// 홈 상단 위치 자리(5.2)가 판정이 없는 실행에서 권한을 한 번 묻는다 —
+// 대역이 없으면 실 플랫폼 채널이 물려 위젯 트리 해제 뒤까지 타이머가
+// 남는다(`lib/features/home/current_location.dart` docstring 참조).
+locationPermissionGatewayProvider.overrideWithValue(
+  FakeLocationPermissionGateway(),
+),
     if (auth != null) authServiceProvider.overrideWithValue(auth),
     teamsProvider.overrideWith(
       (ref) async => const ContentUnavailable<TeamsDocument>(_issue),

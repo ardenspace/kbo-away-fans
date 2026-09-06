@@ -14,7 +14,8 @@ import '../../ui/shared/stadium_picker.dart';
 import '../../ui/shared/team_theme_scope.dart';
 import '../../ui/shared/weather_backdrop.dart';
 import '../../weather/weather.dart';
-import '../badges/stadium_visit.dart' show stadiumVisitProvider;
+import '../badges/stadium_visit.dart'
+    show stadiumVisitProvider, stadiumVisitRunProvider;
 import '../places/stadium_places_screen.dart';
 import '../team_select/team_select_screen.dart';
 import 'current_location.dart';
@@ -92,16 +93,26 @@ class HomeScreen extends ConsumerWidget {
     // 깨진 실측이 있다).
     final stadiumVisit = ref.watch(stadiumVisitProvider);
 
-    // 딱 한 갈래(`noGameToday`)에서만 권한을 다시 묻는다 — 그 갈래는
-    // `judgeStadiumVisit` 이 권한보다 후보 게이트를 먼저 보아 권한 자체를
-    // 묻지 않은 판정이라, 이 provider 가 아니면 "권한이 있는지" 알 길이
-    // 없다(`current_location.dart` docstring 참조). 다른 다섯 갈래에서는
-    // 이 provider 를 구독조차 하지 않는다 — `autoDispose` 라 그동안
-    // 인스턴스화되지 않는다.
-    final LocationPermissionStatus? noGameTodayPermission =
-        stadiumVisit?.reason == StadiumVisitReason.noGameToday
-            ? ref.watch(noGameTodayPermissionProvider).value
-            : null;
+    // 그 판정이 **언제** 난 것인지 — 4.2 는 새 도장이 나올 수 없는 구간에서
+    // 측위를 건너뛰므로, 결과값만으로는 그것이 지금의 답인지 알 수 없다
+    // (`stadiumVisitRunProvider` 문서 참조). 판정까지 가지 못한 실행 뒤에는
+    // `judged` 가 거짓이고, 그때 홈은 구장 이름을 쓰지 않는다.
+    final lastVisitRun = ref.watch(stadiumVisitRunProvider);
+    final judgedAt = lastVisitRun != null && lastVisitRun.judged
+        ? lastVisitRun.at
+        : null;
+
+    // 판정이 권한을 대신 말해 주지 못하는 두 갈래에서만 권한을 다시 묻는다
+    // (`noGameToday`, 그리고 콘텐츠를 못 얻어 판정이 아예 없는 실행). 다른
+    // 갈래에서는 이 provider 를 구독조차 하지 않는다 — `autoDispose` 라
+    // 그동안 인스턴스화되지 않는다(`current_location.dart` docstring 참조).
+    final LocationPermissionStatus? askedPermission =
+        currentLocationNeedsPermissionAnswer(
+          stadiumVisit,
+          judgmentAttempted: lastVisitRun != null,
+        )
+        ? ref.watch(currentLocationPermissionProvider).value
+        : null;
 
     final team = teamsDoc?.byId(teamId);
     final scaffold = _HomeScaffold(
@@ -116,7 +127,9 @@ class HomeScreen extends ConsumerWidget {
       schedule: scheduleDoc,
       now: now,
       stadiumVisit: stadiumVisit,
-      noGameTodayPermission: noGameTodayPermission,
+      judgmentAttempted: lastVisitRun != null,
+      visitJudgedAt: judgedAt,
+      askedPermission: askedPermission,
       scheduleLoading: scheduleDoc == null && scheduleAsync is AsyncLoading,
       // 재시도는 콘텐츠 4종을 함께 다시 로드 — 부분 복구로 홈이
       // raw id 저하 렌더되는 비일관성을 막는다.
@@ -143,7 +156,9 @@ class _HomeScaffold extends StatelessWidget {
     required this.schedule,
     required this.now,
     required this.stadiumVisit,
-    required this.noGameTodayPermission,
+    required this.judgmentAttempted,
+    required this.visitJudgedAt,
+    required this.askedPermission,
     required this.scheduleLoading,
     required this.onRetrySchedule,
   });
@@ -177,11 +192,20 @@ class _HomeScaffold extends StatelessWidget {
   /// 홈 상단 위치 자리를 그릴지·"어느 구장 근처인지"를 아는 유일한 자리다.
   final StadiumVisitResult? stadiumVisit;
 
-  /// [stadiumVisit] 의 이유가 [StadiumVisitReason.noGameToday] 일 때만 뜻을
-  /// 갖는 값 — 그 갈래에서 [HomeScreen] 이 딱 한 번 더 물은 권한 상태다
-  /// (`current_location.dart` docstring 참조). 다른 다섯 갈래에서는 항상
-  /// null 이고 [currentLocationVisible] 도 그 값을 쓰지 않는다.
-  final LocationPermissionStatus? noGameTodayPermission;
+  /// 판정 트리거가 이 실행에서 한 번이라도 돌았는가
+  /// ([stadiumVisitRunProvider] 에 기록이 있는가) — [stadiumVisit] 이 null 일
+  /// 때 "아직 안 돌았다"와 "돌았지만 콘텐츠를 못 얻어 판정하지 못했다"를
+  /// 가르는 값이다.
+  final bool judgmentAttempted;
+
+  /// [stadiumVisit] 이 **난 시각** — 마지막 시도가 판정까지 가지 못했으면
+  /// null 이다(그 뒤로 앱은 사람이 어디 있는지 알지 못한다).
+  final DateTime? visitJudgedAt;
+
+  /// 판정이 권한을 대신 말해 주지 못하는 갈래에서 [HomeScreen] 이 한 번 더
+  /// 물은 권한 상태 (`current_location.dart` docstring 참조). 그 밖의
+  /// 갈래에서는 항상 null 이고 [currentLocationVisible] 도 그 값을 쓰지 않는다.
+  final LocationPermissionStatus? askedPermission;
 
   /// schedule 이 아직 로드 중인지 (null 인 이유의 구분).
   final bool scheduleLoading;
@@ -232,11 +256,15 @@ class _HomeScaffold extends StatelessWidget {
     );
   }
 
-  /// 홈 상단 현재 위치 (step 5.2) — 위치 권한이 있으면(그리고 4.1 이 이미
-  /// 그것을 실제로 확인한 판정이 있거나, 오늘 경기가 없어 [noGameTodayPermission]
-  /// 이 대신 답했으면) 구장 근접 표시를, 아니면 자리를 그대로 접는다. 그
-  /// 재조회 하나를 뺀 새 권한 조회는 만들지 않는다 — `current_location.dart`
-  /// docstring 참조.
+  /// 홈 상단 현재 위치 (step 5.2) — 위치 권한이 있으면(4.1 이 그것을 실제로
+  /// 확인한 판정이 있거나, [askedPermission] 이 대신 답했으면) 구장 근접
+  /// 표시를, 아니면 자리를 그대로 접는다. 그 재조회 하나를 뺀 새 권한 조회는
+  /// 만들지 않는다 — `current_location.dart` docstring 참조.
+  ///
+  /// **구장 이름은 판정이 아직 [kCurrentLocationFreshness] 안일 때만 쓴다.**
+  /// 4.2 의 재판정 게이트가 닫혀 있는 동안에는 사람이 구장을 떠나도 판정이
+  /// 갱신되지 않아서, 그 값을 그대로 "현재 위치"로 세우면 홈 상단이 이미 떠난
+  /// 구장을 몇 시간 동안 가리킨다(phase 5 통합 검증의 REJECT 사유).
   ///
   /// **재요청 버튼을 두지 않는다.** acceptance 가 허용한 두 갈래("자리가
   /// 사라지거나 권한 안내로 바뀌고") 중 앞엣것을 고른다 — 권한을 다시
@@ -250,13 +278,15 @@ class _HomeScaffold extends StatelessWidget {
   List<Widget> _currentLocation(BuildContext context) {
     if (!currentLocationVisible(
       stadiumVisit,
-      noGameTodayPermission: noGameTodayPermission,
+      judgmentAttempted: judgmentAttempted,
+      askedPermission: askedPermission,
     )) {
       return const [];
     }
     final label = currentLocationLabel(
       visit: stadiumVisit,
       stadiums: stadiums,
+      fresh: currentLocationIsFresh(judgedAt: visitJudgedAt, now: now),
     );
     return [
       Padding(

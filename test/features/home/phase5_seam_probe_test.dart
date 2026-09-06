@@ -17,6 +17,8 @@
 ///     5.2 의 acceptance 를 **실 판정 경로**에서 잰다(단계 시험은 판정
 ///     결과를 직접 주입한다).
 ///  D) 탭을 오갔다 돌아와도 홈 상단 자리가 그대로다.
+///  E) 콘텐츠 문서를 못 얻은 실행 — 판정이 아예 돌지 못할 때 두 자리가
+///     각각 무엇을 말하는가.
 library;
 
 import 'dart:convert';
@@ -203,11 +205,10 @@ void main() {
 
   testWidgets(
     'B) 구장을 떠나 집에 온 뒤 앱을 다시 열면 홈 상단이 무엇을 말하는가',
-    // phase 5 통합 검증의 REJECT 사유 — **지금은 빨간불이다**(실측). 저장소를
-    // 초록불로 두기 위해 건너뛰지만, 5.2 가 이 자리를 고치면 이 한 줄을 지워
-    // 그대로 회귀 못으로 쓴다. `testWidgets` 의 skip 은 bool 이라 사유를 여기
-    // 주석으로 적는다.
-    skip: true,
+    // phase 5 통합 검증의 REJECT 사유였다. 5.2 가 그 자리를 닫으면서
+    // `skip: true` 한 줄을 지웠고, 이제 이 시험이 그 회귀 못이다 — 판정
+    // 결과와 함께 **그것이 언제 난 답인지**(`stadiumVisitRunProvider`)를 읽어,
+    // 게이트에 막혀 갱신되지 못한 판정은 구장 이름으로 쓰지 않는다.
     (tester) async {
       final h = await _pump(
         tester,
@@ -307,11 +308,17 @@ void main() {
   );
 
   testWidgets(
-    'E) 일정 문서를 못 얻은 실행 — 권한이 있어도 위치 자리가 접힌다(측정 기록)',
+    'E) 일정 문서를 못 얻은 실행 — 권한이 있으면 자리는 서고, 구장은 말하지 않는다',
     (tester) async {
-      // 판정 자체가 콘텐츠 문서 위에 서므로(`StadiumVisitCheck.run` 이 문서를
-      // 못 얻으면 상태를 그대로 둔다), 5.2 의 자리는 권한이 아니라 **콘텐츠
-      // 로드 성공**에도 걸려 있다. 계약에 없는 결합이라 여기 값으로 적어 둔다.
+      // **기대를 바꾼 자리다.** 이 탐침이 처음 적은 사실은 "일정 문서를 못
+      // 얻으면 권한이 있어도 위치 자리가 통째로 접힌다"였고, 그것은 5.2
+      // acceptance 첫 문장("권한이 있으면 현재 위치가 상단에 뜬다")이 깨지는
+      // 자리였다 — 그 화면이 권한을 거부한 사람의 화면과 구분되지 않는다.
+      // 5.2 가 그것을 닫으면서 거동이 바뀌었으므로 기대를 사실에 맞춘다:
+      // 판정은 여전히 돌지 못하지만(`StadiumVisitCheck.run` 이 문서를 못 얻고
+      // 일찍 반환한다) 트리거가 돌았다는 기록은 남고, 홈은 그 기록을 보고
+      // 권한을 한 번 물어 자리를 세운다. 구장을 특정하는 문구는 여전히 뜨지
+      // 않는다 — 판정이 없으니 앱은 사람이 어디 있는지 모른다.
       SharedPreferences.setMockInitialValues({});
       final auth = FakeAuthService(
         signedIn: const AuthUser(uid: _uid, email: 'a@b.c'),
@@ -372,8 +379,16 @@ void main() {
       );
       await tester.pumpAndSettle(const Duration(seconds: 5));
 
-      expect(find.text(kCurrentLocationGenericLabel), findsNothing);
-      expect(find.text('사직야구장 근처예요'), findsNothing);
+      expect(
+        find.text(kCurrentLocationGenericLabel),
+        findsOneWidget,
+        reason: '권한이 있는 사람의 화면이 거부한 사람의 화면과 구분되어야 한다',
+      );
+      expect(
+        find.text('사직야구장 근처예요'),
+        findsNothing,
+        reason: '판정이 돌지 못한 실행에서 구장을 말할 근거는 없다',
+      );
       expect(
         find.text('최근 5경기', skipOffstage: false),
         findsNothing,
