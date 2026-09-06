@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-09-05T15:15:29.194Z",
+  "generatedAt": "2026-09-06T09:01:13.746Z",
   "games": [
     {
       "id": "20260823HTWO02026",
@@ -699,7 +699,10 @@
       "homeTeamId": "kiwoom",
       "awayTeamId": "nc",
       "stadiumId": "gocheok",
-      "status": "scheduled"
+      "status": "finished",
+      "homeScore": 4,
+      "awayScore": 2,
+      "result": "home_win"
     },
     {
       "id": "20260906HHLT02026",
