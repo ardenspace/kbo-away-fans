@@ -466,7 +466,11 @@ cycle: 2
 > 정리한다. (2) 이 머신의 **8080 은 로컬 LLM 이 상시 점유**한다. Firestore 에뮬레이터는
 > **8791** 이다(`firebase.json`). 지휘자가 이것을 놓쳐 탐침이 5분을 멎었다.
 
-- [ ] 5.1 홈 최근 5경기 결과 요약 (basic)
+- [x] 5.1 verified (basic — 지휘자 직접 재현, 2 라운드: REJECT 1 / ACCEPT 1). 커밋 `1bbe937` `3cf2fa7`. 착수 기준선 HEAD `799cb13` / analyze 무지적 / flutter 789통과·1스킵 → **802통과·1스킵**, `test/features/home/` 62→66, 경계 3종 전부 exit 0(`recent_games_test.dart` 9통과 / `test/features/home/` 66통과 / analyze 무지적), 훅 4종 exit 0.
+      **round 1 REJECT — acceptance criteria 네 문장이 전부 "보인다"·"뜬다"라는 렌더 주장인데 그것을 재는 시험이 하나도 없었다.** 새 경계 시험 9개는 `recentGamesFor`·`outcomeFor` 라는 순수 함수만 재고, 홈 화면 위젯 시험 15개 중 최근 경기 자리를 언급하는 것이 없었다. **지휘자가 변이로 재현: `ListView` children 에서 `..._recentGames(context),` 한 줄을 지워 섹션을 통째로 없앴는데도 저장소 전체가 798통과·1스킵으로 초록불.** 4.1 이 `visit_check_test.dart` 에 박아 둔 "앱 골격이 트리거를 실제로 달고 있다"는 못의 짝이 없는 것이고, phase 4 통합이 4.4 에서 찾은 것과 같은 모양이다.
+      **round 2 ACCEPT** — 수정은 시험만 늘렸다(`home_screen_test.dart` +174줄, `git diff --stat 1bbe937 HEAD` 로 `lib/` 변경 0을 확인). **지휘자가 변이 셋을 직접 재현**: 기준 exit 0 → 섹션 제거 **exit 1** / `take(limit)` 상한 제거 **exit 1** / `if (games.isEmpty)` 분기 죽임 **exit 1** → 원복 exit 0. 구현자는 넷째(카드에서 구장명 제거)까지 재고 각각 해당 시험 하나만 빨간불이 되는 것을 확인했다.
+      산출물은 `recent_games.dart`(순수 로직: 홈/원정 무관 `finished` 경기를 날짜·시각 내림차순 최대 5개, `outcomeFor` 가 홈팀 기준 `GameResult` 를 내 팀 관점으로 뒤집는다) + `home_screen.dart` 의 `_recentGames` 섹션(D-day 얼굴과 탐색 진입점 사이, 빈 상태는 `EmptyStateNotice` 재사용). 선발 투수·날씨 자리는 계약대로 만들지 않았다. ADR 한 줄(카드 레이아웃·표기·승패 표시는 계약의 discretion, 사용처가 하나라 `lib/ui/shared/` 승격 안 함).
+      **계약 밖 발견 하나를 Deferred 로 넘겼다** — 무승부 라벨('무')이 화면에 실제로 그려지는지까지 재는 렌더 시험은 없다(단위 시험은 세 라벨을 다 잰다). 구현자가 정직하게 남긴 것이고, round 2 의 diff 가 산출물의 비주석 줄을 하나도 건드리지 않았으므로 wellrun 의 산출물 규칙에 따라 라운드를 더 돌리지 않고 미룬다.
 - [ ] 5.2 홈 상단 현재 위치 표시 (basic)
 - [ ] phase 5 integration
 
@@ -477,6 +481,7 @@ cycle: 2
 이 사이클 안에서는 풀 수 없어 밖으로 미룬 것들이다. 사이클을 닫을 때 wellnext 가 이 절을 읽는다.
 
 - **[4.1] 좌표 반출 검사 훅의 파서 완전성** (S, 2026-09-05 라운드 상한 수용). `check-no-location-upload.sh`·`dart-source.sh` 는 텍스트 기반 검사라 Dart 문법을 다 알지 못하고, 실수와 무심코를 막는 것이 역할이다(사용자 [L] 2026-09-04). 알려진 열림: 함수를 변수에 담는 우회(`final logger = print`), 열 0 블록 주석으로 여는 선언, 순수 판정 함수가 예외로 좌표를 내보내는 길, 허용 패키지의 새 버전 재수출, 신탁 성질. 앞으로 같은 종류의 발견은 REJECT 사유가 아니라 계약 밖 발견으로 다루고 여기에 줄을 더한다. 훅을 진짜 파서(analyzer 패키지 기반 lint)로 옮길지는 사이클을 닫을 때 등급을 매겨 판단한다.
+- **[5.1] 무승부 라벨이 화면에 그려지는지 재는 렌더 시험이 없다** (S, 2026-09-06). `outcomeLabel` 단위 시험이 승·패·무 세 라벨을 전부 재고 홈/원정 양쪽 무승부도 재지만, 새로 더한 렌더 시험 넷은 승리 경기만 화면에서 확인한다. 계약의 경계 시험 목록이 "무승부 표시"를 명시하고 그 문장은 단위 시험이 지키므로 계약 위반은 아니다. 한 줄이면 닫히는 자리다.
 - **[4.1] run.md 4.1 줄이 한 줄 규칙을 어긴 채 남아 있다** (S). 12 라운드의 서술을 역사로 두었다. archive 에 그대로 들어간다.
 - **[phase 4] 서버가 쓰기를 지속적으로 거부하면 포그라운드 복귀마다 연출이 다시 뜬다** (M, 2026-09-06). Deferred 위 항목의 새 귀결이다. `_forgetIfServerRejects` 는 뒤늦게 거부된 쓰기를 세션 사본에서 지워 다음 트리거가 다시 판정하게 하는데, 거부가 **일시적이 아니라 지속적일 때**(규칙과 앱의 계약이 어긋난 배포, 사용자 문서가 `validUser` 를 못 지키는 상태) 그 되돌림이 순환이 된다. 실 Firestore 는 거부된 배치를 로컬에서도 되돌리므로 다음 판정에서 `_alreadyStamped` 가 다시 false 이고, 쓰기가 다시 나가고, **이 사이클의 대표 연출이 복귀마다 다시 뜬다.** 판은 계속 비어 있고 알리는 자리는 없다. 통합 검증자가 임시 탐침으로 재현했다(오프라인 도장 → 연출 닫기 → `rejectPendingWrites` + 로컬 되돌림 → `resumed` → `StampReveal` 이 다시 서고 `stampUploads` 가 2). 위 항목("알리는 자리가 없다")과 함께 풀어야 한다 — 거짓 축하의 반복이라 더 나쁘다.
 - **[phase 4] 온라인 규칙 거부를 만들 수 있는 대역이 없다** (S, 2026-09-06). `FakeUserDataStore._serverAck()` 은 `offline` 이 아니면 이미 끝난 Future 를 돌려주므로 `rejectPendingWrites` 가 **오프라인 큐 갈래에서만** 동작한다. 위 항목이 실제로 문제가 되는 실행(온라인인데 규칙이 거부)은 이 대역으로 재현할 수 없고, `stamp_write_test.dart` 의 거부 시험 둘이 `store.offline = true` 로 시작하는 것도 그 때문이다. 위 항목을 풀려면 이것이 먼저 필요하다.
