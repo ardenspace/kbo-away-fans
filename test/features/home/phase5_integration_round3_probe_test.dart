@@ -1,0 +1,467 @@
+/// phase 5 통합 검증(셋째 눈)의 탐침 — 앞선 두 탐침
+/// (`phase5_seam_probe_test.dart`·`phase5_integration_audit_probe_test.dart`)이
+/// 걷지 **않은** 이음매만 걷는다.
+///
+/// 이 파일이 재는 것:
+///
+///  Q1) **도장을 받은 뒤** OS 설정에서 위치 권한을 끄고 돌아온 실행.
+///      앞선 탐침의 P1 은 같은 행동을 **경기 없는 날**(`noGameToday`)에서만
+///      걸었다. 경기 있는 날 도장을 받고 나면 4.2 의 `judgingAddsNothing`
+///      게이트가 창이 닫힐 때까지(경기 시작 +5시간) 판정을 통째로 건너뛰므로,
+///      `stadiumVisitProvider` 는 권한이 있던 시절의 `visited` 를 그대로 들고
+///      있고 5.2 의 `currentLocationVisible` 은 그 갈래를 "권한이 있다"로
+///      읽는다. 5.2 acceptance 2("권한이 없으면 그 자리가 사라지거나 권한
+///      안내로 바뀐다")가 그 구간에서 서는가.
+///
+///  Q2) Q1 의 대조군 — 같은 날 같은 시각에 **도장을 받지 못한** 사람(구장
+///      밖)이 같은 행동을 하면 자리가 접힌다. 게이트가 열려 있어 재판정이
+///      권한을 다시 보기 때문이고, 그래서 Q1 의 갈래가 게이트 때문이라는 것이
+///      이 대조군으로 못 박힌다.
+///
+///  Q3) 5.1 이 1.2 의 산출물(`content-pipeline/data/schedule.json`,
+///      schemaVersion 2)과 어긋나지 않는가 — 실 데이터로 열 팀 전부를 대조한다.
+///
+///  Q4) 최근 종료 경기가 하나도 없는 팀의 홈 — 빈 상태가 뜨는가(5.1
+///      acceptance 3)를 화면으로 잰다.
+library;
+
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:kbo_away_fans/backend/auth.dart';
+import 'package:kbo_away_fans/backend/user_data.dart';
+import 'package:kbo_away_fans/content/content_loader.dart';
+import 'package:kbo_away_fans/content/content_providers.dart';
+import 'package:kbo_away_fans/content/models.dart';
+import 'package:kbo_away_fans/features/badges/stamp_reveal.dart';
+import 'package:kbo_away_fans/features/home/current_location.dart';
+import 'package:kbo_away_fans/features/home/main_tabs_root.dart';
+import 'package:kbo_away_fans/features/home/next_away_game.dart';
+import 'package:kbo_away_fans/features/home/recent_games.dart';
+import 'package:kbo_away_fans/location/location.dart';
+import 'package:kbo_away_fans/location/visit_check.dart';
+import 'package:kbo_away_fans/weather/weather.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import '../../backend/fake_backend.dart';
+
+const String _uid = 'google-uid';
+
+/// 사직야구장 (`content-pipeline/data/stadiums.json`).
+const double _sajikLat = 35.1941;
+const double _sajikLng = 129.0615;
+
+/// 서울 시청 — 사직에서 약 320km.
+const double _seoulLat = 37.5665;
+const double _seoulLng = 126.9780;
+
+Map<String, Object?> _readJson(String path) =>
+    jsonDecode(File(path).readAsStringSync()) as Map<String, Object?>;
+
+class _Clock {
+  _Clock(this.now);
+  DateTime now;
+  DateTime call() => now;
+}
+
+class _Spot {
+  _Spot({required this.lat, required this.lng});
+  double lat;
+  double lng;
+}
+
+/// OS 설정에서 권한이 바뀌는 것을 흉내 내는 대역.
+class _SettingsGateway extends LocationPermissionGateway {
+  _SettingsGateway(this.current);
+
+  LocationPermissionStatus current;
+  int statusCalls = 0;
+  int requestCalls = 0;
+
+  @override
+  Future<LocationPermissionStatus> status() async {
+    statusCalls++;
+    return current;
+  }
+
+  @override
+  Future<LocationPermissionStatus> request() async {
+    requestCalls++;
+    return current;
+  }
+
+  @override
+  Future<bool> openSettings() async => true;
+}
+
+class _Harness {
+  _Harness({
+    required this.clock,
+    required this.gateway,
+    required this.spot,
+    required this.fixReads,
+    required this.store,
+  });
+  final _Clock clock;
+  final _SettingsGateway gateway;
+  final _Spot spot;
+  final List<int> fixReads;
+  final FakeUserDataStore store;
+}
+
+Future<_Harness> _pump(
+  WidgetTester tester, {
+  required DateTime at,
+  required _Spot spot,
+  String teamId = 'lg',
+  LocationPermissionStatus permission = LocationPermissionStatus.granted,
+}) async {
+  SharedPreferences.setMockInitialValues({});
+  final auth = FakeAuthService(
+    signedIn: const AuthUser(uid: _uid, email: 'a@b.c'),
+  );
+  final store = FakeUserDataStore();
+  final clock = _Clock(at);
+  final gateway = _SettingsGateway(permission);
+  final fixReads = <int>[];
+  addTearDown(auth.dispose);
+  addTearDown(store.dispose);
+  await store.createProfile(
+    _uid,
+    NewUserProfile(
+      nickname: '원정러',
+      favoriteTeamId: teamId,
+      profileThemeKey: teamId,
+    ),
+  );
+
+  final teams = TeamsDocument.fromJson(
+    _readJson('content-pipeline/data/teams.json'),
+  );
+  final stadiums = StadiumsDocument.fromJson(
+    _readJson('content-pipeline/data/stadiums.json'),
+  );
+  final places = PlacesDocument.fromJson(
+    _readJson('content-pipeline/data/places.json'),
+  );
+  final schedule = ScheduleDocument.fromJson(
+    _readJson('content-pipeline/data/schedule.json'),
+  );
+
+  await tester.pumpWidget(
+    ProviderScope(
+      overrides: [
+        authServiceProvider.overrideWithValue(auth),
+        userDataStoreProvider.overrideWithValue(store),
+        locationPermissionGatewayProvider.overrideWithValue(gateway),
+        weatherEffectProvider.overrideWith(
+          (ref, point) async => WeatherEffect.none,
+        ),
+        clockProvider.overrideWithValue(clock.call),
+        teamsProvider.overrideWith((ref) async => ContentFresh(teams)),
+        stadiumsProvider.overrideWith((ref) async => ContentFresh(stadiums)),
+        placesProvider.overrideWith((ref) async => ContentFresh(places)),
+        scheduleProvider.overrideWith((ref) async => ContentFresh(schedule)),
+        stadiumVisitCheckerProvider.overrideWith((ref) {
+          final g = ref.watch(locationPermissionGatewayProvider);
+          return StadiumVisitChecker(
+            readPermission: g.status,
+            readFix: () async {
+              await Future<void>.delayed(const Duration(milliseconds: 1));
+              fixReads.add(fixReads.length);
+              return DeviceFix(lat: spot.lat, lng: spot.lng);
+            },
+          );
+        }),
+      ],
+      child: const MaterialApp(home: MainTabsRoot()),
+    ),
+  );
+  await tester.pumpAndSettle(const Duration(seconds: 5));
+  return _Harness(
+    clock: clock,
+    gateway: gateway,
+    spot: spot,
+    fixReads: fixReads,
+    store: store,
+  );
+}
+
+Future<void> _resume(WidgetTester tester) async {
+  tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+  tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+  tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+  await tester.pumpAndSettle(const Duration(seconds: 5));
+}
+
+Future<void> _dismissReveal(WidgetTester tester) async {
+  if (find.byType(StampReveal).evaluate().isNotEmpty) {
+    await tester.tap(find.byType(StampReveal));
+    await tester.pumpAndSettle(const Duration(seconds: 5));
+  }
+}
+
+bool _locationRowStands() => find
+    .byKey(kCurrentLocationRowKey, skipOffstage: false)
+    .evaluate()
+    .isNotEmpty;
+
+void main() {
+  testWidgets(
+    'Q1) 도장을 받은 뒤 OS 설정에서 권한을 끄고 돌아오면 홈 상단 위치 자리가 사라지는가',
+    (tester) async {
+      // 2026-08-29 18:00 사직 (롯데 vs LG) — LG 팬의 원정 경기.
+      final h = await _pump(
+        tester,
+        at: DateTime.parse('2026-08-29T19:00:00+09:00'),
+        spot: _Spot(lat: _sajikLat, lng: _sajikLng),
+      );
+      await _dismissReveal(tester);
+      expect(h.store.stampUploads, isNotEmpty, reason: '이 실행이 도장을 받았다');
+      expect(_locationRowStands(), isTrue);
+      final readsBefore = h.fixReads.length;
+
+      // 경기 도중 배터리가 아까워(또는 그냥) OS 설정에서 위치 권한을 껐다.
+      // 창은 아직 열려 있다 (18:00 + 5h = 23:00).
+      h.gateway.current = LocationPermissionStatus.denied;
+      h.clock.now = DateTime.parse('2026-08-29T19:30:00+09:00');
+      await _resume(tester);
+      await _dismissReveal(tester);
+
+      // 원인을 못 박는다 — 게이트가 닫혀 판정 자체가 돌지 않았다.
+      expect(
+        h.fixReads.length,
+        readsBefore,
+        reason: '도장을 받은 뒤 창이 닫힐 때까지 판정이 건너뛰어진다(4.2 의 게이트)',
+      );
+      expect(
+        _locationRowStands(),
+        isFalse,
+        reason:
+            '5.2 acceptance 2: 권한이 없으면 그 자리가 사라지거나 권한 안내로 바뀐다. '
+            '권한 조회 횟수 ${h.gateway.statusCalls}',
+      );
+    },
+    timeout: const Timeout(Duration(seconds: 60)),
+    // **이 탐침은 지금 빨간불이고, 그것이 phase 5 통합 검증 round 3 의 REJECT
+    // 사유다.** 실측(2026-09-06): 자리가 그대로 서 있고 권한 조회 횟수는 복귀
+    // 전후 1 → 1 이다 — 앱은 권한이 꺼진 것을 알 길이 자체가 없다.
+    //
+    // 까닭: `currentLocationVisible` 이 `visited` 를 비롯한 네 이유를 "권한이
+    // 있다는 뜻"으로 읽는데, 그것이 참인 것은 **그 판정이 난 순간**이다. 4.2 의
+    // `judgingAddsNothing` 게이트가 닫혀 있는 동안 그 판정은 갱신되지 않으므로
+    // (Q1 본문의 fixReads 단언이 그것을 못 박는다) 그 읽기는 최대 다섯 시간
+    // 동안 옛 사실이다. 5.2 는 같은 어긋남을 **구장 이름** 쪽에서는 이미
+    // 닫았다(`stadiumVisitRunProvider` 의 `judged`) — 빠진 것은 **자리를
+    // 그릴지**를 정하는 쪽에 같은 잣대를 대는 것이다.
+    //
+    // 고치면 이 `skip` 을 지우십시오(4.2 의 절제를 되돌리지 않고 닫을 수 있다 —
+    // 마지막 시도가 판정까지 가지 못했으면 `noGameToday` 갈래와 똑같이
+    // `locationPermissionStatusProvider` 로 권한을 한 번 물으면 된다).
+    skip: true,
+  );
+
+  testWidgets(
+    'Q1-b) 그 구멍은 시간 창이 닫히면 스스로 닫힌다 — 다만 그때까지 최대 다섯 시간이다',
+    (tester) async {
+      final h = await _pump(
+        tester,
+        at: DateTime.parse('2026-08-29T19:00:00+09:00'),
+        spot: _Spot(lat: _sajikLat, lng: _sajikLng),
+      );
+      await _dismissReveal(tester);
+      expect(_locationRowStands(), isTrue);
+
+      // 권한을 끈 채 창이 닫힌 뒤(18:00 + 5h = 23:00)에 돌아온다.
+      h.gateway.current = LocationPermissionStatus.denied;
+      h.clock.now = DateTime.parse('2026-08-29T23:30:00+09:00');
+      await _resume(tester);
+
+      expect(
+        _locationRowStands(),
+        isFalse,
+        reason: '게이트가 열리면 재판정이 권한을 다시 보고 자리를 접는다 — '
+            'Q1 의 구멍이 영구적이지 않다는 것을 여기서 잰다',
+      );
+    },
+    timeout: const Timeout(Duration(seconds: 60)),
+  );
+
+  testWidgets(
+    'Q2) 대조군 — 도장을 못 받은 사람이 같은 행동을 하면 자리가 접힌다',
+    (tester) async {
+      final h = await _pump(
+        tester,
+        at: DateTime.parse('2026-08-29T19:00:00+09:00'),
+        // 구장 밖(서울) — 같은 날 같은 시각이지만 도장이 나오지 않는다.
+        spot: _Spot(lat: _seoulLat, lng: _seoulLng),
+      );
+      expect(h.store.stampUploads, isEmpty);
+      expect(_locationRowStands(), isTrue);
+
+      h.gateway.current = LocationPermissionStatus.denied;
+      h.clock.now = DateTime.parse('2026-08-29T19:30:00+09:00');
+      await _resume(tester);
+
+      expect(
+        _locationRowStands(),
+        isFalse,
+        reason: '게이트가 열려 있으면 재판정이 권한을 다시 보고 자리를 접는다',
+      );
+    },
+    timeout: const Timeout(Duration(seconds: 60)),
+  );
+
+  test(
+    'Q3) 5.1 의 최근 5경기가 실 일정 문서(schemaVersion 2)와 어긋나지 않는다',
+    () {
+      final schedule = ScheduleDocument.fromJson(
+        _readJson('content-pipeline/data/schedule.json'),
+      );
+      final teams = TeamsDocument.fromJson(
+        _readJson('content-pipeline/data/teams.json'),
+      );
+      expect(_readJson('content-pipeline/data/schedule.json')['schemaVersion'], 2);
+
+      for (final team in teams.teams) {
+        final picked = recentGamesFor(schedule: schedule, teamId: team.id);
+        expect(
+          picked.length,
+          lessThanOrEqualTo(kRecentGamesLimit),
+          reason: '${team.id}: 최대 5개',
+        );
+
+        // 같은 것을 다른 길로 다시 계산해 대조한다.
+        final expected =
+            schedule.games
+                .where(
+                  (g) =>
+                      g.status == GameStatus.finished &&
+                      (g.homeTeamId == team.id || g.awayTeamId == team.id),
+                )
+                .toList()
+              ..sort((a, b) {
+                final byDate = b.date.compareTo(a.date);
+                return byDate != 0
+                    ? byDate
+                    : b.startTime.compareTo(a.startTime);
+              });
+        expect(
+          picked.map((g) => g.id).toList(),
+          expected.take(kRecentGamesLimit).map((g) => g.id).toList(),
+          reason: '${team.id}: 최신순 다섯',
+        );
+
+        for (final game in picked) {
+          // 점수·승패가 화면에 나갈 수 있는 값인가 (5.1 acceptance 1).
+          expect(game.homeScore, isNotNull, reason: game.id);
+          expect(game.awayScore, isNotNull, reason: game.id);
+          expect(game.result, isNotNull, reason: game.id);
+          final mine = game.homeTeamId == team.id
+              ? game.homeScore!
+              : game.awayScore!;
+          final theirs = game.homeTeamId == team.id
+              ? game.awayScore!
+              : game.homeScore!;
+          final outcome = outcomeFor(game, team.id);
+          expect(
+            outcome,
+            mine > theirs
+                ? TeamGameOutcome.win
+                : mine < theirs
+                ? TeamGameOutcome.loss
+                : TeamGameOutcome.draw,
+            reason: '${game.id}: 점수와 승패 표기가 어긋나면 화면이 거짓을 말한다',
+          );
+        }
+      }
+    },
+  );
+
+  testWidgets(
+    'Q4) 종료된 경기가 하나도 없는 일정에서는 홈 중단에 빈 상태가 뜬다',
+    (tester) async {
+      // 실 문서에서 종료 경기를 전부 걷어 낸 일정 — 개막 전의 모양이다.
+      final raw = _readJson('content-pipeline/data/schedule.json');
+      final games = (raw['games']! as List<Object?>)
+          .cast<Map<String, Object?>>()
+          .where((g) => g['status'] != 'finished')
+          .toList();
+      final schedule = ScheduleDocument.fromJson({
+        ...raw,
+        'games': games,
+      });
+      expect(recentGamesFor(schedule: schedule, teamId: 'lg'), isEmpty);
+
+      SharedPreferences.setMockInitialValues({});
+      final auth = FakeAuthService(
+        signedIn: const AuthUser(uid: _uid, email: 'a@b.c'),
+      );
+      final store = FakeUserDataStore();
+      addTearDown(auth.dispose);
+      addTearDown(store.dispose);
+      await store.createProfile(
+        _uid,
+        const NewUserProfile(
+          nickname: '원정러',
+          favoriteTeamId: 'lg',
+          profileThemeKey: 'lg',
+        ),
+      );
+      final teams = TeamsDocument.fromJson(
+        _readJson('content-pipeline/data/teams.json'),
+      );
+      final stadiums = StadiumsDocument.fromJson(
+        _readJson('content-pipeline/data/stadiums.json'),
+      );
+      final places = PlacesDocument.fromJson(
+        _readJson('content-pipeline/data/places.json'),
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authServiceProvider.overrideWithValue(auth),
+            userDataStoreProvider.overrideWithValue(store),
+            locationPermissionGatewayProvider.overrideWithValue(
+              _SettingsGateway(LocationPermissionStatus.denied),
+            ),
+            weatherEffectProvider.overrideWith(
+              (ref, point) async => WeatherEffect.none,
+            ),
+            clockProvider.overrideWithValue(
+              () => DateTime.parse('2026-08-17T10:00:00+09:00'),
+            ),
+            teamsProvider.overrideWith((ref) async => ContentFresh(teams)),
+            stadiumsProvider.overrideWith(
+              (ref) async => ContentFresh(stadiums),
+            ),
+            placesProvider.overrideWith((ref) async => ContentFresh(places)),
+            scheduleProvider.overrideWith(
+              (ref) async => ContentFresh(schedule),
+            ),
+            stadiumVisitCheckerProvider.overrideWith(
+              (ref) => StadiumVisitChecker(
+                readPermission: () async =>
+                    LocationPermissionStatus.denied,
+                readFix: () async => null,
+              ),
+            ),
+          ],
+          child: const MaterialApp(home: MainTabsRoot()),
+        ),
+      );
+      await tester.pumpAndSettle(const Duration(seconds: 5));
+
+      expect(
+        find.text('아직 경기 결과가 없어요', skipOffstage: false),
+        findsOneWidget,
+        reason: '5.1 acceptance 3: 하나도 없으면 빈 상태가 뜬다',
+      );
+    },
+    timeout: const Timeout(Duration(seconds: 60)),
+  );
+}
