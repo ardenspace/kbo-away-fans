@@ -648,10 +648,11 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // 날짜: 8/20(목). 구장: 잠실야구장 — 같은 이름이 하단 "구장 골라
+      // 날짜: 8/20 (목) — D-day 얼굴과 같은 표기다(둘로 갈려 있던 것을 하나로
+      // 모았다). 구장: 잠실야구장 — 같은 이름이 하단 "구장 골라
       // 구경하기" 목록(step 4.3, 상시 노출)에도 뜨므로 카드 고유 스타일
       // (TextTokens.caption)로 좁혀 찾는다.
-      expect(find.text('8/20(목)', skipOffstage: false), findsOneWidget);
+      expect(find.text('8/20 (목)', skipOffstage: false), findsOneWidget);
       expect(
         find.byWidgetPredicate(
           (widget) =>

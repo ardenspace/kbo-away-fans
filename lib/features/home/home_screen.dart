@@ -143,6 +143,20 @@ class HomeScreen extends ConsumerWidget {
 /// 미리보기에 보이는 장소 개수 상한 (discretion).
 const int _previewPlaceCount = 3;
 
+/// 요일 표기 — 이 화면에서 날짜를 쓰는 자리가 둘이라 배열도 한 자리에 둔다.
+const List<String> _weekdayLabels = ['월', '화', '수', '목', '금', '토', '일'];
+
+/// 이 화면의 날짜 표기 한 자리 — `8/20 (목)`.
+///
+/// 한 화면에 표기가 둘로 갈려 있었다: D-day 얼굴([_HomeScaffold._matchLabel])은
+/// `8/20 (목)`, 최근 5경기 요약([_RecentGameRow])은 `8/20(목)` 이었고 요일
+/// 배열도 두 곳에 따로 선언되어 있었다(phase 5 통합 검증의 계약 밖 발견).
+/// 어느 표기로 모을지는 5.1 의 discretion 이라, 이미 저장소에 선례가 있는
+/// 쪽(D-day 얼굴 · `lib/ui/shared/dday_header.dart` 문서의 예시 문구)으로
+/// 모은다.
+String _dayLabel(DateTime date) =>
+    '${date.month}/${date.day} (${_weekdayLabels[date.weekday - 1]})';
+
 class _HomeScaffold extends StatelessWidget {
   const _HomeScaffold({
     required this.teamId,
@@ -548,11 +562,8 @@ class _HomeScaffold extends StatelessWidget {
   /// 상대팀은 이 문구에 넣지 않는다. [DdayHeader] 가 [_opponentShortName] 을
   /// 받아 팀 색이 들어간 배지로 따로 보여 주기 때문이다.
   String _matchLabel(Game game, Stadium? stadium) {
-    final date = gameDateOf(game);
-    const weekdays = ['월', '화', '수', '목', '금', '토', '일'];
     final where = stadium?.name ?? game.stadiumId;
-    return '${date.month}/${date.day} (${weekdays[date.weekday - 1]}) '
-        '$where · ${game.startTime}';
+    return '${_dayLabel(gameDateOf(game))} $where · ${game.startTime}';
   }
 
   /// 원정 경기에서 만나는 상대팀(= 그 경기 홈팀)의 약칭.
@@ -642,8 +653,6 @@ class _RecentGameRow extends StatelessWidget {
   final TeamsDocument? teams;
   final StadiumsDocument? stadiums;
 
-  static const List<String> _weekdays = ['월', '화', '수', '목', '금', '토', '일'];
-
   @override
   Widget build(BuildContext context) {
     final isHome = game.homeTeamId == teamId;
@@ -654,9 +663,7 @@ class _RecentGameRow extends StatelessWidget {
     final opponentScore = isHome ? game.awayScore : game.homeScore;
     final outcome = outcomeFor(game, teamId);
 
-    final date = gameDateOf(game);
-    final dateLabel =
-        '${date.month}/${date.day}(${_weekdays[date.weekday - 1]})';
+    final dateLabel = _dayLabel(gameDateOf(game));
 
     return Container(
       padding: const EdgeInsets.all(SpaceTokens.md),
