@@ -4,16 +4,32 @@
 /// 화면에 실제로 뜨는지는 `home_screen_test.dart` 가 재고, 여기서는 방문
 /// 판정 여섯 갈래(null + 다섯 이유)를 가시성·문구로 접는 규칙과, 그 판정을
 /// **지금**이라고 말해도 되는지를 가르는 규칙만 촘촘히 잰다.
+///
+/// 마지막 group 만 위젯 시험이다 — [currentLocationIsFresh] 가 재는 성질은
+/// 순수 함수로 다 재어지지만, **그 함수가 실제로 다시 불리는 계기**는 함수
+/// 바깥에 있어서 값으로 잴 수 없다. 그 계기를 두지 않아 홈이 옛 구장을 계속
+/// 가리킨 것이 phase 5 통합 검증 round 2 의 REJECT 사유였다.
 library;
 
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kbo_away_fans/content/models.dart';
 import 'package:kbo_away_fans/features/home/current_location.dart';
+import 'package:kbo_away_fans/features/home/next_away_game.dart'
+    show clockProvider;
 import 'package:kbo_away_fans/location/location.dart';
 import 'package:kbo_away_fans/location/visit_check.dart';
+
+/// 시나리오 도중에 앞으로 가는 시계.
+class _Clock {
+  _Clock(this.now);
+  DateTime now;
+  DateTime call() => now;
+}
 
 Map<String, Object?> _readJson(String path) =>
     jsonDecode(File(path).readAsStringSync()) as Map<String, Object?>;
@@ -357,6 +373,96 @@ void main() {
         ),
         isFalse,
       );
+    });
+  });
+
+  group('나이를 다시 재는 계기 (CurrentLocationRow)', () {
+    // **왜 여기에 위젯 시험이 있는가.** 위 순수 함수 시험들은 "판정이 낡으면
+    // 구장 이름을 쓰지 않는다"를 값으로 다 재지만, 그 함수가 **언제 다시
+    // 불리는지**는 함수 밖의 일이다. round 1 은 성질만 세우고 계기를 두지
+    // 않아서, 홈이 다시 서지 않는 실행(앱을 포그라운드에 둔 채 구장을 떠난
+    // 사람)에서 옛 구장 이름이 두 시간 반 동안 그대로 섰다. 아래 둘이 그
+    // 계기를 각각 못 박는다 — 하나라도 지우면 빨간불이다.
+    const t0 = '2026-08-29T19:00:00+09:00';
+
+    Future<ValueNotifier<bool>> pumpRow(
+      WidgetTester tester, {
+      required _Clock clock,
+      required DateTime judgedAt,
+      bool visible = true,
+    }) async {
+      final on = ValueNotifier<bool>(visible);
+      addTearDown(on.dispose);
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [clockProvider.overrideWithValue(clock.call)],
+          child: MaterialApp(
+            home: Scaffold(
+              body: ValueListenableBuilder<bool>(
+                valueListenable: on,
+                builder: (context, enabled, child) => TickerMode(
+                  // 탭 골격(`main_tab_scaffold.dart`)이 보이지 않는 탭에
+                  // 씌우는 것과 같은 신호다.
+                  enabled: enabled,
+                  child: CurrentLocationRow(
+                    visit: visited,
+                    stadiums: stadiumsDoc,
+                    judgedAt: judgedAt,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      return on;
+    }
+
+    testWidgets('시각이 흐르는 것만으로 구장 이름이 내려온다 — 아무도 아무 일을 하지 않아도', (
+      tester,
+    ) async {
+      final clock = _Clock(DateTime.parse(t0));
+      await pumpRow(tester, clock: clock, judgedAt: clock.now);
+      expect(find.text('잠실야구장 근처예요'), findsOneWidget);
+
+      // 사람은 아무것도 하지 않았다 — 탭도 옮기지 않았고 앱을 배경으로
+      // 보내지도 않았다. 흐른 것은 시각뿐이다.
+      clock.now = clock.now.add(const Duration(minutes: 16));
+      await tester.pump(const Duration(minutes: 16));
+
+      expect(
+        find.text('잠실야구장 근처예요'),
+        findsNothing,
+        reason: 'kCurrentLocationFreshness(15분)를 넘긴 판정을 "지금"이라고 말하지 않는다',
+      );
+      expect(find.text(kCurrentLocationGenericLabel), findsOneWidget);
+    });
+
+    testWidgets('보이지 않는 동안에는 재지 않고, 다시 보이는 순간 그 자리에서 잰다', (
+      tester,
+    ) async {
+      final clock = _Clock(DateTime.parse(t0));
+      final on = await pumpRow(tester, clock: clock, judgedAt: clock.now);
+      expect(find.text('잠실야구장 근처예요'), findsOneWidget);
+
+      // 다른 탭으로 옮겼다 — 이 자리를 볼 사람이 없는 동안에는 타이머를
+      // 두지 않는다(그래서 시각이 흘러도 문구가 그대로다).
+      on.value = false;
+      await tester.pump();
+      clock.now = clock.now.add(const Duration(minutes: 16));
+      await tester.pump(const Duration(minutes: 16));
+      expect(find.text('잠실야구장 근처예요'), findsOneWidget);
+
+      // 홈 탭으로 돌아왔다 — 그 순간 나이를 새로 잰다.
+      on.value = true;
+      await tester.pump();
+      expect(
+        find.text('잠실야구장 근처예요'),
+        findsNothing,
+        reason: '탭 골격이 IndexedStack 이라 홈은 다시 서지 않는다 — 이 계기가 없으면 옛 구장이 남는다',
+      );
+      expect(find.text(kCurrentLocationGenericLabel), findsOneWidget);
     });
   });
 }

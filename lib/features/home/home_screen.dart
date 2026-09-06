@@ -280,6 +280,9 @@ class _HomeScaffold extends StatelessWidget {
   /// 4.2 의 재판정 게이트가 닫혀 있는 동안에는 사람이 구장을 떠나도 판정이
   /// 갱신되지 않아서, 그 값을 그대로 "현재 위치"로 세우면 홈 상단이 이미 떠난
   /// 구장을 몇 시간 동안 가리킨다(phase 5 통합 검증의 REJECT 사유).
+  /// **그 나이를 재는 것은 이 화면이 아니라 [CurrentLocationRow] 다** — 나이는
+  /// 아무도 아무 일을 하지 않아도 자라는데 이 `build` 는 시간이 흐르는 것만으로
+  /// 다시 돌지 않기 때문이다(그 위젯 문서 참조. round 2 의 REJECT 사유다).
   ///
   /// **재요청 버튼을 두지 않는다.** acceptance 가 허용한 두 갈래("자리가
   /// 사라지거나 권한 안내로 바뀌고") 중 앞엣것을 고른다 — 권한을 다시
@@ -298,33 +301,15 @@ class _HomeScaffold extends StatelessWidget {
     )) {
       return const [];
     }
-    final label = currentLocationLabel(
-      visit: stadiumVisit,
-      stadiums: stadiums,
-      fresh: currentLocationIsFresh(judgedAt: visitJudgedAt, now: now),
-    );
     return [
-      Padding(
+      CurrentLocationRow(
         // 이 자리가 홈 목록의 **맨 위**라는 것을 시험이 자리 자체로 잴 수
         // 있게 하는 표지다 (5.2 acceptance 의 "상단"). 그 전에는 이 조각을
         // 목록 맨 아래로 옮겨도 저장소 전체가 초록불이었다.
         key: kCurrentLocationRowKey,
-        padding: const EdgeInsets.fromLTRB(
-          SpaceTokens.lg,
-          SpaceTokens.lg,
-          SpaceTokens.lg,
-          0,
-        ),
-        child: Row(
-          children: [
-            const Icon(
-              Icons.location_on_rounded,
-              color: ColorTokens.textSecondary,
-            ),
-            const SizedBox(width: SpaceTokens.sm),
-            Text(label, style: TextTokens.bodyMuted),
-          ],
-        ),
+        visit: stadiumVisit,
+        stadiums: stadiums,
+        judgedAt: visitJudgedAt,
       ),
     ];
   }

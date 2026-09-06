@@ -32,6 +32,10 @@
 /// 읽어 [kCurrentLocationFreshness] 안의 판정만 구장 이름으로 쓴다. 그 밖은
 /// 자리를 접는 대신 [kCurrentLocationGenericLabel] 로 내려간다 — 모르는 것을
 /// 아는 척하지 않으면서, 권한이 있는 사람의 화면은 그대로 남긴다.
+/// **그 나이를 실제로 다시 재는 계기를 두는 자리가 [CurrentLocationRow] 다** —
+/// 성질만 세우고 계기를 두지 않으면 홈이 다시 설 때에만 재어져서, 앱을
+/// 포그라운드에 둔 채 구장을 떠난 사람의 화면이 그대로 멈춘다(round 2 의
+/// REJECT 사유. 그 위젯 문서에 계기 둘을 적었다).
 ///
 /// **왜 이 재조회가 4.1 이 세운 절제를 깨지 않는가.** `lib/location/CLAUDE.md`
 /// 가 "다시 물을 수 있는지를 갈라야 하는 자리는 그때 `status()` 를 그 자리에서
@@ -70,12 +74,16 @@
 /// 뜬다 — `outsideRadius` 등 다른 세 이유와 같은 문구다.
 library;
 
-import 'package:flutter/widgets.dart';
+import 'dart:async';
+
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../content/models.dart';
+import '../../design/tokens.dart';
 import '../../location/location.dart';
 import '../../location/visit_check.dart';
+import 'next_away_game.dart' show clockProvider;
 
 /// 홈 목록에서 위치 자리를 가리키는 표지 — **"상단"을 자리로 재기 위한
 /// 것이다** (5.2 acceptance 의 "권한이 있으면 현재 위치가 **상단에** 뜬다").
@@ -221,4 +229,129 @@ String currentLocationLabel({
   }
   final name = stadiums?.byId(stadiumId)?.name ?? stadiumId;
   return '$name 근처예요';
+}
+
+/// 홈 상단 위치 한 줄 — 문구를 고르는 것뿐 아니라 **그 문구가 낡는 순간**을
+/// 스스로 지켜보는 자리다.
+///
+/// **왜 위젯으로 따로 서는가.** [currentLocationIsFresh] 는 판정의 나이를
+/// 재는 함수이고, 나이는 아무도 아무 일을 하지 않아도 자란다. 그것을 홈
+/// 화면의 `build` 안에서만 재면 **홈이 다시 설 때에만** 재어진다 — 그런데
+/// 탭 골격이 [IndexedStack] 이라 탭을 오가도 홈은 다시 서지 않고, 시간이
+/// 흐르는 것만으로는 다시 설 까닭이 아예 없다. 그래서 사직에서 도장을 받고
+/// (19:00) **앱을 배경으로 보내지 않은 채** 서울로 이동해 21:30이 되어도
+/// "사직야구장 근처예요"가 그대로 서 있었다(phase 5 통합 검증 round 2 의
+/// REJECT 사유). round 1 이 세운 성질([currentLocationIsFresh])은 옳았고,
+/// 빠진 것은 **그 성질이 실제로 다시 재어지는 계기**였다.
+///
+/// 계기를 둘 둔다. 둘 다 좌표를 묻지 않는다 — 4.1·4.2 의 절제(도장을 받은
+/// 뒤 창이 닫힐 때까지 측위를 켜지 않는다, `decisions.md` 2026-09-04 `[S]`)를
+/// 되돌리지 않는 까닭이 그것이다. 여기서 자라는 것은 나이뿐이고, 나이를 재는
+/// 데 필요한 것은 시계 하나다.
+///
+///  1. **낡는 그 순간에 한 번 깨어나는 타이머.** 판정이 난 시각 +
+///     [kCurrentLocationFreshness] 에 맞춰 [Timer] 하나를 걸어 두고, 깨어나면
+///     다시 그린다. 주기 실행이 아니라 **판정 하나당 한 번**이고, 깨어난 뒤에는
+///     이미 낡았으므로 다시 걸지 않는다. 그래서 이 위젯이 들고 있는 타이머는
+///     늘 0개 아니면 1개다.
+///  2. **이 탭이 다시 보이는 순간** ([TickerMode]). 보이지 않는 동안에는
+///     타이머를 두지 않고, 다시 보이는 순간 [TickerMode.valuesOf] 의존이 이
+///     위젯을 다시 그려 나이를 그 자리에서 새로 잰다. 탭 골격이 보이지 않는 탭의
+///     `Ticker` 를 끄는 데 쓰는 바로 그 신호이고(`main_tab_scaffold.dart`),
+///     "지금 이 화면이 사람 눈앞에 있는가"를 이 계층이 알 수 있는 유일한
+///     자리다.
+///
+/// **자리를 그릴지 말지는 여기서 정하지 않는다** — 그것은
+/// [currentLocationVisible] 이 권한으로 정하고, 부르는 쪽이 그 답에 따라 이
+/// 위젯을 아예 짓지 않는다. 여기서 갈리는 것은 문구뿐이다.
+class CurrentLocationRow extends ConsumerStatefulWidget {
+  const CurrentLocationRow({
+    super.key,
+    required this.visit,
+    required this.stadiums,
+    required this.judgedAt,
+  });
+
+  /// 가장 최근 판정 — 구장 이름을 아는 유일한 자리다.
+  final StadiumVisitResult? visit;
+
+  /// 구장 문서 — 이름을 얻지 못하면 id 로 저하한다.
+  final StadiumsDocument? stadiums;
+
+  /// [visit] 이 **난 시각** — 마지막 시도가 판정까지 가지 못했으면 null
+  /// (`stadiumVisitRunProvider` 문서 참조).
+  final DateTime? judgedAt;
+
+  @override
+  ConsumerState<CurrentLocationRow> createState() => _CurrentLocationRowState();
+}
+
+class _CurrentLocationRowState extends ConsumerState<CurrentLocationRow> {
+  /// 판정이 낡는 순간에 한 번 깨어나는 타이머 — 없거나 하나다.
+  Timer? _expiry;
+
+  @override
+  void dispose() {
+    _expiry?.cancel();
+    super.dispose();
+  }
+
+  /// 남은 신선도만큼 타이머를 다시 건다.
+  ///
+  /// 겨냥하는 것은 **절대 시각**([CurrentLocationRow.judgedAt] +
+  /// [kCurrentLocationFreshness])이라, 이 위젯이 그사이 몇 번 다시 그려지든
+  /// 깨어나는 순간은 같은 자리다. 이미 낡았거나([fresh] 가 거짓) 이 탭이 보이지
+  /// 않으면([visible] 이 거짓) 타이머를 두지 않는다 — 앞엣것은 깨워도 바뀔
+  /// 것이 없고, 뒤엣것은 다시 보이는 순간의 `build` 가 대신 재기 때문이다.
+  void _armExpiry({
+    required bool fresh,
+    required bool visible,
+    required DateTime now,
+  }) {
+    _expiry?.cancel();
+    _expiry = null;
+    final judgedAt = widget.judgedAt;
+    if (!fresh || !visible || judgedAt == null) return;
+    final remaining = judgedAt.add(kCurrentLocationFreshness).difference(now);
+    _expiry = Timer(remaining.isNegative ? Duration.zero : remaining, () {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final now = ref.watch(clockProvider)();
+    // 이 탭이 지금 사람 눈앞에 있는가 — 이 한 줄이 위 2) 의 의존을 만든다.
+    final visible = TickerMode.valuesOf(context).enabled;
+    final fresh = currentLocationIsFresh(judgedAt: widget.judgedAt, now: now);
+    // `build` 안에서 타이머를 다시 거는 것은 상태를 바꾸지 않는 일이라
+    // 이 프레임에 아무 영향이 없다 — 다음 프레임을 요청하지도 않는다.
+    _armExpiry(fresh: fresh, visible: visible, now: now);
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        SpaceTokens.lg,
+        SpaceTokens.lg,
+        SpaceTokens.lg,
+        0,
+      ),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.location_on_rounded,
+            color: ColorTokens.textSecondary,
+          ),
+          const SizedBox(width: SpaceTokens.sm),
+          Text(
+            currentLocationLabel(
+              visit: widget.visit,
+              stadiums: widget.stadiums,
+              fresh: fresh,
+            ),
+            style: TextTokens.bodyMuted,
+          ),
+        ],
+      ),
+    );
+  }
 }
