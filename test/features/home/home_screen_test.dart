@@ -15,6 +15,7 @@ import 'package:kbo_away_fans/content/content_loader.dart';
 import 'package:kbo_away_fans/content/content_providers.dart';
 import 'package:kbo_away_fans/content/models.dart';
 import 'package:kbo_away_fans/design/team_themes.dart';
+import 'package:kbo_away_fans/design/tokens.dart';
 import 'package:kbo_away_fans/features/home/home_screen.dart';
 import 'package:kbo_away_fans/features/home/next_away_game.dart';
 import 'package:kbo_away_fans/features/places/stadium_places_screen.dart';
@@ -60,6 +61,35 @@ void main() {
       awayTeamId: away,
       stadiumId: stadium,
       status: status,
+    );
+  }
+
+  /// 종료 경기 픽스처 — [game] 과 같은 모양이되 점수·승패까지 채운다
+  /// (step 5.1 최근 5경기 요약을 화면에서 재는 시험 전용).
+  Game finishedGame({
+    required String date,
+    required String home,
+    required String away,
+    required String stadium,
+    required int homeScore,
+    required int awayScore,
+  }) {
+    final result = homeScore > awayScore
+        ? GameResult.homeWin
+        : homeScore < awayScore
+            ? GameResult.awayWin
+            : GameResult.draw;
+    return Game(
+      id: '$date-$stadium-$away-$home-finished',
+      date: date,
+      startTime: '18:30',
+      homeTeamId: home,
+      awayTeamId: away,
+      stadiumId: stadium,
+      status: GameStatus.finished,
+      homeScore: homeScore,
+      awayScore: awayScore,
+      result: result,
     );
   }
 
@@ -425,5 +455,149 @@ void main() {
       ).first,
     );
     expect(headerScope.theme.primary, TeamThemes.byId['lg']!.primary);
+  });
+
+  group('최근 5경기 요약 (step 5.1) — 화면에 실제로 보이는지', () {
+    // 순수 로직(recentGamesFor·outcomeFor)은 recent_games_test.dart 가 이미
+    // 촘촘히 잰다. 여기서는 그 결과가 화면에 실제로 "보인다"는 acceptance
+    // criteria 네 문장을 렌더 레벨로 확인한다 — 자리가 아예 빠지거나
+    // 상한·빈 상태·카드 필드가 조용히 사라져도 로직 시험만으로는 못 잡는다.
+    final laterNow = DateTime.parse('2026-08-26T09:00:00+09:00');
+
+    testWidgets('종료 경기가 5개 초과면 화면에도 최근 5개까지만 보인다', (tester) async {
+      // 8/20~8/25 (내 팀 lotte 가 매번 홈), 상대·점수를 서로 다르게 두어
+      // 어느 경기가 화면에 남았는지를 점수 문자열로 식별한다.
+      const opponents = ['kt', 'samsung', 'doosan', 'hanwha', 'kiwoom', 'ssg'];
+      final games = [
+        for (var i = 0; i < opponents.length; i++)
+          finishedGame(
+            date: '2026-08-${20 + i}',
+            home: 'lotte',
+            away: opponents[i],
+            stadium: 'sajik',
+            homeScore: i + 1,
+            awayScore: 0,
+          ),
+      ];
+
+      await tester.pumpWidget(
+        home(teamId: 'lotte', games: games, now: laterNow),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('최근 5경기'), findsOneWidget);
+      // 최신 5개(8/21~8/25 → 점수 2:0~6:0)는 보이고,
+      for (final score in ['2 : 0', '3 : 0', '4 : 0', '5 : 0', '6 : 0']) {
+        expect(
+          find.text(score, skipOffstage: false),
+          findsOneWidget,
+          reason: '$score 경기는 최신 5개 안에 들어야 한다',
+        );
+      }
+      // 가장 오래된 8/20(점수 1:0)은 상한에 걸려 빠져야 한다.
+      expect(find.text('1 : 0', skipOffstage: false), findsNothing);
+    });
+
+    testWidgets('종료 경기가 5개보다 적으면 화면에도 있는 만큼만 보인다', (tester) async {
+      final games = [
+        finishedGame(
+          date: '2026-08-20',
+          home: 'lotte',
+          away: 'kt',
+          stadium: 'sajik',
+          homeScore: 3,
+          awayScore: 1,
+        ),
+        finishedGame(
+          date: '2026-08-21',
+          home: 'samsung',
+          away: 'lotte',
+          stadium: 'daegu',
+          homeScore: 2,
+          awayScore: 5,
+        ),
+      ];
+
+      await tester.pumpWidget(
+        home(teamId: 'lotte', games: games, now: laterNow),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('최근 5경기'), findsOneWidget);
+      expect(find.text('3 : 1', skipOffstage: false), findsOneWidget);
+      // lotte 가 원정이라 내 팀 관점 점수는 뒤집혀 5 : 2 로 보인다.
+      expect(find.text('5 : 2', skipOffstage: false), findsOneWidget);
+      // 있는 2개 말고 빈 상태 문구가 함께 뜨지는 않는다.
+      expect(find.text('아직 경기 결과가 없어요', skipOffstage: false), findsNothing);
+    });
+
+    testWidgets('종료 경기가 하나도 없으면 빈 상태가 뜬다', (tester) async {
+      await tester.pumpWidget(
+        home(
+          teamId: 'lotte',
+          games: [
+            // 예정 경기만 있고 종료된 결과는 없다.
+            game(
+              date: '2026-08-30',
+              home: 'lg',
+              away: 'lotte',
+              stadium: 'jamsil',
+            ),
+          ],
+          now: laterNow,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('최근 5경기'), findsOneWidget);
+      expect(
+        find.text('아직 경기 결과가 없어요', skipOffstage: false),
+        findsOneWidget,
+      );
+      expect(
+        find.text('경기가 끝나면 이 자리에 최근 결과가 쌓여요.', skipOffstage: false),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('카드 한 줄에 날짜·구장·점수·승패가 모두 보인다', (tester) async {
+      await tester.pumpWidget(
+        home(
+          teamId: 'lotte',
+          games: [
+            finishedGame(
+              date: '2026-08-20',
+              home: 'lg',
+              away: 'lotte',
+              stadium: 'jamsil',
+              homeScore: 2,
+              awayScore: 7,
+            ),
+          ],
+          now: laterNow,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // 날짜: 8/20(목). 구장: 잠실야구장 — 같은 이름이 하단 "구장 골라
+      // 구경하기" 목록(step 4.3, 상시 노출)에도 뜨므로 카드 고유 스타일
+      // (TextTokens.caption)로 좁혀 찾는다.
+      expect(find.text('8/20(목)', skipOffstage: false), findsOneWidget);
+      expect(
+        find.byWidgetPredicate(
+          (widget) =>
+              widget is Text &&
+              widget.data == '잠실야구장' &&
+              widget.style == TextTokens.caption,
+          skipOffstage: false,
+        ),
+        findsOneWidget,
+        reason: '요약 카드 안의 구장 이름(캡션 스타일)이 보여야 한다',
+      );
+      // 점수: lotte 가 원정이라 내 팀 관점으로 뒤집혀 7 : 2.
+      expect(find.text('7 : 2', skipOffstage: false), findsOneWidget);
+      // 승패: 원정 승리 → 승.
+      expect(find.text('승', skipOffstage: false), findsOneWidget);
+    });
   });
 }
