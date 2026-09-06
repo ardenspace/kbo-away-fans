@@ -668,6 +668,53 @@ void main() {
       // 승패: 원정 승리 → 승.
       expect(find.text('승', skipOffstage: false), findsOneWidget);
     });
+    testWidgets('홈/원정 표기가 내 팀 기준으로 붙는다 (뒤집히면 빨간불)', (tester) async {
+      // 5.1 acceptance 의 "구장·상대"와 맞물리는 표시인데 못이 없었다 —
+      // `_RecentGameRow` 의 '홈'/'원정' 을 뒤집어도 저장소 전체가 초록불
+      // 이었다(phase 5 통합 검증의 실측). 두 경기를 한 화면에 세워, 같은 줄
+      // 안에서 표기와 상대가 짝지어 붙는지를 본다.
+      await tester.pumpWidget(
+        home(
+          teamId: 'lotte',
+          games: [
+            // 내 팀이 홈인 경기 — 사직에서 KT 를 맞는다.
+            finishedGame(
+              date: '2026-08-21',
+              home: 'lotte',
+              away: 'kt',
+              stadium: 'sajik',
+              homeScore: 5,
+              awayScore: 1,
+            ),
+            // 내 팀이 원정인 경기 — 잠실로 LG 를 만나러 간다.
+            finishedGame(
+              date: '2026-08-20',
+              home: 'lg',
+              away: 'lotte',
+              stadium: 'jamsil',
+              homeScore: 2,
+              awayScore: 7,
+            ),
+          ],
+          now: laterNow,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('홈 · KT', skipOffstage: false),
+        findsOneWidget,
+        reason: '내 팀이 홈팀인 경기는 홈 표기 + 상대(KT)',
+      );
+      expect(
+        find.text('원정 · LG', skipOffstage: false),
+        findsOneWidget,
+        reason: '내 팀이 원정팀인 경기는 원정 표기 + 상대(LG)',
+      );
+      // 뒤집힌 짝은 어디에도 없다 — 표기만 맞고 상대가 어긋나는 변이도 잡는다.
+      expect(find.text('원정 · KT', skipOffstage: false), findsNothing);
+      expect(find.text('홈 · LG', skipOffstage: false), findsNothing);
+    });
   });
 
   group('홈 상단 현재 위치 (step 5.2) — 화면에 실제로 뜨는지', () {
