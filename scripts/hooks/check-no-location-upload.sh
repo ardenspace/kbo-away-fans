@@ -289,12 +289,14 @@
 #            func     이름 뒤에 매개변수 목록이 오는 선언
 #            getter / setter
 #            const    const 로 시작하는 값 선언
-#            provider `=` 뒤가 `Provider`·`Provider.autoDispose`·
-#                     `Provider.family` 이고 타입 인자가 전부 "담을 수 없는
-#                     타입"이거나 함수 타입인 것. 타입 인자를 적지 않은
-#                     `Provider((ref) => ...)` 과 StateProvider·
-#                     NotifierProvider·FutureProvider·StreamProvider 는 이
-#                     갈래가 아니다(실측 exit 2).
+#            provider `=` 뒤가 `Provider`·`FutureProvider`(각각
+#                     `.autoDispose`·`.family` 를 붙인 모양까지)이고 타입
+#                     인자가 전부 "담을 수 없는 타입"이거나 함수 타입인 것.
+#                     타입 인자를 적지 않은 `Provider((ref) => ...)` 과
+#                     StateProvider·NotifierProvider·StreamProvider 는 이
+#                     갈래가 아니다(실측 exit 2). `FutureProvider` 는 phase 5
+#                     에서 들어왔다 — 까닭은 아래 providerOk 주석과
+#                     `.wellbegun/decisions.md` 2026-09-06 [M] 에 있다.
 #            var      그 밖의 값 선언 — 오늘 이 폴더에는 하나도 없다.
 #
 #          이름을 읽지 못한 문장은 이름이 "?" 로 나가 목록과 어긋난다 —
@@ -1032,11 +1034,20 @@ if [ -d "$LOC_DIR" ]; then
       # typedef 없이 그 자리에 적은 모양(`Provider<DateTime Function()>` —
       # lib/features/home/next_away_game.dart:21 이 그 모양이다)을 다르게
       # 다룰 까닭이 없기 때문이다.
-      # StateProvider·NotifierProvider·FutureProvider·StreamProvider 는 이름이
-      # 어긋나 통과하지 못하고, 타입 인자를 적지 않은 `Provider((ref) => ...)`
-      # 도 무엇이 담기는지 알 수 없어 통과하지 못한다.
+      # StateProvider·NotifierProvider·StreamProvider 는 이름이 어긋나 통과하지
+      # 못하고, 타입 인자를 적지 않은 `Provider((ref) => ...)` 도 무엇이
+      # 담기는지 알 수 없어 통과하지 못한다.
+      #
+      # **`FutureProvider` 는 phase 5 에서 이 목록에 들어왔다.** 4.5 와 5.2 가
+      # 글자 그대로 같은 `FutureProvider.autoDispose<LocationPermissionStatus>`
+      # 를 각자 갖고 있어서 공통 요소 규칙대로 이 폴더로 승격했는데(그것을
+      # 아는 계층이 여기다), 그 전까지 이 검사는 그 모양을 `var` 로 떨어뜨렸다.
+      # `var` 로 목록에 넣으면 그 이름이 나중에 **무엇이든** 담을 수 있게
+      # 열리므로(`final x = <DeviceFix>[];` 도 var 다) 갈래 자체를 넓히는 쪽을
+      # 골랐다 — 타입 인자 규칙은 그대로라 `FutureProvider<T>` 도 T 가 "담을 수
+      # 없는 타입"일 때만 지난다. `.wellbegun/decisions.md` 2026-09-06 [M] 참조.
       function providerOk(init,   i, c, d, args, a, n, t, nd) {
-        if (init !~ /^Provider([.]autoDispose)?([.]family)?</) return 0
+        if (init !~ /^(Future)?Provider([.]autoDispose)?([.]family)?</) return 0
         i = index(init, "<")
         d = 0; args = ""
         for (; i <= length(init); i++) {
@@ -1308,6 +1319,7 @@ kStadiumVisitRadiusMeters:const
 kVisitWindowAfterStart:const
 kVisitWindowBeforeStart:const
 locationPermissionGatewayProvider:provider
+locationPermissionStatusProvider:provider
 resolveLocationPermission:func
 stadiumVisitCheckerProvider:provider
 visitWindowCovers:func'

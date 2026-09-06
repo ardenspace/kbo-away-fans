@@ -35,8 +35,9 @@
 /// 설계, `lib/location/CLAUDE.md` 참조) — 그 문서가 "다시 물을 수 있는지를
 /// 갈라야 하는 자리는 그때 `LocationPermissionGateway.status()` 를 그
 /// 자리에서 물으면 된다"고 남긴 자리가 여기다. 그래서 [_PermissionMissingNotice]
-/// 는 [locationPermissionGatewayProvider] 에 **다시** 묻고, 그 답에 따라
-/// 버튼을 가른다: `denied` 면 [LocationPermissionGateway.request] 로 앱
+/// 는 위치 계층의 [locationPermissionStatusProvider] 로 **다시** 묻고(그
+/// provider 는 5.2 의 홈 상단과 함께 쓴다 — 두 화면이 같은 물음을 각자 짓고
+/// 있던 것을 phase 5 통합 검증이 승격했다), 그 답에 따라 버튼을 가른다: `denied` 면 [LocationPermissionGateway.request] 로 앱
 /// 안에서 OS 다이얼로그를 다시 띄우고, `permanentlyDenied` 면
 /// [LocationPermissionGateway.openSettings] 로 설정 앱을 연다. 앱 안에서
 /// 다시 물어 허용을 받으면(설정에 다녀올 필요가 없는 갈래) 그 자리에서
@@ -56,15 +57,6 @@ import '../../location/location.dart';
 import '../../location/visit_check.dart';
 import '../home/next_away_game.dart' show clockProvider;
 import 'stadium_visit.dart';
-
-/// [StadiumVisitReason.permissionMissing] 을 다시 물을 수 있는지 — 4.1 이
-/// 접어 둔 두 갈래를 이 자리에서 다시 벌린다.
-final _permissionMissingStatusProvider =
-    FutureProvider.autoDispose<LocationPermissionStatus>(
-      (ref) => resolveLocationPermission(
-        () => ref.read(locationPermissionGatewayProvider).status(),
-      ),
-    );
 
 /// 이 판에 **[now] 의 KST 달력 날짜**로 찍힌 도장이 있는가.
 ///
@@ -192,7 +184,7 @@ class _PermissionMissingNotice extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final statusAsync = ref.watch(_permissionMissingStatusProvider);
+    final statusAsync = ref.watch(locationPermissionStatusProvider);
     // 아직 답이 없는 짧은 구간은 "아직 물어볼 수 있는 상태"로 다룬다 —
     // `resolveLocationPermission` 이 알아내지 못한 실행을 `denied` 로 접는
     // 것과 같은 판단이다(`lib/location/location.dart` 문서 참조).
@@ -231,7 +223,7 @@ class _PermissionMissingNotice extends ConsumerWidget {
     // (`lib/ui/shared/place_like_wiring.dart` 의 `notifyPlaceLikeFailed` 와
     // 같은 방식).
     if (context.mounted) {
-      ref.invalidate(_permissionMissingStatusProvider);
+      ref.invalidate(locationPermissionStatusProvider);
     }
   }
 }

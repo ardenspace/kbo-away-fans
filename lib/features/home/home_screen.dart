@@ -4,7 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../content/content_providers.dart';
 import '../../content/models.dart';
 import '../../design/tokens.dart';
-import '../../location/location.dart' show LocationPermissionStatus;
+import '../../location/location.dart'
+    show LocationPermissionStatus, locationPermissionStatusProvider;
 import '../../location/visit_check.dart';
 import '../../ui/shared/category_labels.dart';
 import '../../ui/shared/dday_header.dart';
@@ -111,7 +112,7 @@ class HomeScreen extends ConsumerWidget {
           stadiumVisit,
           judgmentAttempted: lastVisitRun != null,
         )
-        ? ref.watch(currentLocationPermissionProvider).value
+        ? ref.watch(locationPermissionStatusProvider).value
         : null;
 
     final team = teamsDoc?.byId(teamId);

@@ -1,7 +1,8 @@
 # lib/location/ — 작업 전 필독 (read-first)
 
 기기의 위치와 닿는 코드는 이 폴더를 통과한다. 파일이 둘이고 아는 것이 다르다:
-`location.dart` 는 **권한 상태 세 갈래**를(step 2.5), `visit_check.dart` 는
+`location.dart` 는 **권한 상태 세 갈래**와 그것을 한 번 묻는 provider 를(step
+2.5 · 5.2 가 승격), `visit_check.dart` 는
 **좌표와 구장 방문 판정**을(step 4.1) 안다. 5.2(홈 상단 현재 위치)가 좌표를
 쓸 자리도 이 계층 안이다.
 
@@ -208,6 +209,23 @@
      구간의 최상위 저장소가 조용히 통과했다(파일이 클래스 몸통으로 끝날 때).
      문자열을 알아보는 규칙을 `scripts/hooks/dart-source.sh` 한 자리로 모으고
      훑기가 사본의 전제를 스스로 확인하게 해서 닫았다.
+     **phase 5 가 그 목록을 하나 넓혔다** — 4.5 와 5.2 가 글자 그대로 같은
+     `FutureProvider.autoDispose<LocationPermissionStatus>` 를 각자 갖고
+     있어서 공통 요소 규칙대로 이 폴더로 승격했고(`locationPermissionStatusProvider`),
+     그때 `provider` 갈래가 `Provider…` 로만 좁혀 있어 그 모양이 `var` 로
+     떨어졌다. 이름을 `var` 로 목록에 넣으면 그 이름이 나중에 무엇이든 담을
+     수 있게 열리므로(`final x = <DeviceFix>[];` 도 var 다) 갈래 쪽을 넓혔다:
+     이제 `FutureProvider`(`.autoDispose`·`.family` 포함)도 **타입 인자가
+     전부 "담을 수 없는 타입"일 때만** 이 갈래다. 실측: 그 선언의 타입 인자를
+     `List<DeviceFix>` 로 바꾸면 exit 2, `NotifierProvider` 로 바꾸면 exit 2,
+     목록 밖 이름을 하나 더하면 exit 2, 클래스 몸통의 `static DeviceFix?
+     lastSpot;` 도 그대로 exit 2 다.
+     **막지 않는 것(전부터 그랬고 지금도 같다):** 목록에 **이미 있는 이름**의
+     타입 인자를 이 폴더가 스스로 선언한 타입으로 바꾸는 것 — 실측:
+     `locationPermissionStatusProvider` 를 `FutureProvider.autoDispose<DeviceFix>`
+     로, `locationPermissionGatewayProvider` 를 `Provider<DeviceFix>` 로 바꾸면
+     둘 다 exit 0 이다(뒤엣것은 phase 5 이전에도 같았다 — 이 갈래는 폴더가
+     선언한 타입을 믿고, 그 타입의 필드 집합은 겹 5 가 따로 잰다).
      클래스·enum·mixin·extension 몸통의 선언은 타입을 보고, 통과하는 것은
      `const`, "담을 수 없는 타입"(변하지 않는 dart:core 기본형 + 이 폴더가
      스스로 선언한 class·enum·mixin 이름 + 함수 타입 typedef)이나 함수 타입의
@@ -323,8 +341,12 @@
   하는 포그라운드 판정이다 — 그 판정을 트리거하는 자리도 앱이 열려 있을 때만
   도는 위젯(`lib/features/badges/stadium_visit.dart` 의 `StadiumVisitTrigger`)
   이고, 이 폴더에는 주기 실행도 백그라운드 작업도 없다.
-- **이 폴더는 권한을 다시 묻지 않는다.** 2.5 가 온보딩에서 한 번 묻고, 4.1 의
-  판정은 `status()`(다이얼로그 없는 조회)만 쓴다. 이 규칙을 재는 자리는
+- **이 폴더는 권한을 다시 묻지 않는다.** 여기서 "묻는다"는 `request()`(OS
+  다이얼로그)를 뜻한다 — 2.5 가 온보딩에서 한 번 묻고, 4.1 의 판정은
+  `status()`(다이얼로그 없는 조회)만 쓴다. 그 조회 자체는 화면이 필요할 때
+  다시 할 수 있고, 그 자리가 `locationPermissionStatusProvider` 다(4.5 의 배지
+  탭 안내와 5.2 의 홈 상단이 함께 쓴다 — `request()` 는 그 provider 를 지나지
+  않는다). 이 규칙을 재는 자리는
   `test/location/stadium_visit_fix_contract_test.dart` 다 — 판정기를 만드는
   `stadiumVisitCheckerProvider` 가 `status` 대신 `request` 를 쥐면 빨간불이
   된다(그 한 글자가 바뀌면 경기가 있는 날마다 앱을 열 때 OS 다이얼로그가

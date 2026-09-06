@@ -19,7 +19,7 @@
 /// 사람이 월요일·비시즌에, 또는 콘텐츠를 못 받은 날에 홈을 열 때도 위치
 /// 자리가 통째로 사라져 acceptance 첫 문장("권한이 있으면 현재 위치가 상단에
 /// 뜬다")을 어긴다** — 그 화면이 권한을 거부한 사람의 화면과 구분되지 않는다.
-/// 그래서 [currentLocationPermissionProvider] 가 그 둘에서만
+/// 그래서 [locationPermissionStatusProvider] 가 그 둘에서만
 /// [LocationPermissionGateway.status] 를 다시 물어 "권한이 있는가"를
 /// 알아낸다. **[LocationPermissionGateway.request] 는 절대 부르지 않는다** —
 /// 새 OS 다이얼로그를 띄우는 것은 이 화면의 일이 아니다(그 진입점은 이미
@@ -33,13 +33,13 @@
 /// 자리를 접는 대신 [kCurrentLocationGenericLabel] 로 내려간다 — 모르는 것을
 /// 아는 척하지 않으면서, 권한이 있는 사람의 화면은 그대로 남긴다.
 ///
-/// **왜 이 재조회가 4.1 이 세운 절제를 깨지 않는가.** `lib/features/badges/visit_status_notice.dart`
-/// 의 `_permissionMissingStatusProvider` 가 이미 같은 일을 한다 — 그 파일
-/// 머리말이 `lib/location/CLAUDE.md` 를 인용해 "다시 물을 수 있는지를 갈라야
-/// 하는 자리는 그때 `status()` 를 그 자리에서 물으면 된다"고 근거를 적어
-/// 두었다. 이 provider 도 [FutureProvider.autoDispose] 라 아무도 구독하지
-/// 않는 동안(그 밖의 다섯 갈래 — 시즌 중 대부분의 날)은 인스턴스화조차 되지
-/// 않는다.
+/// **왜 이 재조회가 4.1 이 세운 절제를 깨지 않는가.** `lib/location/CLAUDE.md`
+/// 가 "다시 물을 수 있는지를 갈라야 하는 자리는 그때 `status()` 를 그 자리에서
+/// 물으면 된다"고 근거를 적어 두었고, 4.5 의 배지 탭 안내가 이미 같은 일을
+/// 한다 — 그래서 그 물음은 화면마다 짓지 않고 위치 계층의
+/// [locationPermissionStatusProvider] 하나를 함께 쓴다. 그 provider 는
+/// [FutureProvider.autoDispose] 라 아무도 구독하지 않는 동안(권한을 물을
+/// 까닭이 없는 갈래 — 시즌 중 대부분의 날)은 인스턴스화조차 되지 않는다.
 ///
 /// **실측으로 확인한 대가 — 처음 시도와 다른 자리.** 처음에는
 /// [LocationPermissionGateway.status] 를 홈이 **모든 갈래에서 매 빌드마다**
@@ -76,18 +76,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../content/models.dart';
 import '../../location/location.dart';
 import '../../location/visit_check.dart';
-
-/// 판정이 권한을 말해 주지 못하는 갈래에서만 권한 상태를 다시 묻는 자리
-/// ([currentLocationNeedsPermissionAnswer] 가 그 갈래를 가른다) — 위 문서의
-/// "왜 이 재조회가 4.1 이 세운 절제를 깨지 않는가" 참조.
-/// [resolveLocationPermission] 을 그대로 통과시켜 실패 계약(상한 안에 반드시
-/// 답한다)을 새로 만들지 않는다.
-final currentLocationPermissionProvider =
-    FutureProvider.autoDispose<LocationPermissionStatus>(
-      (ref) => resolveLocationPermission(
-        () => ref.read(locationPermissionGatewayProvider).status(),
-      ),
-    );
 
 /// 홈 목록에서 위치 자리를 가리키는 표지 — **"상단"을 자리로 재기 위한
 /// 것이다** (5.2 acceptance 의 "권한이 있으면 현재 위치가 **상단에** 뜬다").

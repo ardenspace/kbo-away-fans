@@ -162,3 +162,30 @@ class DevicePermissionHandlerGateway extends LocationPermissionGateway {
 final locationPermissionGatewayProvider = Provider<LocationPermissionGateway>(
   (_) => const DevicePermissionHandlerGateway(),
 );
+
+/// **지금** 권한 상태를 한 번 묻는 자리 — 다이얼로그 없는 [LocationPermissionGateway.status]
+/// 하나를 [resolveLocationPermission] 에 통과시킨 값이다.
+///
+/// 4.1 의 판정 결과([StadiumVisitResult])는 갈래에 따라 권한을 말해 주지
+/// 못한다 — [StadiumVisitReason.permissionMissing] 은 `denied` 와
+/// `permanentlyDenied` 를 하나로 접었고, [StadiumVisitReason.noGameToday] 는
+/// 권한을 묻기도 전에 끝난 갈래다. 이 폴더의 CLAUDE.md 가 "다시 물을 수
+/// 있는지를 갈라야 하는 자리는 그때 `status()` 를 그 자리에서 물으면 된다"고
+/// 남긴 자리이고, 그 물음을 화면마다 각자 짓지 않도록 여기 하나로 둔다.
+///
+/// **화면 둘이 글자 그대로 같은 provider 를 각자 갖고 있었다** — 4.5 의 배지
+/// 탭 안내(`_permissionMissingStatusProvider`)와 5.2 의 홈 상단
+/// (`noGameTodayPermissionProvider`). 이 저장소의 공통 요소 규칙("두 군데
+/// 이상에서 쓰이면 공통 자리로 올린다")에 따라 phase 5 통합 검증이 그것을
+/// 여기로 승격했다. 권한을 아는 계층이 이 폴더이므로 자리도 여기다.
+///
+/// [autoDispose] 라 아무도 구독하지 않는 동안에는 인스턴스화되지 않고, 다시
+/// 물어야 하는 화면은 [Ref.invalidate] 로 새로 묻는다.
+/// **[LocationPermissionGateway.request] 는 이 자리를 지나지 않는다** — OS
+/// 다이얼로그를 띄우는 것은 화면의 결정이다(2.5·4.5).
+final locationPermissionStatusProvider =
+    FutureProvider.autoDispose<LocationPermissionStatus>(
+      (ref) => resolveLocationPermission(
+        () => ref.read(locationPermissionGatewayProvider).status(),
+      ),
+    );
