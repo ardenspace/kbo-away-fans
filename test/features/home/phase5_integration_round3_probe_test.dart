@@ -25,9 +25,6 @@
 ///      acceptance 3)를 화면으로 잰다.
 library;
 
-import 'dart:convert';
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -47,19 +44,32 @@ import 'package:kbo_away_fans/weather/weather.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../backend/fake_backend.dart';
+import '../../content/live_schedule.dart';
 
 const String _uid = 'google-uid';
 
-/// 사직야구장 (`content-pipeline/data/stadiums.json`).
-const double _sajikLat = 35.1941;
-const double _sajikLng = 129.0615;
+/// 이 탐침이 응원 팀으로 **먼저 보는** 팀 — 이 팀의 일정에 걸을 경기가 없으면
+/// 앵커가 다른 팀으로 넘어간다([AwayGameAnchor.teamId] 가 실제로 고른 팀이다).
+const String _teamId = 'lg';
 
-/// 서울 시청 — 사직에서 약 320km.
-const double _seoulLat = 37.5665;
-const double _seoulLng = 126.9780;
+/// 콘텐츠 4종의 실 산출물 — 이 파일의 시험들이 함께 쓴다.
+late LiveContent _content;
 
-Map<String, Object?> _readJson(String path) =>
-    jsonDecode(File(path).readAsStringSync()) as Map<String, Object?>;
+/// 이 탐침이 걷는 원정 경기 — **실행 시점에 실 일정에서 고른다.**
+///
+/// 이 문서는 크롤이 경기 시간대에 20분마다 다시 쓰고 그 창이 앞뒤로
+/// 움직이므로, 고른 경기를 리터럴로 박으면 아무도 코드를 건드리지 않아도 이
+/// 파일이 빨간불이 된다 (`test/content/live_schedule.dart` 첫 문단).
+late AwayGameAnchor _anchor;
+
+/// 리그 전체에 경기가 하나도 없는 시각.
+late DateTime _noGameDay;
+
+/// 기기가 그 구장 안에 있다.
+_Spot _atStadium() => _Spot(lat: _anchor.stadium.lat, lng: _anchor.stadium.lng);
+
+/// 기기가 어느 구장에서도 멀다.
+_Spot _offStadium() => _Spot(lat: kOffStadiumLat, lng: kOffStadiumLng);
 
 class _Clock {
   _Clock(this.now);
@@ -116,7 +126,7 @@ Future<_Harness> _pump(
   WidgetTester tester, {
   required DateTime at,
   required _Spot spot,
-  String teamId = 'lg',
+  String? teamId,
   LocationPermissionStatus permission = LocationPermissionStatus.granted,
 }) async {
   SharedPreferences.setMockInitialValues({});
@@ -129,27 +139,20 @@ Future<_Harness> _pump(
   final fixReads = <int>[];
   addTearDown(auth.dispose);
   addTearDown(store.dispose);
+  final team = teamId ?? _anchor.teamId;
   await store.createProfile(
     _uid,
     NewUserProfile(
       nickname: '원정러',
-      favoriteTeamId: teamId,
-      profileThemeKey: teamId,
+      favoriteTeamId: team,
+      profileThemeKey: team,
     ),
   );
 
-  final teams = TeamsDocument.fromJson(
-    _readJson('content-pipeline/data/teams.json'),
-  );
-  final stadiums = StadiumsDocument.fromJson(
-    _readJson('content-pipeline/data/stadiums.json'),
-  );
-  final places = PlacesDocument.fromJson(
-    _readJson('content-pipeline/data/places.json'),
-  );
-  final schedule = ScheduleDocument.fromJson(
-    _readJson('content-pipeline/data/schedule.json'),
-  );
+  final teams = _content.teams;
+  final stadiums = _content.stadiums;
+  final places = _content.places;
+  final schedule = _content.schedule;
 
   await tester.pumpWidget(
     ProviderScope(
@@ -210,24 +213,26 @@ bool _locationRowStands() => find
     .isNotEmpty;
 
 void main() {
+  setUpAll(() {
+    _content = readLiveContent();
+    _anchor = pickAwayGameAnchor(content: _content, preferredTeamId: _teamId);
+    _noGameDay = pickNoGameMoment(_content.schedule);
+  });
+
   testWidgets(
     'Q1) 도장을 받은 뒤 OS 설정에서 권한을 끄고 돌아오면 홈 상단 위치 자리가 사라지는가',
     (tester) async {
-      // 2026-08-29 18:00 사직 (롯데 vs LG) — LG 팬의 원정 경기.
-      final h = await _pump(
-        tester,
-        at: DateTime.parse('2026-08-29T19:00:00+09:00'),
-        spot: _Spot(lat: _sajikLat, lng: _sajikLng),
-      );
+      // 실 일정에서 고른 그 팀의 원정 경기 — 경기 도중, 구장 안이다.
+      final h = await _pump(tester, at: _anchor.atGame, spot: _atStadium());
       await _dismissReveal(tester);
       expect(h.store.stampUploads, isNotEmpty, reason: '이 실행이 도장을 받았다');
       expect(_locationRowStands(), isTrue);
       final readsBefore = h.fixReads.length;
 
       // 경기 도중 배터리가 아까워(또는 그냥) OS 설정에서 위치 권한을 껐다.
-      // 창은 아직 열려 있다 (18:00 + 5h = 23:00).
+      // 창은 아직 열려 있다 (시작 + 5시간).
       h.gateway.current = LocationPermissionStatus.denied;
-      h.clock.now = DateTime.parse('2026-08-29T19:30:00+09:00');
+      h.clock.now = _anchor.at(const Duration(hours: 1, minutes: 30));
       await _resume(tester);
       await _dismissReveal(tester);
 
@@ -266,17 +271,13 @@ void main() {
   testWidgets(
     'Q1-b) 그 구멍은 시간 창이 닫히면 스스로 닫힌다 — 다만 그때까지 최대 다섯 시간이다',
     (tester) async {
-      final h = await _pump(
-        tester,
-        at: DateTime.parse('2026-08-29T19:00:00+09:00'),
-        spot: _Spot(lat: _sajikLat, lng: _sajikLng),
-      );
+      final h = await _pump(tester, at: _anchor.atGame, spot: _atStadium());
       await _dismissReveal(tester);
       expect(_locationRowStands(), isTrue);
 
-      // 권한을 끈 채 창이 닫힌 뒤(18:00 + 5h = 23:00)에 돌아온다.
+      // 권한을 끈 채 창이 닫힌 뒤(시작 + 5시간)에 돌아온다.
       h.gateway.current = LocationPermissionStatus.denied;
-      h.clock.now = DateTime.parse('2026-08-29T23:30:00+09:00');
+      h.clock.now = _anchor.afterWindow;
       await _resume(tester);
 
       expect(
@@ -294,15 +295,15 @@ void main() {
     (tester) async {
       final h = await _pump(
         tester,
-        at: DateTime.parse('2026-08-29T19:00:00+09:00'),
-        // 구장 밖(서울) — 같은 날 같은 시각이지만 도장이 나오지 않는다.
-        spot: _Spot(lat: _seoulLat, lng: _seoulLng),
+        at: _anchor.atGame,
+        // 구장 밖 — 같은 날 같은 시각이지만 도장이 나오지 않는다.
+        spot: _offStadium(),
       );
       expect(h.store.stampUploads, isEmpty);
       expect(_locationRowStands(), isTrue);
 
       h.gateway.current = LocationPermissionStatus.denied;
-      h.clock.now = DateTime.parse('2026-08-29T19:30:00+09:00');
+      h.clock.now = _anchor.at(const Duration(hours: 1, minutes: 30));
       await _resume(tester);
 
       expect(
@@ -317,13 +318,9 @@ void main() {
   test(
     'Q3) 5.1 의 최근 5경기가 실 일정 문서(schemaVersion 2)와 어긋나지 않는다',
     () {
-      final schedule = ScheduleDocument.fromJson(
-        _readJson('content-pipeline/data/schedule.json'),
-      );
-      final teams = TeamsDocument.fromJson(
-        _readJson('content-pipeline/data/teams.json'),
-      );
-      expect(_readJson('content-pipeline/data/schedule.json')['schemaVersion'], 2);
+      final schedule = _content.schedule;
+      final teams = _content.teams;
+      expect(readLiveJson('schedule.json')['schemaVersion'], 2);
 
       for (final team in teams.teams) {
         final picked = recentGamesFor(schedule: schedule, teamId: team.id);
@@ -384,7 +381,7 @@ void main() {
     'Q4) 종료된 경기가 하나도 없는 일정에서는 홈 중단에 빈 상태가 뜬다',
     (tester) async {
       // 실 문서에서 종료 경기를 전부 걷어 낸 일정 — 개막 전의 모양이다.
-      final raw = _readJson('content-pipeline/data/schedule.json');
+      final raw = readLiveJson('schedule.json');
       final games = (raw['games']! as List<Object?>)
           .cast<Map<String, Object?>>()
           .where((g) => g['status'] != 'finished')
@@ -393,7 +390,7 @@ void main() {
         ...raw,
         'games': games,
       });
-      expect(recentGamesFor(schedule: schedule, teamId: 'lg'), isEmpty);
+      expect(recentGamesFor(schedule: schedule, teamId: _anchor.teamId), isEmpty);
 
       SharedPreferences.setMockInitialValues({});
       final auth = FakeAuthService(
@@ -404,21 +401,15 @@ void main() {
       addTearDown(store.dispose);
       await store.createProfile(
         _uid,
-        const NewUserProfile(
+        NewUserProfile(
           nickname: '원정러',
-          favoriteTeamId: 'lg',
-          profileThemeKey: 'lg',
+          favoriteTeamId: _anchor.teamId,
+          profileThemeKey: _anchor.teamId,
         ),
       );
-      final teams = TeamsDocument.fromJson(
-        _readJson('content-pipeline/data/teams.json'),
-      );
-      final stadiums = StadiumsDocument.fromJson(
-        _readJson('content-pipeline/data/stadiums.json'),
-      );
-      final places = PlacesDocument.fromJson(
-        _readJson('content-pipeline/data/places.json'),
-      );
+      final teams = _content.teams;
+      final stadiums = _content.stadiums;
+      final places = _content.places;
 
       await tester.pumpWidget(
         ProviderScope(
@@ -431,9 +422,7 @@ void main() {
             weatherEffectProvider.overrideWith(
               (ref, point) async => WeatherEffect.none,
             ),
-            clockProvider.overrideWithValue(
-              () => DateTime.parse('2026-08-17T10:00:00+09:00'),
-            ),
+            clockProvider.overrideWithValue(() => _noGameDay),
             teamsProvider.overrideWith((ref) async => ContentFresh(teams)),
             stadiumsProvider.overrideWith(
               (ref) async => ContentFresh(stadiums),

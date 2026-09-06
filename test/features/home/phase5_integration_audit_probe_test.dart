@@ -21,9 +21,6 @@
 ///      재어진다.
 library;
 
-import 'dart:convert';
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -31,7 +28,6 @@ import 'package:kbo_away_fans/backend/auth.dart';
 import 'package:kbo_away_fans/backend/user_data.dart';
 import 'package:kbo_away_fans/content/content_loader.dart';
 import 'package:kbo_away_fans/content/content_providers.dart';
-import 'package:kbo_away_fans/content/models.dart';
 import 'package:kbo_away_fans/features/badges/stamp_reveal.dart';
 import 'package:kbo_away_fans/features/home/current_location.dart';
 import 'package:kbo_away_fans/features/home/main_tabs_root.dart';
@@ -42,19 +38,33 @@ import 'package:kbo_away_fans/weather/weather.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../backend/fake_backend.dart';
+import '../../content/live_schedule.dart';
 
 const String _uid = 'google-uid';
 
-/// 사직야구장 (`content-pipeline/data/stadiums.json`).
-const double _sajikLat = 35.1941;
-const double _sajikLng = 129.0615;
+/// 이 탐침이 응원 팀으로 **먼저 보는** 팀 — 이 팀의 일정에 걸을 경기가 없으면
+/// 앵커가 다른 팀으로 넘어간다([AwayGameAnchor.teamId] 가 실제로 고른 팀이다).
+const String _teamId = 'lg';
 
-/// 서울 시청 — 사직에서 약 320km.
-const double _seoulLat = 37.5665;
-const double _seoulLng = 126.9780;
+/// 콘텐츠 4종의 실 산출물 — 이 파일의 시험들이 함께 쓴다.
+late LiveContent _content;
 
-Map<String, Object?> _readJson(String path) =>
-    jsonDecode(File(path).readAsStringSync()) as Map<String, Object?>;
+/// 이 탐침이 걷는 원정 경기 — **실행 시점에 실 일정에서 고른다.**
+///
+/// 이 문서는 크롤이 경기 시간대에 20분마다 다시 쓰고 그 창이 앞뒤로
+/// 움직이므로, 고른 경기를 리터럴로 박으면 아무도 코드를 건드리지 않아도 이
+/// 파일이 빨간불이 된다 (`test/content/live_schedule.dart` 첫 문단).
+late AwayGameAnchor _anchor;
+
+/// 리그 전체에 경기가 하나도 없는 시각 — `judgeStadiumVisit` 이 권한을 묻기도
+/// 전에 `noGameToday` 로 끝나는 갈래.
+late DateTime _noGameDay;
+
+/// 기기가 그 구장 안에 있다.
+_Spot _atStadium() => _Spot(lat: _anchor.stadium.lat, lng: _anchor.stadium.lng);
+
+/// 기기가 어느 구장에서도 멀다 — "집에 왔다".
+_Spot _offStadium() => _Spot(lat: kOffStadiumLat, lng: kOffStadiumLng);
 
 class _Clock {
   _Clock(this.now);
@@ -125,25 +135,17 @@ Future<_Harness> _pump(
   addTearDown(store.dispose);
   await store.createProfile(
     _uid,
-    const NewUserProfile(
+    NewUserProfile(
       nickname: '원정러',
-      favoriteTeamId: 'lg',
-      profileThemeKey: 'lg',
+      favoriteTeamId: _anchor.teamId,
+      profileThemeKey: _anchor.teamId,
     ),
   );
 
-  final teams = TeamsDocument.fromJson(
-    _readJson('content-pipeline/data/teams.json'),
-  );
-  final stadiums = StadiumsDocument.fromJson(
-    _readJson('content-pipeline/data/stadiums.json'),
-  );
-  final places = PlacesDocument.fromJson(
-    _readJson('content-pipeline/data/places.json'),
-  );
-  final schedule = ScheduleDocument.fromJson(
-    _readJson('content-pipeline/data/schedule.json'),
-  );
+  final teams = _content.teams;
+  final stadiums = _content.stadiums;
+  final places = _content.places;
+  final schedule = _content.schedule;
 
   await tester.pumpWidget(
     ProviderScope(
@@ -204,23 +206,25 @@ bool _locationRowStands() => find
     .isNotEmpty;
 
 void main() {
+  setUpAll(() {
+    _content = readLiveContent();
+    _anchor = pickAwayGameAnchor(content: _content, preferredTeamId: _teamId);
+    _noGameDay = pickNoGameMoment(_content.schedule);
+  });
+
   testWidgets(
-    'P1) 경기 없는 날 — OS 설정에서 권한을 끄고 돌아와도 홈 상단 위치 자리가 그대로 선다',
+    'P1) 리그가 쉬는 날 — OS 설정에서 권한을 끄고 돌아와도 홈 상단 위치 자리가 그대로 선다',
     (tester) async {
-      // 2026-08-31 은 월요일이고 이 일정 문서에 경기가 하나도 없다 —
-      // `judgeStadiumVisit` 이 권한을 묻기도 전에 `noGameToday` 로 끝내는 날,
-      // 곧 5.2 가 권한을 따로 물어 자리를 세우는 그 갈래다.
-      final h = await _pump(
-        tester,
-        at: DateTime.parse('2026-08-31T10:00:00+09:00'),
-        spot: _Spot(lat: _seoulLat, lng: _seoulLng),
-      );
+      // 리그 전체가 쉬는 날 — `judgeStadiumVisit` 이 권한을 묻기도 전에
+      // `noGameToday` 로 끝내는 날, 곧 5.2 가 권한을 따로 물어 자리를 세우는
+      // 그 갈래다. 어느 날인지는 실 일정에서 고른다.
+      final h = await _pump(tester, at: _noGameDay, spot: _offStadium());
       expect(_locationRowStands(), isTrue, reason: '권한이 있으면 자리가 선다');
       final callsWhileGranted = h.gateway.statusCalls;
 
       // 사람이 OS 설정에서 위치 권한을 껐다 (앱은 배경에 살아 있다).
       h.gateway.current = LocationPermissionStatus.denied;
-      h.clock.now = DateTime.parse('2026-08-31T10:30:00+09:00');
+      h.clock.now = _noGameDay.add(const Duration(minutes: 30));
       await _resume(tester);
 
       expect(
@@ -240,18 +244,18 @@ void main() {
   );
 
   testWidgets(
-    'P2) 경기 없는 날 — OS 설정에서 권한을 켜고 돌아오면 자리가 선다',
+    'P2) 리그가 쉬는 날 — OS 설정에서 권한을 켜고 돌아오면 자리가 선다',
     (tester) async {
       final h = await _pump(
         tester,
-        at: DateTime.parse('2026-08-31T10:00:00+09:00'),
-        spot: _Spot(lat: _seoulLat, lng: _seoulLng),
+        at: _noGameDay,
+        spot: _offStadium(),
         permission: LocationPermissionStatus.denied,
       );
       expect(_locationRowStands(), isFalse);
 
       h.gateway.current = LocationPermissionStatus.granted;
-      h.clock.now = DateTime.parse('2026-08-31T10:30:00+09:00');
+      h.clock.now = _noGameDay.add(const Duration(minutes: 30));
       await _resume(tester);
 
       expect(
@@ -266,21 +270,17 @@ void main() {
   testWidgets(
     'P3) 앱을 켠 채 구장을 떠나 시각만 흐른 실행 — 홈 상단이 옛 구장을 계속 가리키는가',
     (tester) async {
-      final h = await _pump(
-        tester,
-        at: DateTime.parse('2026-08-29T19:00:00+09:00'),
-        spot: _Spot(lat: _sajikLat, lng: _sajikLng),
-      );
+      final h = await _pump(tester, at: _anchor.atGame, spot: _atStadium());
       await _dismissReveal(tester);
-      expect(find.text('사직야구장 근처예요'), findsOneWidget);
+      expect(find.text(_anchor.nearbyLabel), findsOneWidget);
 
-      // 경기가 끝나고 서울 집으로 돌아왔다. **앱은 계속 포그라운드다** —
+      // 경기가 끝나고 집으로 돌아왔다. **앱은 계속 포그라운드다** —
       // 배경으로 보낸 적이 없으므로 `StadiumVisitTrigger` 의 `resumed` 도,
       // `lib/app.dart` 의 콘텐츠 재로드도 일어나지 않는다.
       h.spot
-        ..lat = _seoulLat
-        ..lng = _seoulLng;
-      h.clock.now = DateTime.parse('2026-08-29T21:30:00+09:00');
+        ..lat = kOffStadiumLat
+        ..lng = kOffStadiumLng;
+      h.clock.now = _anchor.at(const Duration(hours: 3, minutes: 30));
 
       // 사람이 앱 안에서 하는 일: 탭을 오가고 홈으로 돌아온다.
       await tester.tap(find.text('배지'));
@@ -289,7 +289,7 @@ void main() {
       await tester.pumpAndSettle(const Duration(seconds: 5));
 
       expect(
-        find.text('사직야구장 근처예요'),
+        find.text(_anchor.nearbyLabel),
         findsNothing,
         reason: '판정이 난 지 2시간 30분 — kCurrentLocationFreshness(15분)를 한참 넘겼다',
       );

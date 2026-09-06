@@ -20,9 +20,6 @@
 /// 탭 뿌리에서만 재었다).
 library;
 
-import 'dart:convert';
-import 'dart:io';
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kbo_away_fans/app.dart';
@@ -49,18 +46,32 @@ import 'package:kbo_away_fans/ui/shared/stamp_badge.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'backend/fake_backend.dart';
+import 'content/live_schedule.dart';
 import 'location/fake_location_permission_gateway.dart';
 
-/// 실 산출물이 아는 잠실 경기 하나 — 2026-09-01 18:30, 두산(홈) vs LG(원정).
-const String _gameId = '20260901LGOB02026';
-const String _cellId = 'jamsil_doosan';
-final DateTime _atGame = DateTime.parse('2026-09-01T19:00:00+09:00');
+/// 첫 계정이 응원 팀으로 **먼저 보는** 팀 — 이 팀의 일정에 걸을 경기가 없으면
+/// 앵커가 다른 팀으로 넘어간다([AwayGameAnchor.teamId] 가 실제로 고른 팀이다).
+const String _teamId = 'lg';
 
-/// 잠실야구장 좌표 — `content-pipeline/data/stadiums.json` 의 값.
-const DeviceFix _atStadium = DeviceFix(lat: 37.5122, lng: 127.0719);
+/// 두 번째 계정이 고르는 팀 — 앞사람의 것이 남지 않았는지 보려면 첫 계정과
+/// **다른 팀**이기만 하면 된다. 어느 팀인지는 팀 문서에서 고른다.
+Team get _otherTeam =>
+    _content.teams.teams.firstWhere((team) => team.id != _anchor.teamId);
+
+/// 실 산출물 네 문서와, 이 여정이 걷는 원정 경기.
+///
+/// 경기를 리터럴로 박지 않는 까닭은 `test/content/live_schedule.dart` 의 첫
+/// 문단에 있다 — 일정 문서는 크롤이 경기 시간대에 20분마다 다시 쓰고, 그 창은
+/// 앞뒤로 움직인다(이 파일의 `8/27` 단언이 실제로 그렇게 빨간불이 됐다).
+late LiveContent _content;
+late AwayGameAnchor _anchor;
+
+/// 구장 안에 선 기기 — 앵커 경기가 열리는 구장의 좌표.
+DeviceFix get _atStadium =>
+    DeviceFix(lat: _anchor.stadium.lat, lng: _anchor.stadium.lng);
 
 /// 구장에서 멀리 떨어진 지점 — 계정을 바꾸기 전에 기기를 여기로 옮긴다.
-const DeviceFix _farAway = DeviceFix(lat: 35.1796, lng: 129.0756);
+const DeviceFix _farAway = DeviceFix(lat: kOffStadiumLat, lng: kOffStadiumLng);
 
 /// 기기가 지금 어디 있는가 — 걸어가면서 바꾼다.
 class _Where {
@@ -90,26 +101,12 @@ Future<void> _tapText(WidgetTester tester, String text) async {
 }
 
 void main() {
-  late TeamsDocument teams;
-  late StadiumsDocument stadiums;
-  late PlacesDocument places;
-  late ScheduleDocument schedule;
-
   setUpAll(() {
-    Map<String, Object?> readJson(String path) =>
-        jsonDecode(File(path).readAsStringSync()) as Map<String, Object?>;
     // 네 문서 다 **실 산출물**을 그대로 판다 — 파이프라인의 계약과 앱의 파서가
     // 어긋나면 여기서 던진다(schedule 은 이 사이클에서 schemaVersion 2 가 됐다).
-    teams = TeamsDocument.fromJson(readJson('content-pipeline/data/teams.json'));
-    stadiums = StadiumsDocument.fromJson(
-      readJson('content-pipeline/data/stadiums.json'),
-    );
-    places = PlacesDocument.fromJson(
-      readJson('content-pipeline/data/places.json'),
-    );
-    schedule = ScheduleDocument.fromJson(
-      readJson('content-pipeline/data/schedule.json'),
-    );
+    _content = readLiveContent();
+    // 걸을 경기는 그 문서에서 고른다 — 어느 경기인지는 산출물이 정한다.
+    _anchor = pickAwayGameAnchor(content: _content, preferredTeamId: _teamId);
   });
 
   testWidgets(
@@ -131,11 +128,19 @@ void main() {
             authServiceProvider.overrideWithValue(auth),
             userDataStoreProvider.overrideWithValue(store),
             locationPermissionGatewayProvider.overrideWithValue(gateway),
-            clockProvider.overrideWithValue(() => _atGame),
-            teamsProvider.overrideWith((ref) async => ContentFresh(teams)),
-            stadiumsProvider.overrideWith((ref) async => ContentFresh(stadiums)),
-            placesProvider.overrideWith((ref) async => ContentFresh(places)),
-            scheduleProvider.overrideWith((ref) async => ContentFresh(schedule)),
+            clockProvider.overrideWithValue(() => _anchor.atGame),
+            teamsProvider.overrideWith(
+              (ref) async => ContentFresh(_content.teams),
+            ),
+            stadiumsProvider.overrideWith(
+              (ref) async => ContentFresh(_content.stadiums),
+            ),
+            placesProvider.overrideWith(
+              (ref) async => ContentFresh(_content.places),
+            ),
+            scheduleProvider.overrideWith(
+              (ref) async => ContentFresh(_content.schedule),
+            ),
             stadiumVisitCheckerProvider.overrideWith((ref) {
               final g = ref.watch(locationPermissionGatewayProvider);
               return StadiumVisitChecker(
@@ -156,21 +161,23 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byType(TeamSelectScreen), findsOneWidget);
 
-      await _tapText(tester, 'LG 트윈스');
+      await _tapText(tester, _content.teams.byId(_anchor.teamId)!.name);
       expect(find.byType(LocationConsentScreen), findsOneWidget);
       await _tapText(tester, '위치 권한 허용하기');
 
       // ── phase 3·5 — 홈에 닿고, 홈 상단이 이 사람의 것이다.
       expect(find.byType(HomeScreen), findsOneWidget);
       final uidA = fakeUidOf(AuthProviderId.google);
-      expect(store.documents[uidA]![UserFields.favoriteTeamId], 'lg');
+      expect(store.documents[uidA]![UserFields.favoriteTeamId], _anchor.teamId);
 
       // 5.1 — 최근 경기 요약이 실 산출물의 끝난 경기에서 선다.
-      //      (LG 는 8/18~8/20, 8/25~8/27 여섯 경기를 끝냈다.)
+      //      앵커 경기 자신이 그 팀의 최근 다섯 줄 안에 드는 종료 경기다.
       expect(
-        find.textContaining('8/27', skipOffstage: false),
-        findsWidgets,
-        reason: '최근 5경기 요약이 schedule schemaVersion 2 의 과거 경기를 읽는다',
+        find.text(_anchor.dayLabel, skipOffstage: false),
+        findsOneWidget,
+        reason:
+            '최근 5경기 요약이 schedule schemaVersion 2 의 과거 경기를 읽는다 '
+            '(앵커: ${_anchor.game.id})',
       );
 
       // 5.2 — 현재 위치 줄이 홈에 서 있다.
@@ -183,15 +190,16 @@ void main() {
       await tester.pumpAndSettle(const Duration(seconds: 5));
       expect(
         store.stamps[uidA]?.keys,
-        contains('jamsil_$_gameId'),
+        contains(_anchor.stampDocumentId),
         reason: '경기일 + 구장 반경 + 시간 창 세 조건이 맞으면 도장이 찍힌다',
       );
       final boardA = (await store.readProfile(uidA))!.board;
-      expect(boardA[_cellId]?.count, 1);
+      expect(boardA[_anchor.boardCellId]?.count, 1);
 
       // ── phase 3 — 장소 좋아요.
       await _tapText(tester, '추천');
-      await _tapText(tester, '잠실야구장');
+      // 추천 목록이 실제로 서는 구장을 장소 문서에서 고른다.
+      await _tapText(tester, stadiumWithPlaces(_content).name);
       final likeButton = find
           .descendant(
             of: find.byType(PlaceCard, skipOffstage: false),
@@ -227,7 +235,7 @@ void main() {
         reason: '문서가 없는 새 계정은 앞사람의 팀으로 홈에 들어가지 않는다',
       );
 
-      await _tapText(tester, '한화 이글스');
+      await _tapText(tester, _otherTeam.name);
       // 위치 설명은 **다시 서지 않는다** — OS 권한은 기기의 것이고 앞사람이
       // 이미 허용했다(`location_consent.dart`: 이미 결정된 값이면 게이트를
       // 그대로 지나간다). `phase2_journey_probe_test.dart` 의 계정 전환
@@ -237,7 +245,7 @@ void main() {
       expect(find.byType(HomeScreen), findsOneWidget);
 
       final uidB = fakeUidOf(AuthProviderId.kakao);
-      expect(store.documents[uidB]![UserFields.favoriteTeamId], 'hanwha');
+      expect(store.documents[uidB]![UserFields.favoriteTeamId], _otherTeam.id);
 
       // 판: 새 계정의 칸은 전부 비어 있다.
       await _tapText(tester, '배지');

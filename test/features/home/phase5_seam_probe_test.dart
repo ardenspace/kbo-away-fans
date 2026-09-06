@@ -21,9 +21,6 @@
 ///     각각 무엇을 말하는가.
 library;
 
-import 'dart:convert';
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -42,16 +39,34 @@ import 'package:kbo_away_fans/weather/weather.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../backend/fake_backend.dart';
+import '../../content/live_schedule.dart';
 import '../../location/fake_location_permission_gateway.dart';
 
 const String _uid = 'google-uid';
 
-/// 사직야구장 (`content-pipeline/data/stadiums.json`).
-const double _sajikLat = 35.1941;
-const double _sajikLng = 129.0615;
+/// 이 탐침이 응원 팀으로 **먼저 보는** 팀 — 이 팀의 일정에 걸을 경기가 없으면
+/// 앵커가 다른 팀으로 넘어간다([AwayGameAnchor.teamId] 가 실제로 고른 팀이다).
+const String _teamId = 'lg';
 
-Map<String, Object?> _readJson(String path) =>
-    jsonDecode(File(path).readAsStringSync()) as Map<String, Object?>;
+/// 콘텐츠 4종의 실 산출물 — 이 파일의 시험들이 함께 쓴다.
+late LiveContent _content;
+
+/// 이 탐침이 걷는 원정 경기 — **실행 시점에 실 일정에서 고른다.**
+///
+/// 날짜도 구장도 여기 적지 않는다. 이 문서는 크롤이 경기 시간대에 20분마다
+/// 다시 쓰고 그 창이 앞뒤로 움직이므로, 고른 경기를 리터럴로 박으면 아무도
+/// 코드를 건드리지 않아도 이 파일이 빨간불이 된다
+/// (`test/content/live_schedule.dart` 첫 문단).
+late AwayGameAnchor _anchor;
+
+/// 리그 전체에 경기가 하나도 없는 시각.
+late DateTime _noGameDay;
+
+/// 기기가 그 구장 안에 있다.
+_Spot _atStadium() => _Spot(lat: _anchor.stadium.lat, lng: _anchor.stadium.lng);
+
+/// 기기가 어느 구장에서도 멀다 — "집에 왔다".
+_Spot _offStadium() => _Spot(lat: kOffStadiumLat, lng: kOffStadiumLng);
 
 class _Clock {
   _Clock(this.now);
@@ -103,25 +118,17 @@ Future<_Harness> _pump(
   addTearDown(store.dispose);
   await store.createProfile(
     _uid,
-    const NewUserProfile(
+    NewUserProfile(
       nickname: '원정러',
-      favoriteTeamId: 'lg',
-      profileThemeKey: 'lg',
+      favoriteTeamId: _anchor.teamId,
+      profileThemeKey: _anchor.teamId,
     ),
   );
 
-  final teams = TeamsDocument.fromJson(
-    _readJson('content-pipeline/data/teams.json'),
-  );
-  final stadiums = StadiumsDocument.fromJson(
-    _readJson('content-pipeline/data/stadiums.json'),
-  );
-  final places = PlacesDocument.fromJson(
-    _readJson('content-pipeline/data/places.json'),
-  );
-  final schedule = ScheduleDocument.fromJson(
-    _readJson('content-pipeline/data/schedule.json'),
-  );
+  final teams = _content.teams;
+  final stadiums = _content.stadiums;
+  final places = _content.places;
+  final schedule = _content.schedule;
 
   await tester.pumpWidget(
     ProviderScope(
@@ -177,21 +184,23 @@ Future<void> _dismissReveal(WidgetTester tester) async {
 }
 
 void main() {
+  setUpAll(() {
+    _content = readLiveContent();
+    _anchor = pickAwayGameAnchor(content: _content, preferredTeamId: _teamId);
+    _noGameDay = pickNoGameMoment(_content.schedule);
+  });
+
   testWidgets(
     'A) 원정 구장에서 앱을 열면 홈 상단에 그 구장이, 중단에 최근 5경기가 함께 선다',
     (tester) async {
-      // 2026-08-29 18:00 사직 (롯데 vs LG) — LG 팬의 원정 경기.
-      final h = await _pump(
-        tester,
-        at: DateTime.parse('2026-08-29T19:00:00+09:00'),
-        spot: _Spot(lat: _sajikLat, lng: _sajikLng),
-      );
+      // 실 일정에서 고른 그 팀의 원정 경기 — 경기 도중, 구장 안이다.
+      final h = await _pump(tester, at: _anchor.atGame, spot: _atStadium());
       await _dismissReveal(tester);
 
       expect(
-        find.text('사직야구장 근처예요'),
+        find.text(_anchor.nearbyLabel),
         findsOneWidget,
-        reason: '4.1 이 실제로 돌린 판정이 홈 상단까지 와야 한다',
+        reason: '4.1 이 실제로 돌린 판정이 홈 상단까지 와야 한다 (${_anchor.game.id})',
       );
       expect(
         find.text('최근 5경기', skipOffstage: false),
@@ -210,20 +219,16 @@ void main() {
     // 결과와 함께 **그것이 언제 난 답인지**(`stadiumVisitRunProvider`)를 읽어,
     // 게이트에 막혀 갱신되지 못한 판정은 구장 이름으로 쓰지 않는다.
     (tester) async {
-      final h = await _pump(
-        tester,
-        at: DateTime.parse('2026-08-29T19:00:00+09:00'),
-        spot: _Spot(lat: _sajikLat, lng: _sajikLng),
-      );
+      final h = await _pump(tester, at: _anchor.atGame, spot: _atStadium());
       await _dismissReveal(tester);
-      expect(find.text('사직야구장 근처예요'), findsOneWidget);
+      expect(find.text(_anchor.nearbyLabel), findsOneWidget);
       final readsAtStadium = h.fixReads.length;
 
-      // 경기가 끝나고 서울 집으로 돌아왔다 (창은 아직 열려 있다: 18:00+5h).
+      // 경기가 끝나고 집으로 돌아왔다 (창은 아직 열려 있다: 시작 + 5시간).
       h.spot
-        ..lat = 37.5665
-        ..lng = 126.9780;
-      h.clock.now = DateTime.parse('2026-08-29T21:30:00+09:00');
+        ..lat = kOffStadiumLat
+        ..lng = kOffStadiumLng;
+      h.clock.now = _anchor.at(const Duration(hours: 3, minutes: 30));
       await _resume(tester);
       await _dismissReveal(tester);
 
@@ -235,9 +240,9 @@ void main() {
         reason: '도장을 받은 뒤 창이 닫힐 때까지 판정이 건너뛰어진다(4.2 의 게이트)',
       );
       expect(
-        find.text('사직야구장 근처예요'),
+        find.text(_anchor.nearbyLabel),
         findsNothing,
-        reason: '부산 사직에서 400km 떨어진 서울에서 "사직야구장 근처예요"가 뜨면 '
+        reason: '구장에서 한참 떨어진 곳에서 "${_anchor.nearbyLabel}"가 뜨면 '
             '홈 상단이 말하는 것은 현재 위치가 아니다',
       );
     },
@@ -247,18 +252,14 @@ void main() {
   testWidgets(
     'B-2) 창이 닫힌 뒤에는(같은 날 늦은 밤) 다시 판정이 돌아 일반 문구로 내려온다',
     (tester) async {
-      final h = await _pump(
-        tester,
-        at: DateTime.parse('2026-08-29T19:00:00+09:00'),
-        spot: _Spot(lat: _sajikLat, lng: _sajikLng),
-      );
+      final h = await _pump(tester, at: _anchor.atGame, spot: _atStadium());
       await _dismissReveal(tester);
 
       h.spot
-        ..lat = 37.5665
-        ..lng = 126.9780;
+        ..lat = kOffStadiumLat
+        ..lng = kOffStadiumLng;
       final readsAtStadium = h.fixReads.length;
-      h.clock.now = DateTime.parse('2026-08-29T23:30:00+09:00');
+      h.clock.now = _anchor.afterWindow;
       await _resume(tester);
       await _dismissReveal(tester);
 
@@ -267,20 +268,16 @@ void main() {
         greaterThan(readsAtStadium),
         reason: '창이 닫히면 게이트가 열려 판정이 다시 돈다',
       );
-      expect(find.text('사직야구장 근처예요'), findsNothing);
+      expect(find.text(_anchor.nearbyLabel), findsNothing);
       expect(find.text(kCurrentLocationGenericLabel), findsOneWidget);
     },
     timeout: const Timeout(Duration(seconds: 60)),
   );
 
   testWidgets(
-    'C) 경기 없는 날(2026-08-31 월) — 권한이 있으면 자리가 서고 없으면 접힌다',
+    'C) 리그 전체가 쉬는 날 — 권한이 있으면 자리가 서고 없으면 접힌다',
     (tester) async {
-      await _pump(
-        tester,
-        at: DateTime.parse('2026-08-31T10:00:00+09:00'),
-        spot: _Spot(lat: 37.5665, lng: 126.9780),
-      );
+      await _pump(tester, at: _noGameDay, spot: _offStadium());
       expect(
         find.text(kCurrentLocationGenericLabel),
         findsOneWidget,
@@ -292,12 +289,12 @@ void main() {
   );
 
   testWidgets(
-    'C-2) 경기 없는 날 + 권한 거부 — 자리가 접히고 홈의 나머지는 그대로다',
+    'C-2) 리그 전체가 쉬는 날 + 권한 거부 — 자리가 접히고 홈의 나머지는 그대로다',
     (tester) async {
       final h = await _pump(
         tester,
-        at: DateTime.parse('2026-08-31T10:00:00+09:00'),
-        spot: _Spot(lat: 37.5665, lng: 126.9780),
+        at: _noGameDay,
+        spot: _offStadium(),
         permission: LocationPermissionStatus.denied,
       );
       expect(find.text(kCurrentLocationGenericLabel), findsNothing);
@@ -328,15 +325,13 @@ void main() {
       addTearDown(store.dispose);
       await store.createProfile(
         _uid,
-        const NewUserProfile(
+        NewUserProfile(
           nickname: '원정러',
-          favoriteTeamId: 'lg',
-          profileThemeKey: 'lg',
+          favoriteTeamId: _anchor.teamId,
+          profileThemeKey: _anchor.teamId,
         ),
       );
-      final stadiums = StadiumsDocument.fromJson(
-        _readJson('content-pipeline/data/stadiums.json'),
-      );
+      final stadiums = _content.stadiums;
       const issue = ContentIssue(ContentIssueKind.network, 'fixture');
 
       await tester.pumpWidget(
@@ -352,9 +347,7 @@ void main() {
             weatherEffectProvider.overrideWith(
               (ref, point) async => WeatherEffect.none,
             ),
-            clockProvider.overrideWithValue(
-              () => DateTime.parse('2026-08-29T19:00:00+09:00'),
-            ),
+            clockProvider.overrideWithValue(() => _anchor.atGame),
             teamsProvider.overrideWith(
               (ref) async => const ContentUnavailable<TeamsDocument>(issue),
             ),
@@ -369,8 +362,10 @@ void main() {
               final g = ref.watch(locationPermissionGatewayProvider);
               return StadiumVisitChecker(
                 readPermission: g.status,
-                readFix: () async =>
-                    const DeviceFix(lat: _sajikLat, lng: _sajikLng),
+                readFix: () async => DeviceFix(
+                  lat: _anchor.stadium.lat,
+                  lng: _anchor.stadium.lng,
+                ),
               );
             }),
           ],
@@ -385,7 +380,7 @@ void main() {
         reason: '권한이 있는 사람의 화면이 거부한 사람의 화면과 구분되어야 한다',
       );
       expect(
-        find.text('사직야구장 근처예요'),
+        find.text(_anchor.nearbyLabel),
         findsNothing,
         reason: '판정이 돌지 못한 실행에서 구장을 말할 근거는 없다',
       );
@@ -401,20 +396,16 @@ void main() {
   testWidgets(
     'D) 배지 탭에 갔다 홈으로 돌아와도 상단 위치 자리가 그대로다',
     (tester) async {
-      await _pump(
-        tester,
-        at: DateTime.parse('2026-08-29T19:00:00+09:00'),
-        spot: _Spot(lat: _sajikLat, lng: _sajikLng),
-      );
+      await _pump(tester, at: _anchor.atGame, spot: _atStadium());
       await _dismissReveal(tester);
-      expect(find.text('사직야구장 근처예요'), findsOneWidget);
+      expect(find.text(_anchor.nearbyLabel), findsOneWidget);
 
       await tester.tap(find.text('배지'));
       await tester.pumpAndSettle(const Duration(seconds: 5));
       await tester.tap(find.text('홈'));
       await tester.pumpAndSettle(const Duration(seconds: 5));
 
-      expect(find.text('사직야구장 근처예요'), findsOneWidget);
+      expect(find.text(_anchor.nearbyLabel), findsOneWidget);
     },
     timeout: const Timeout(Duration(seconds: 60)),
   );

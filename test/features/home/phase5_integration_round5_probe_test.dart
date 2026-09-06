@@ -19,8 +19,8 @@
 ///      설 수 있게 됐다 — `findNextAwayGame` 은 오늘 끝난 원정 경기도 "오늘"
 ///      로 세고(그 계약이 `next_away_game_test.dart` 에 못 박혀 있다),
 ///      `recentGamesFor` 는 같은 경기를 "최근 결과"로 센다. 실 일정
-///      (`content-pipeline/data/schedule.json`)에 그 날이 실제로 있는지, 그
-///      화면이 무엇을 말하는지를 값으로 적어 둔다.
+///      (`content-pipeline/data/schedule.json`)에서 그런 경기를 **실행
+///      시점에 골라**, 그 화면이 무엇을 말하는지를 값으로 적어 둔다.
 ///
 ///  R3) **사람의 행동에 비례해 조회가 늘지 않는가.** 5.2 는 판정이 권한을
 ///      대신 말해 주지 못하는 갈래에서 `locationPermissionStatusProvider` 를
@@ -41,9 +41,6 @@
 ///      좌표를 그대로 비교한다.
 library;
 
-import 'dart:convert';
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -51,7 +48,6 @@ import 'package:kbo_away_fans/backend/auth.dart';
 import 'package:kbo_away_fans/backend/user_data.dart';
 import 'package:kbo_away_fans/content/content_loader.dart';
 import 'package:kbo_away_fans/content/content_providers.dart';
-import 'package:kbo_away_fans/content/models.dart';
 import 'package:kbo_away_fans/features/badges/stamp_reveal.dart';
 import 'package:kbo_away_fans/features/badges/visit_status_notice.dart';
 import 'package:kbo_away_fans/features/home/current_location.dart';
@@ -65,29 +61,35 @@ import 'package:kbo_away_fans/weather/weather.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../backend/fake_backend.dart';
+import '../../content/live_schedule.dart';
 
 const String _uid = 'google-uid';
 
-/// 사직야구장 (`content-pipeline/data/stadiums.json`).
-const double _sajikLat = 35.1941;
-const double _sajikLng = 129.0615;
+/// 이 탐침이 응원 팀으로 **먼저 보는** 팀 — 이 팀의 일정에 걸을 경기가 없으면
+/// 앵커가 다른 팀으로 넘어간다([AwayGameAnchor.teamId] 가 실제로 고른 팀이다).
+const String _teamId = 'lg';
 
-/// 서울 시청 — 사직에서 약 320km.
-const double _seoulLat = 37.5665;
-const double _seoulLng = 126.9780;
+/// 콘텐츠 4종의 실 산출물 — 이 파일의 시험들이 함께 쓴다.
+late LiveContent _content;
 
-/// LG 팬의 원정 경기가 사직에서 열리고 **그 경기가 이미 끝난** 시각.
-/// 실 일정의 `20260829LGLT02026` (18:00 시작, 롯데 3 : LG 8).
-final DateTime _sajikAwayEvening = DateTime.parse(
-  '2026-08-29T19:00:00+09:00',
-);
+/// 이 탐침이 두고 재는 원정 경기 — **실행 시점에 실 일정에서 고른다.**
+///
+/// 날짜도 경기 id 도 여기 적지 않는다. 이 문서는 크롤이 경기 시간대에
+/// 20분마다 다시 쓰고 그 창이 앞뒤로 움직이므로, 고른 경기를 리터럴로 박으면
+/// 아무도 코드를 건드리지 않아도 이 파일이 빨간불이 된다
+/// (`test/content/live_schedule.dart` 첫 문단 — R2·R5 가 실제로 그렇게
+/// 빨간불이 된 적이 있다).
+late AwayGameAnchor _anchor;
 
-/// 리그 전체에 경기가 하나도 없는 날 (월요일) — `judgeStadiumVisit` 이
-/// 권한을 묻기도 전에 `noGameToday` 로 끝나는 갈래.
-final DateTime _noGameMonday = DateTime.parse('2026-08-31T10:00:00+09:00');
+/// 리그 전체에 경기가 하나도 없는 시각 — `judgeStadiumVisit` 이 권한을 묻기도
+/// 전에 `noGameToday` 로 끝나는 갈래.
+late DateTime _noGameDay;
 
-Map<String, Object?> _readJson(String path) =>
-    jsonDecode(File(path).readAsStringSync()) as Map<String, Object?>;
+/// 기기가 그 구장 안에 있다.
+_Spot _atStadium() => _Spot(lat: _anchor.stadium.lat, lng: _anchor.stadium.lng);
+
+/// 기기가 어느 구장에서도 멀다.
+_Spot _offStadium() => _Spot(lat: kOffStadiumLat, lng: kOffStadiumLng);
 
 class _Clock {
   _Clock(this.now);
@@ -156,7 +158,7 @@ Future<_Harness> _pump(
   WidgetTester tester, {
   required DateTime at,
   required _Spot spot,
-  String teamId = 'lg',
+  String? teamId,
   LocationPermissionStatus permission = LocationPermissionStatus.granted,
   LocationPermissionStatus? afterRequest,
 }) async {
@@ -170,27 +172,20 @@ Future<_Harness> _pump(
   final fixReads = <int>[];
   addTearDown(auth.dispose);
   addTearDown(store.dispose);
+  final team = teamId ?? _anchor.teamId;
   await store.createProfile(
     _uid,
     NewUserProfile(
       nickname: '원정러',
-      favoriteTeamId: teamId,
-      profileThemeKey: teamId,
+      favoriteTeamId: team,
+      profileThemeKey: team,
     ),
   );
 
-  final teams = TeamsDocument.fromJson(
-    _readJson('content-pipeline/data/teams.json'),
-  );
-  final stadiums = StadiumsDocument.fromJson(
-    _readJson('content-pipeline/data/stadiums.json'),
-  );
-  final places = PlacesDocument.fromJson(
-    _readJson('content-pipeline/data/places.json'),
-  );
-  final schedule = ScheduleDocument.fromJson(
-    _readJson('content-pipeline/data/schedule.json'),
-  );
+  final teams = _content.teams;
+  final stadiums = _content.stadiums;
+  final places = _content.places;
+  final schedule = _content.schedule;
 
   await tester.pumpWidget(
     ProviderScope(
@@ -261,6 +256,12 @@ bool _locationRowStands() => find
     .isNotEmpty;
 
 void main() {
+  setUpAll(() {
+    _content = readLiveContent();
+    _anchor = pickAwayGameAnchor(content: _content, preferredTeamId: _teamId);
+    _noGameDay = pickNoGameMoment(_content.schedule);
+  });
+
   testWidgets(
     'R1) 권한을 거부한 사람이 배지 탭에서 허용하면 홈 상단 위치 자리가 선다 (4.5 → 5.2)',
     (tester) async {
@@ -269,8 +270,8 @@ void main() {
       // 지난 사람의 홈이 실제로 살아나야 그 근거가 선다.
       final h = await _pump(
         tester,
-        at: _sajikAwayEvening,
-        spot: _Spot(lat: _sajikLat, lng: _sajikLng),
+        at: _anchor.atGame,
+        spot: _atStadium(),
         permission: LocationPermissionStatus.denied,
         afterRequest: LocationPermissionStatus.granted,
       );
@@ -303,9 +304,9 @@ void main() {
             '두지 않는다"가 선다',
       );
       expect(
-        find.text('사직야구장 근처예요'),
+        find.text(_anchor.nearbyLabel),
         findsOneWidget,
-        reason: '그 자리에서 다시 돈 판정이 구장까지 말해 준다',
+        reason: '그 자리에서 다시 돈 판정이 구장까지 말해 준다 (${_anchor.game.id})',
       );
     },
     timeout: const Timeout(Duration(seconds: 60)),
@@ -316,38 +317,39 @@ void main() {
     (tester) async {
       // 이 시험은 **거동을 값으로 적어 두는 자리**다(계약이 금지한 것이
       // 아니라, 두 단계가 같은 경기를 다르게 부르는 이음매를 눈에 보이게
-      // 둔다). 실 일정에서 LG 의 2026-08-29 사직 원정은 18:00 에 시작해
-      // 그날 끝났고, 19:00 의 홈은:
+      // 둔다). 실 일정에서 고른 그 팀의 끝난 원정 경기 하나를 두고, 그 경기가
+      // 끝난 뒤 같은 날 저녁에 홈을 보면:
       //   · D-day 얼굴 — `findNextAwayGame` 이 "오늘"로 센다
       //     (`next_away_game_test.dart` 의 "오늘 끝난 원정 경기" 그룹).
-      //   · 최근 5경기 — `recentGamesFor` 가 같은 경기를 첫 줄에 세운다.
+      //   · 최근 5경기 — `recentGamesFor` 가 같은 경기를 한 줄로 세운다.
       // 둘이 한 화면에 함께 선다.
-      await _pump(
-        tester,
-        at: _sajikAwayEvening,
-        spot: _Spot(lat: _seoulLat, lng: _seoulLng),
-      );
+      //
+      // 어느 경기인지는 산출물이 정한다 — 앵커가 "그날 그 구장·그 팀의
+      // 유일한 경기이고 최근 다섯 줄 안에서 날짜·점수 표기가 겹치지 않는
+      // 경기"를 고르므로, 아래 네 단언은 셋 다 **그 경기 하나**를 가리킨다.
+      await _pump(tester, at: _anchor.atGame, spot: _offStadium());
       await _dismissReveal(tester);
 
+      final where = '앵커: ${_anchor.game.id}';
       expect(
         find.text('오늘'),
         findsOneWidget,
-        reason: '2.3 의 얼굴은 오늘 끝난 원정 경기도 "오늘"로 센다',
+        reason: '2.3 의 얼굴은 오늘 끝난 원정 경기도 "오늘"로 센다 ($where)',
       );
       expect(
-        find.text('8/29 (토) 사직야구장 · 18:00'),
+        find.text(_anchor.matchLabel),
         findsOneWidget,
-        reason: '얼굴이 가리키는 경기가 그 경기다',
+        reason: '얼굴이 가리키는 경기가 그 경기다 ($where)',
       );
       expect(
-        find.text('8/29 (토)', skipOffstage: false),
+        find.text(_anchor.dayLabel, skipOffstage: false),
         findsOneWidget,
-        reason: '5.1 의 첫 줄이 같은 경기의 날짜를 다시 적는다',
+        reason: '5.1 의 한 줄이 같은 경기의 날짜를 다시 적는다 ($where)',
       );
       expect(
-        find.text('8 : 3', skipOffstage: false),
+        find.text(_anchor.scoreLabel, skipOffstage: false),
         findsOneWidget,
-        reason: '같은 경기가 결과(LG 8 : 롯데 3)로도 한 번 더 선다',
+        reason: '같은 경기가 결과로도 한 번 더 선다 ($where)',
       );
     },
     timeout: const Timeout(Duration(seconds: 60)),
@@ -360,11 +362,7 @@ void main() {
       // 그 조회를 붙잡고 있는 provider 는 `autoDispose` 라, 구독이 끊겼다
       // 이어지면 새 답을 낸다 — 사람이 탭을 오가는 것만으로 조회가 늘면
       // 4.1 의 절제가 조용히 갉아먹힌다.
-      final h = await _pump(
-        tester,
-        at: _noGameMonday,
-        spot: _Spot(lat: _seoulLat, lng: _seoulLng),
-      );
+      final h = await _pump(tester, at: _noGameDay, spot: _offStadium());
 
       expect(
         _locationRowStands(),
@@ -408,11 +406,7 @@ void main() {
       // 답을 **한 프레임도** 참으로 쓰지 않는다"고 적었다. 그 문장을 프레임
       // 하나로 잰다 — 경기 없는 날이라 홈 상단의 답은 오직
       // `locationPermissionStatusProvider` 에서 온다.
-      final h = await _pump(
-        tester,
-        at: _noGameMonday,
-        spot: _Spot(lat: _seoulLat, lng: _seoulLng),
-      );
+      final h = await _pump(tester, at: _noGameDay, spot: _offStadium());
       expect(_locationRowStands(), isTrue);
 
       // 사람이 OS 설정에서 권한을 껐다.
@@ -461,11 +455,7 @@ void main() {
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.reset);
 
-      await _pump(
-        tester,
-        at: _sajikAwayEvening,
-        spot: _Spot(lat: _sajikLat, lng: _sajikLng),
-      );
+      await _pump(tester, at: _anchor.atGame, spot: _atStadium());
       await _dismissReveal(tester);
 
       final location = tester.getTopLeft(find.byKey(kCurrentLocationRowKey)).dy;
@@ -483,9 +473,9 @@ void main() {
 
       // 그 자리에 실제로 최근 경기 줄이 서 있는지도 같은 화면에서 함께 잰다 —
       // 순서만 맞고 내용이 비면 "중단에 요약을 보여 준다"가 아니다.
-      expect(find.text('8/29 (토)'), findsOneWidget);
+      expect(find.text(_anchor.dayLabel), findsOneWidget);
       expect(
-        tester.getTopLeft(find.text('8/29 (토)')).dy,
+        tester.getTopLeft(find.text(_anchor.dayLabel)).dy,
         greaterThan(recent),
       );
     },
