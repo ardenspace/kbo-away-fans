@@ -487,7 +487,7 @@ cycle: 2
       함께 닫은 계약 밖 발견 다섯: **[S]** "상단"을 자리 순서로 재는 못 신설(옮기면 빨간불), **[S]** 최근 5경기의 홈/원정 표기를 재는 못 신설, **[M]** 두 기능이 복제하던 권한 재조회를 `lib/location/location.dart` 의 `locationPermissionStatusProvider` 로 승격(공통 요소 규칙), **[S]** 한 화면에서 갈렸던 날짜 표기를 `8/20 (목)` 으로 통일하고 요일 배열을 한 자리로, **[S]** 일반 문구가 좌표를 읽지 않은 갈래에서도 "현재 위치를 사용하고 있어요"라 말하던 것을 "구장 근처에 있으면 여기에 표시돼요"로 좁힘.
       수정 후 지휘자 재현: analyze 무지적 / flutter **861통과·1스킵** / 규칙 69 / functions 46 / 파이프라인 61 / 훅 4종 exit 0.
 
-- [>] phase 5 integration **round 2 REJECT** (새 fresh 검증자, high-tier) — 심사 범위 `799cb13..HEAD`, 착수 시점 커밋 13개·파일 24개·+2538/-40. 착수 기준선(지휘자 직접 실행): analyze 무지적 / flutter **861통과·1스킵** / 규칙 69 / functions 46 / 파이프라인 61 / 훅 4종 exit 0.
+- [x] phase 5 integration **round 2 REJECT** (새 fresh 검증자, high-tier) — 심사 범위 `799cb13..HEAD`, 착수 시점 커밋 13개·파일 24개·+2538/-40. 착수 기준선(지휘자 직접 실행): analyze 무지적 / flutter **861통과·1스킵** / 규칙 69 / functions 46 / 파이프라인 61 / 훅 4종 exit 0.
       **round 1 의 수정이 세운 성질은 옳았고, 그 성질이 다시 재어지는 순간이 모자랐다.** 두 갈래로 같은 계약이 다시 깨졌다(주인 둘 다 5.2).
       **A-1 (acceptance 2 "권한이 없으면 그 자리가 사라지거나 권한 안내로 바뀌고").** 경기 없는 날에는 자리가 판정이 아니라 `locationPermissionStatusProvider` 로 갈리는데, 그것이 `FutureProvider.autoDispose` 라 홈이 그 갈래에 서 있는 동안 구독이 끊기지 않아 **한 실행에서 딱 한 번만 답이 난다.** OS 설정에서 권한을 끄고 돌아와도 자리가 그대로 서고(권한 조회 1→1), 켜고 돌아와도 자리가 서지 않아 콜드 스타트로만 풀린다(acceptance 1 이 반대 방향으로 깨진다). 4.1 의 판정은 복귀마다 새로 나는데 5.2 의 대체 답만 갱신되지 않던 것이다.
       **A-2 (Goal).** `kCurrentLocationFreshness`(15분)를 재는 `now` 가 빌드 시점에 한 번 잡히고 시간이 흐르는 것만으로는 홈이 다시 서지 않는다(`IndexedStack` 이라 탭 왕복도 재빌드가 아니다). **앱을 배경으로 보내지 않은 채** 구장을 떠나 2시간 30분이 지나도 "사직야구장 근처예요"가 그대로 섰다. 화면 잠금·해제는 `resumed` 를 만들어 고치므로 남은 구멍은 끊김 없는 포그라운드다.
@@ -497,6 +497,12 @@ cycle: 2
       **계약 밖 발견 하나를 시험으로 닫았다** — 좌표 벽의 자동 검사(`check-no-location-upload.sh`)는 `lib/location`·`lib/content/kst.dart`·`lib/backend` 만 보므로, round 1 이 만든 새 통로(`lib/features/badges/` 의 `StadiumVisitRun` 을 `lib/features/home/` 이 읽는다)는 시야 밖이다. **훅 범위를 `lib/features/` 로 넓히는 대신 `visit_check_test.dart` 에 기존 타입 파수꾼과 같은 방식의 넷째·다섯째를 두었다** — 강제 장치의 오탐 하나는 저장소 전체의 커밋과 CI 를 막기 때문이다(지휘자도 그 판단이 위험이 작은 쪽이라고 본다).
       **구현자가 지적 하나를 재현으로 기각했다**: `_recentGames` 빈 상태의 좌우 패딩이 어긋난다는 발견은 실제 렌더 좌표를 재어 보니(`title=Offset(16.0, …)` / `empty=Offset(16.0, …)`) 어긋남이 없었다. 맞아 있는 것을 건드리지 않았다.
       수정 후 지휘자 재현: analyze 무지적 / flutter **868통과·1스킵** / 규칙 69 / functions 46 / 파이프라인 61 / 훅 4종 exit 0 / 두 탐침 파일 각각 3통과·7통과.
+
+- [>] phase 5 integration **round 3 REJECT — 라운드 상한에 닿아 실행 멈춤** → `pending/phase5-integration-round-cap.md` (새 fresh 검증자, high-tier). 심사 범위 `799cb13..HEAD`, 커밋 17개·파일 26개·+3188/-44. 착수 기준선(지휘자 직접 실행): analyze 무지적 / flutter **868통과·1스킵** / 규칙 69 / functions 46 / 파이프라인 61 / 훅 4종 exit 0.
+      **깨진 문장: 5.2 acceptance 2 "권한이 없으면 그 자리가 사라지거나 권한 안내로 바뀌고". 주인은 5.2.** `currentLocationVisible` 이 `visited`·`locationUnavailable`·`outsideRadius`·`outsideTimeWindow` 넷을 "권한이 있다는 뜻"으로 읽는데, 그것이 참인 것은 **그 판정이 난 순간**이고 4.2 의 게이트는 도장을 받은 뒤 창이 닫힐 때까지 판정을 건너뛴다. 그래서 도장을 받은 뒤 OS 설정에서 권한을 꺼도 자리가 최대 다섯 시간 그대로 선다(권한 조회 1→1). **지휘자가 직접 재현**: `phase5_integration_round3_probe_test.dart` 의 `Q1` 에서 `skip: true` 를 지우면 `Expected: false / Actual: <true>` 로 exit 1. `Q1-b`(창이 닫히면 스스로 닫힌다)·`Q2`(도장 없는 대조군은 접힌다)가 원인이 게이트임을 양쪽에서 못 박는다. 검증자가 덧붙인 사실: iOS 의 "이번만 허용"은 코드가 `granted` 로 접는 값이라, 설정에 들어가 끄는 행동 없이도 배경↔포그라운드 왕복만으로 이 상태에 닿는다.
+      **세 라운드가 같은 뿌리의 서로 다른 갈래였다** — 5.2 가 4.1 의 신호를 "지금"으로 다시 읽는데 그 신호가 갱신되지 않는 구간이 있다는 것. round 1 은 구장 이름, round 2 는 그 시각을 재는 계기, round 3 은 **자리를 그릴지 정하는 쪽**이다. 5.2 는 이미 이름 쪽에 `judged` 잣대를 대 두었고, 빠진 것은 가시성 쪽에 같은 잣대를 대는 것이다(권한 재조회가 이미 붙은 두 갈래에 "판정까지 가지 못한 실행"을 함께 넣으면 되고, 측위가 아니라 `status()` 하나라 4.2 의 절제를 되돌리지 않는다).
+      **검증자가 확인한 것들**(계약 밖): 훅의 `FutureProvider` 확장은 약화가 아니다(옛 훅에서도 이름 목록이 유일한 관문이었음을 두 훅 사본으로 대조) / `lib/features/` 로 나가는 새 통로는 시험 파수꾼 둘이 실제로 막는다(analyze·훅은 지나가는데 `visit_check_test` 가 빨간불) / 변이 다섯이 전부 빨간불이라 초록불로 지나가는 자리를 못 찾았다 / 5.1 은 실 `schedule.json` 열 팀 전부와 어긋나지 않는다. **F1**: 구장에 그대로 서 있는 사람도 도장 뒤 배경↔포그라운드를 한 번 오가면 문구가 구장 이름에서 일반 문구로 내려간다(계약 위반 아님, 표기는 재량 — 다만 위 수정과 같은 자리).
+      현재 상태: analyze 무지적 / flutter **872통과·2스킵**(스킵 둘 중 하나가 `Q1`) / 규칙 69 / functions 46 / 파이프라인 61 / 훅 4종 exit 0.
 
 ## 전체 리뷰
 - [ ] whole-run fresh-eyes review
