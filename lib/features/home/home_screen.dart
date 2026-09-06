@@ -99,18 +99,27 @@ class HomeScreen extends ConsumerWidget {
     // (`stadiumVisitRunProvider` 문서 참조). 판정까지 가지 못한 실행 뒤에는
     // `judged` 가 거짓이고, 그때 홈은 구장 이름을 쓰지 않는다.
     final lastVisitRun = ref.watch(stadiumVisitRunProvider);
-    final judgedAt = lastVisitRun != null && lastVisitRun.judged
-        ? lastVisitRun.at
-        : null;
+    final judgmentAttempted = lastVisitRun != null;
+    // 마지막 시도가 **판정까지 갔는가** — 이 한 값이 손에 든 판정을 "지금"으로
+    // 읽어도 되는지를 정한다. 구장 이름(`visitJudgedAt`)뿐 아니라 **자리를
+    // 그릴지**도 여기에 매단다: 게이트가 닫힌 구간에서는 판정 안의 "권한이
+    // 있었다"도 옛 사실이라, 그 값을 그대로 믿으면 권한을 끄고 돌아온 사람의
+    // 홈 상단이 다섯 시간까지 그대로 선다(round 3 의 REJECT 사유).
+    final lastRunJudged = lastVisitRun != null && lastVisitRun.judged;
+    final judgedAt = lastRunJudged ? lastVisitRun.at : null;
 
-    // 판정이 권한을 대신 말해 주지 못하는 두 갈래에서만 권한을 다시 묻는다
-    // (`noGameToday`, 그리고 콘텐츠를 못 얻어 판정이 아예 없는 실행). 다른
-    // 갈래에서는 이 provider 를 구독조차 하지 않는다 — `autoDispose` 라
-    // 그동안 인스턴스화되지 않는다(`current_location.dart` docstring 참조).
+    // 판정이 권한을 대신 말해 주지 못하는 갈래에서만 권한을 다시 묻는다
+    // (`noGameToday`, 콘텐츠를 못 얻어 판정이 아예 없는 실행, 그리고 마지막
+    // 시도가 판정까지 가지 못한 실행). 다른 갈래에서는 이 provider 를
+    // 구독조차 하지 않는다 — `autoDispose` 라 그동안 인스턴스화되지 않는다
+    // (`current_location.dart` docstring 참조). 그 조회는 다이얼로그가 없는
+    // `status()` 하나이고, 새로 답이 나는 것은 `StadiumVisitTrigger` 가 그
+    // provider 를 버리는 **포그라운드 복귀당 한 번**이다.
     final LocationPermissionStatus? askedPermission =
         currentLocationNeedsPermissionAnswer(
           stadiumVisit,
-          judgmentAttempted: lastVisitRun != null,
+          judgmentAttempted: judgmentAttempted,
+          lastRunJudged: lastRunJudged,
         )
         ? ref.watch(locationPermissionStatusProvider).value
         : null;
@@ -128,7 +137,8 @@ class HomeScreen extends ConsumerWidget {
       schedule: scheduleDoc,
       now: now,
       stadiumVisit: stadiumVisit,
-      judgmentAttempted: lastVisitRun != null,
+      judgmentAttempted: judgmentAttempted,
+      lastRunJudged: lastRunJudged,
       visitJudgedAt: judgedAt,
       askedPermission: askedPermission,
       scheduleLoading: scheduleDoc == null && scheduleAsync is AsyncLoading,
@@ -172,6 +182,7 @@ class _HomeScaffold extends StatelessWidget {
     required this.now,
     required this.stadiumVisit,
     required this.judgmentAttempted,
+    required this.lastRunJudged,
     required this.visitJudgedAt,
     required this.askedPermission,
     required this.scheduleLoading,
@@ -212,6 +223,12 @@ class _HomeScaffold extends StatelessWidget {
   /// 때 "아직 안 돌았다"와 "돌았지만 콘텐츠를 못 얻어 판정하지 못했다"를
   /// 가르는 값이다.
   final bool judgmentAttempted;
+
+  /// 마지막 판정 시도가 **판정까지 갔는가** (`stadiumVisitRunProvider` 의
+  /// `judged`) — 거짓이면 [stadiumVisit] 은 그 **이전** 실행의 답이라,
+  /// 그 안의 "권한이 있었다"도 옛 사실이다. 그 갈래에서 자리를 그릴지는
+  /// [askedPermission] 이 정한다([currentLocationVisible] 문서 참조).
+  final bool lastRunJudged;
 
   /// [stadiumVisit] 이 **난 시각** — 마지막 시도가 판정까지 가지 못했으면
   /// null 이다(그 뒤로 앱은 사람이 어디 있는지 알지 못한다).
@@ -297,6 +314,7 @@ class _HomeScaffold extends StatelessWidget {
     if (!currentLocationVisible(
       stadiumVisit,
       judgmentAttempted: judgmentAttempted,
+      lastRunJudged: lastRunJudged,
       askedPermission: askedPermission,
     )) {
       return const [];

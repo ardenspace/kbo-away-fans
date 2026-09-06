@@ -143,12 +143,14 @@ void main() {
     // 건너뛰어진 실행은 이 인자로 직접 짓는다.
     StadiumVisitRun? stadiumVisitRun,
     bool defaultVisitRun = true,
-    // noGameToday 갈래에서만 홈이 다시 묻는 권한 상태(계약 위반 시정) — 대역이
-    // 없으면 실 플랫폼 채널(DevicePermissionHandlerGateway)이 물려 위젯 트리
-    // 해제 뒤까지 남는 타이머로 부팅 시험이 깨진다(`current_location.dart`
-    // docstring 참조). 기본값 denied 는 이 인자를 주지 않는 기존 시나리오의
-    // 결과를 바꾸지 않는다 — noGameToday 가 아닌 갈래에서는 이 게이트웨이가
-    // 아예 구독되지 않는다.
+    // 판정이 권한을 대신 말해 주지 못하는 갈래에서 홈이 다시 묻는 권한 상태
+    // (계약 위반 시정) — 대역이 없으면 실 플랫폼 채널
+    // (DevicePermissionHandlerGateway)이 물려 위젯 트리 해제 뒤까지 남는
+    // 타이머로 부팅 시험이 깨진다(`current_location.dart` docstring 참조).
+    // 그 갈래는 셋이다: `noGameToday` · 판정이 아예 없는 실행 · **마지막
+    // 시도가 판정까지 가지 못한 실행**(`judged: false`, round 3 의 수정으로
+    // 더해졌다). 기본값 denied 는 나머지 갈래의 결과를 바꾸지 않는다 —
+    // 거기서는 이 게이트웨이가 아예 구독되지 않는다.
     LocationPermissionGateway? locationGateway,
   }) {
     final scheduleDoc =
@@ -891,6 +893,11 @@ void main() {
 
       testWidgets('마지막 시도가 건너뛰어졌으면(judged: false) 구장 이름을 쓰지 않는다',
           (tester) async {
+        // **권한 대역을 granted 로 준다.** round 3 의 수정 뒤로 이 갈래
+        // (마지막 시도가 판정까지 못 감)는 자리를 그릴지도 권한을 **다시 물어**
+        // 정하므로, 대역이 기본값(denied)이면 자리가 통째로 접혀 이 시험이
+        // 재려는 것(문구)을 잴 수 없다. 자리가 접히는 쪽은 바로 아래 짝이
+        // 잰다.
         await tester.pumpWidget(home(
           teamId: 'lotte',
           games: const [],
@@ -899,6 +906,9 @@ void main() {
           // 판정은 두 시간 전 것이고, 방금 돈 시도는 게이트에 막혀 판정까지
           // 가지 못했다.
           stadiumVisitRun: StadiumVisitRun(at: now, judged: false),
+          locationGateway: FakeLocationPermissionGateway(
+            initial: LocationPermissionStatus.granted,
+          ),
         ));
         await tester.pumpAndSettle();
 
@@ -909,6 +919,40 @@ void main() {
         expect(
           find.text(kCurrentLocationGenericLabel, skipOffstage: false),
           findsOneWidget,
+        );
+      });
+
+      testWidgets('그 갈래에서 권한이 꺼져 있으면 자리가 접힌다 (round 3 의 REJECT)',
+          (tester) async {
+        // 도장을 받은 뒤 4.2 의 게이트가 닫혀 있는 동안에는 손에 든 `visited`
+        // 가 **권한이 있던 시절**의 답이다. 그것을 "권한이 있다"로 읽어 자리를
+        // 계속 세우던 것이 phase 5 통합 검증 round 3 의 REJECT 사유였다
+        // (실 배선 위에서 걷는 짝은 `phase5_integration_round3_probe_test.dart`
+        // 의 Q1). 여기서는 그 판단만 화면으로 잰다.
+        final gateway = FakeLocationPermissionGateway(
+          initial: LocationPermissionStatus.denied,
+        );
+        await tester.pumpWidget(home(
+          teamId: 'lotte',
+          games: const [],
+          now: now,
+          stadiumVisit: visited,
+          stadiumVisitRun: StadiumVisitRun(at: now, judged: false),
+          locationGateway: gateway,
+        ));
+        await tester.pumpAndSettle();
+
+        expect(locationRow(), findsNothing);
+        expect(find.text('사직야구장 근처예요', skipOffstage: false), findsNothing);
+        expect(
+          gateway.statusCalls,
+          greaterThanOrEqualTo(1),
+          reason: '이 갈래에서는 판정이 권한을 말해 주지 못해 다시 묻는다',
+        );
+        expect(
+          gateway.requestCalls,
+          0,
+          reason: 'OS 다이얼로그는 4.5 의 몫이다 — 홈은 status() 만 부른다',
         );
       });
 

@@ -108,10 +108,11 @@ void main() {
 
   group('currentLocationVisible', () {
     test('null 이고 트리거가 아직 돌지도 않았으면 접는다', () {
-      expect(currentLocationVisible(null), isFalse);
+      expect(currentLocationVisible(null, lastRunJudged: false), isFalse);
       expect(
         currentLocationVisible(
           null,
+          lastRunJudged: false,
           askedPermission: LocationPermissionStatus.granted,
         ),
         isFalse,
@@ -128,6 +129,7 @@ void main() {
           currentLocationVisible(
             null,
             judgmentAttempted: true,
+            lastRunJudged: false,
             askedPermission: LocationPermissionStatus.granted,
           ),
           isTrue,
@@ -139,13 +141,99 @@ void main() {
           currentLocationVisible(
             null,
             judgmentAttempted: true,
+            lastRunJudged: false,
             askedPermission: LocationPermissionStatus.denied,
           ),
           isFalse,
         );
         expect(
-          currentLocationVisible(null, judgmentAttempted: true),
+          currentLocationVisible(
+            null,
+            judgmentAttempted: true,
+            lastRunJudged: false,
+          ),
           isFalse,
+        );
+      });
+    });
+
+    group('마지막 시도가 판정까지 가지 못한 실행 (round 3 의 REJECT 를 닫는 못)', () {
+      // 도장을 받고 나면 4.2 의 게이트가 시간 창이 닫힐 때까지 판정을 통째로
+      // 건너뛴다. 그동안 손에 든 판정은 **권한이 있던 시절**의 답이라, 그
+      // 안의 "권한이 있었다"를 지금으로 읽으면 OS 설정에서 권한을 끄고 돌아온
+      // 사람의 홈 상단이 최대 다섯 시간 그대로 선다
+      // (`phase5_integration_round3_probe_test.dart` 의 Q1 이 그 자리를 걷는다).
+      for (final reason in [
+        StadiumVisitReason.visited,
+        StadiumVisitReason.locationUnavailable,
+        StadiumVisitReason.outsideRadius,
+        StadiumVisitReason.outsideTimeWindow,
+      ]) {
+        final visit = reason == StadiumVisitReason.visited
+            ? visited
+            : StadiumVisitResult.rejected(reason);
+
+        test('${reason.name}: 권한을 다시 물어 denied 면 접는다', () {
+          expect(
+            currentLocationVisible(
+              visit,
+              judgmentAttempted: true,
+              lastRunJudged: true,
+              askedPermission: LocationPermissionStatus.denied,
+            ),
+            isTrue,
+            reason: '그 판정이 마지막 실행의 답이면 권한을 이미 확인한 것이다',
+          );
+          expect(
+            currentLocationVisible(
+              visit,
+              judgmentAttempted: true,
+              lastRunJudged: false,
+              askedPermission: LocationPermissionStatus.denied,
+            ),
+            isFalse,
+            reason: '판정까지 가지 못한 실행 뒤에는 옛 판정이 권한을 말해 주지 못한다',
+          );
+        });
+
+        test('${reason.name}: 권한이 그대로 granted 면 자리는 남는다', () {
+          expect(
+            currentLocationVisible(
+              visit,
+              judgmentAttempted: true,
+              lastRunJudged: false,
+              askedPermission: LocationPermissionStatus.granted,
+            ),
+            isTrue,
+            reason: 'acceptance 첫 문장 — 권한이 있는 사람의 자리를 뺏지 않는다',
+          );
+        });
+
+        test('${reason.name}: 아직 답이 없으면(조회 로딩 중) 접는다', () {
+          expect(
+            currentLocationVisible(
+              visit,
+              judgmentAttempted: true,
+              lastRunJudged: false,
+            ),
+            isFalse,
+          );
+        });
+      }
+
+      test('permissionMissing 은 다시 물어 granted 를 받으면 그린다', () {
+        // 판정을 못 한 실행 뒤라 옛 `permissionMissing` 도 옛 사실이다 —
+        // 그사이 설정에서 권한을 켰다면 자리가 서야 한다(acceptance 첫 문장).
+        expect(
+          currentLocationVisible(
+            const StadiumVisitResult.rejected(
+              StadiumVisitReason.permissionMissing,
+            ),
+            judgmentAttempted: true,
+            lastRunJudged: false,
+            askedPermission: LocationPermissionStatus.granted,
+          ),
+          isTrue,
         );
       });
     });
@@ -156,6 +244,8 @@ void main() {
           const StadiumVisitResult.rejected(
             StadiumVisitReason.permissionMissing,
           ),
+          judgmentAttempted: true,
+          lastRunJudged: true,
         ),
         isFalse,
       );
@@ -165,6 +255,8 @@ void main() {
       expect(
         currentLocationVisible(
           const StadiumVisitResult.rejected(StadiumVisitReason.noGameToday),
+          judgmentAttempted: true,
+          lastRunJudged: true,
         ),
         isFalse,
       );
@@ -182,6 +274,8 @@ void main() {
         expect(
           currentLocationVisible(
             rejected,
+            judgmentAttempted: true,
+            lastRunJudged: true,
             askedPermission: LocationPermissionStatus.granted,
           ),
           isTrue,
@@ -192,6 +286,8 @@ void main() {
         expect(
           currentLocationVisible(
             rejected,
+            judgmentAttempted: true,
+            lastRunJudged: true,
             askedPermission: LocationPermissionStatus.denied,
           ),
           isFalse,
@@ -202,6 +298,8 @@ void main() {
         expect(
           currentLocationVisible(
             rejected,
+            judgmentAttempted: true,
+            lastRunJudged: true,
             askedPermission: LocationPermissionStatus.permanentlyDenied,
           ),
           isFalse,
@@ -210,7 +308,12 @@ void main() {
 
       test('아직 답이 없으면(null — provider 로딩 중) 접는다', () {
         expect(
-          currentLocationVisible(rejected, askedPermission: null),
+          currentLocationVisible(
+            rejected,
+            judgmentAttempted: true,
+            lastRunJudged: true,
+            askedPermission: null,
+          ),
           isFalse,
         );
       });
@@ -218,12 +321,15 @@ void main() {
       test('noGameToday 가 아닌 갈래에서는 askedPermission 이 granted 여도 영향이 없다', () {
         // 이미 그리는 갈래(outsideRadius)가 이 매개변수 때문에 접히지
         // 않는다는 것과, 이미 접는 갈래(permissionMissing)가 이 매개변수
-        // 때문에 그려지지 않는다는 것을 함께 확인한다.
+        // 때문에 그려지지 않는다는 것을 함께 확인한다. (마지막 실행이
+        // 판정까지 갔을 때의 이야기다 — 그렇지 않은 갈래는 위 group 이 잰다.)
         expect(
           currentLocationVisible(
             const StadiumVisitResult.rejected(
               StadiumVisitReason.outsideRadius,
             ),
+            judgmentAttempted: true,
+            lastRunJudged: true,
             askedPermission: LocationPermissionStatus.denied,
           ),
           isTrue,
@@ -233,6 +339,8 @@ void main() {
             const StadiumVisitResult.rejected(
               StadiumVisitReason.permissionMissing,
             ),
+            judgmentAttempted: true,
+            lastRunJudged: true,
             askedPermission: LocationPermissionStatus.granted,
           ),
           isFalse,
@@ -247,7 +355,11 @@ void main() {
     ]) {
       test('${reason.name} 은 그린다 — 권한을 이미 확인한 판정', () {
         expect(
-          currentLocationVisible(StadiumVisitResult.rejected(reason)),
+          currentLocationVisible(
+            StadiumVisitResult.rejected(reason),
+            judgmentAttempted: true,
+            lastRunJudged: true,
+          ),
           isTrue,
         );
       });
@@ -256,14 +368,76 @@ void main() {
     test('visited 는 그린다', () {
       expect(
         currentLocationVisible(
-          const StadiumVisitResult.visited(
-            stadiumId: 'jamsil',
-            gameId: 'g1',
-          ),
+          visited,
+          judgmentAttempted: true,
+          lastRunJudged: true,
         ),
         isTrue,
       );
     });
+  });
+
+  // 두 함수는 **같은 갈래**를 갈라야 한다: 물어야 하는 갈래에서 자리를 정하는
+  // 것이 다시 물은 답이고, 물을 까닭이 없는 갈래에서는 그 답이 늘 null 이다.
+  // 한쪽만 고치면 자리가 영영 접히거나(물어야 하는데 안 묻는다) 물을 까닭
+  // 없는 조회가 생긴다 — 그 어긋남을 값으로 붙잡아 두는 자리다.
+  group('두 함수의 갈래가 어긋나지 않는다', () {
+    final visits = <StadiumVisitResult?>[
+      null,
+      visited,
+      for (final reason in StadiumVisitReason.values)
+        if (reason != StadiumVisitReason.visited)
+          StadiumVisitResult.rejected(reason),
+    ];
+
+    for (final visit in visits) {
+      for (final attempted in [true, false]) {
+        for (final judged in [true, false]) {
+          final name =
+              '${visit?.reason.name ?? 'null'} '
+              '(attempted: $attempted, judged: $judged)';
+          test(name, () {
+            final needs = currentLocationNeedsPermissionAnswer(
+              visit,
+              judgmentAttempted: attempted,
+              lastRunJudged: judged,
+            );
+            bool visible(LocationPermissionStatus? asked) =>
+                currentLocationVisible(
+                  visit,
+                  judgmentAttempted: attempted,
+                  lastRunJudged: judged,
+                  askedPermission: asked,
+                );
+
+            if (needs) {
+              expect(
+                visible(LocationPermissionStatus.granted),
+                isTrue,
+                reason: '물어야 하는 갈래에서는 다시 물은 답이 자리를 정한다',
+              );
+              expect(visible(LocationPermissionStatus.denied), isFalse);
+              expect(
+                visible(null),
+                isFalse,
+                reason: '아직 모르는데 그리지 않는다',
+              );
+            } else {
+              expect(
+                visible(LocationPermissionStatus.granted),
+                visible(LocationPermissionStatus.denied),
+                reason: '물을 까닭이 없는 갈래에서는 그 답이 자리를 바꾸지 못한다',
+              );
+              expect(
+                visible(null),
+                visible(LocationPermissionStatus.granted),
+                reason: '같은 까닭 — 그 갈래에서 부르는 쪽은 늘 null 을 넘긴다',
+              );
+            }
+          });
+        }
+      }
+    }
   });
 
   group('currentLocationIsFresh', () {
@@ -326,14 +500,22 @@ void main() {
   group('currentLocationNeedsPermissionAnswer', () {
     test('판정이 없고 트리거도 안 돌았으면 묻지 않는다', () {
       expect(
-        currentLocationNeedsPermissionAnswer(null, judgmentAttempted: false),
+        currentLocationNeedsPermissionAnswer(
+          null,
+          judgmentAttempted: false,
+          lastRunJudged: false,
+        ),
         isFalse,
       );
     });
 
     test('판정이 없는데 트리거는 돌았으면 묻는다', () {
       expect(
-        currentLocationNeedsPermissionAnswer(null, judgmentAttempted: true),
+        currentLocationNeedsPermissionAnswer(
+          null,
+          judgmentAttempted: true,
+          lastRunJudged: false,
+        ),
         isTrue,
       );
     });
@@ -343,6 +525,7 @@ void main() {
         currentLocationNeedsPermissionAnswer(
           const StadiumVisitResult.rejected(StadiumVisitReason.noGameToday),
           judgmentAttempted: true,
+          lastRunJudged: true,
         ),
         isTrue,
       );
@@ -359,8 +542,22 @@ void main() {
           currentLocationNeedsPermissionAnswer(
             StadiumVisitResult.rejected(reason),
             judgmentAttempted: true,
+            lastRunJudged: true,
           ),
           isFalse,
+        );
+      });
+
+      test('${reason.name} 도 마지막 시도가 판정까지 못 갔으면 묻는다', () {
+        // 그 판정은 이 실행의 답이 아니다 — 4.2 의 게이트가 닫혔거나
+        // 콘텐츠를 못 얻은 실행 뒤라, 권한을 다시 물어야만 알 수 있다.
+        expect(
+          currentLocationNeedsPermissionAnswer(
+            StadiumVisitResult.rejected(reason),
+            judgmentAttempted: true,
+            lastRunJudged: false,
+          ),
+          isTrue,
         );
       });
     }
@@ -368,10 +565,22 @@ void main() {
     test('visited 도 묻지 않는다', () {
       expect(
         currentLocationNeedsPermissionAnswer(
-          const StadiumVisitResult.visited(stadiumId: 'jamsil', gameId: 'g1'),
+          visited,
           judgmentAttempted: true,
+          lastRunJudged: true,
         ),
         isFalse,
+      );
+    });
+
+    test('visited 도 마지막 시도가 판정까지 못 갔으면 묻는다 — round 3 의 그 갈래', () {
+      expect(
+        currentLocationNeedsPermissionAnswer(
+          visited,
+          judgmentAttempted: true,
+          lastRunJudged: false,
+        ),
+        isTrue,
       );
     });
   });

@@ -9,7 +9,7 @@
 /// 권한도 좌표도 묻지 않는다"([judgeStadiumVisit] 문서 참조)는 계약으로 이미
 /// 위치 I/O 를 최소화해 두었다.
 ///
-/// **판정이 권한을 대신 말해 주지 못하는 두 갈래에서만 예외를 둔다.**
+/// **판정이 권한을 대신 말해 주지 못하는 갈래에서만 예외를 둔다.**
 /// [judgeStadiumVisit] 이 후보 게이트를 권한보다 먼저 보므로, 오늘(KST) 그
 /// 어느 구장에도 경기가 없는 날은 권한을 아예 묻지 않은 채 `noGameToday` 로
 /// 끝난다 — KBO 정규 시즌의 월요일과 비시즌 전체가 그 날이다. 그리고 콘텐츠
@@ -24,6 +24,16 @@
 /// 알아낸다. **[LocationPermissionGateway.request] 는 절대 부르지 않는다** —
 /// 새 OS 다이얼로그를 띄우는 것은 이 화면의 일이 아니다(그 진입점은 이미
 /// 배지 탭의 `VisitStatusNotice` 에 있다).
+///
+/// **셋째 갈래는 "판정까지 가지 못한 실행"이다.** 4.2 의 게이트가 닫힌 뒤
+/// (도장을 받고 시간 창이 닫힐 때까지) 또는 콘텐츠를 못 얻은 실행 뒤에는
+/// 손에 든 판정이 옛 사실이라, 그 안의 "권한이 있었다"도 함께 옛 것이다 —
+/// 그 구간에서 권한을 끄고 돌아온 사람의 홈 상단이 그대로 서 있던 것이
+/// phase 5 통합 검증 round 3 의 REJECT 사유다. [currentLocationVisible] 과
+/// [currentLocationNeedsPermissionAnswer] 가 같은 잣대
+/// (`stadiumVisitRunProvider` 의 `judged`)로 그 갈래를 가른다. 여기서도
+/// 새로 만드는 것은 **다이얼로그 없는 `status()` 하나**이고 측위는 하나도
+/// 늘지 않는다.
 ///
 /// **판정을 "지금"으로 읽어도 되는지는 따로 잰다.** 4.2 는 새 도장이 나올 수
 /// 없는 구간에서 측위를 건너뛰므로([StampAward.judgingAddsNothing]), 손에 든
@@ -133,31 +143,64 @@ const String kCurrentLocationGenericLabel = '구장 근처에 있으면 여기�
 /// `permanentlyDenied` 를 받은 실행). 그 밖에는 권한이 있는 사람의 화면이
 /// 권한을 거부한 사람의 화면과 구분되지 않으면 안 된다(acceptance 첫 문장).
 ///
+/// **판정이 "권한이 있다"를 말해 주는 것은 그 판정이 난 순간까지다.**
+/// [lastRunJudged] 가 거짓인 실행 — 마지막 시도가 게이트에서 멈췄거나
+/// ([StampAward.judgingAddsNothing]) 콘텐츠를 못 얻어 판정까지 가지 못한
+/// 실행 — 뒤에는 손에 든 [visit] 이 **옛 사실**이다. 도장을 받고 나면 4.2 의
+/// 게이트가 시간 창이 닫힐 때까지(경기 시작 +5시간) 판정을 통째로 건너뛰므로
+/// 그 옛 사실은 최대 다섯 시간을 산다. 그동안 사람이 OS 설정에서 권한을 끄고
+/// 돌아와도 이 함수가 `visited` 를 "권한이 있다"로 읽어 자리가 그대로 서
+/// 있었다(phase 5 통합 검증 round 3 의 REJECT 사유. 그 자리를 재는 못이
+/// `test/features/home/phase5_integration_round3_probe_test.dart` 의 Q1 이다).
+/// **그 갈래에서는 판정을 믿지 않고 [askedPermission] 만 믿는다** —
+/// [currentLocationNeedsPermissionAnswer] 가 같은 잣대로 그 조회를 켠다.
+/// 이것은 5.2 가 **구장 이름** 쪽에 이미 대 두었던 잣대
+/// ([currentLocationIsFresh] 가 판정까지 가지 못한 실행 뒤에 null 을 받는
+/// 것)를 **자리를 그릴지** 쪽에도 대는 것이고, 새로 만드는 것은 다이얼로그
+/// 없는 [LocationPermissionGateway.status] 하나뿐이라 4.1·4.2 의 측위 절제를
+/// 되돌리지 않는다.
+///
 /// 갈래별 근거:
 /// - **[visit] 이 null** — 판정이 아직 없거나(첫 프레임) 콘텐츠 문서를 못
 ///   얻어 판정이 아예 돌지 못한 실행이다([StadiumVisitCheck.run]). 뒤엣것은
 ///   권한이 있어도 자리가 통째로 접히던 자리라(통합 검증 탐침 E), 트리거가
 ///   한 번이라도 돌았으면([judgmentAttempted]) 권한을 따로 물어 가른다.
+/// - **마지막 시도가 판정까지 가지 못했음** ([lastRunJudged] 이 거짓) — 위
+///   문단. 이유가 무엇이든 [askedPermission] 이 정한다.
 /// - **[StadiumVisitReason.permissionMissing]** — 권한이 없어 판정을
 ///   시도하지 않은 갈래다. 접는다.
 /// - **[StadiumVisitReason.noGameToday]** — 판정할 후보가 없어
 ///   [judgeStadiumVisit] 이 권한조차 묻지 않은 갈래라, 이 함수 혼자서는
 ///   권한을 알 수 없다. 그 답을 [askedPermission] 으로 밖에서 받는다.
 /// - **나머지 넷** — [StadiumVisitChecker.check] 가 권한을
-///   [LocationPermissionStatus.granted] 로 이미 확인한 뒤에만 나오는
-///   갈래라 권한이 있다는 뜻이고, [askedPermission] 은 쓰이지 않는다.
+///   [LocationPermissionStatus.granted] 로 이미 확인한 **그 실행이 마지막
+///   실행일 때만** 권한이 있다는 뜻이고, 그때는 [askedPermission] 이 쓰이지
+///   않는다.
 ///
 /// [askedPermission] 이 아직 null 이면(조회가 로딩 중) 접는다 — "권한이 없는
 /// 사람과 구분되지 않는다"는 위반을 반대 방향(아직 모르는데 그린다)으로
 /// 되풀이하지 않기 위해서다.
+///
+/// [lastRunJudged] 는 [judgmentAttempted] 가 참일 때만 읽는다(시도한 적이
+/// 없으면 "판정까지 갔는가"를 물을 대상 자체가 없다). 기본값을 두지 않은
+/// 것은 의도다 — 이 값을 빠뜨린 부름이 곧 위 REJECT 의 거동이라, 새 부르는
+/// 쪽이 그 사실을 반드시 한 번 지나가게 한다.
 bool currentLocationVisible(
   StadiumVisitResult? visit, {
   bool judgmentAttempted = false,
+  required bool lastRunJudged,
   LocationPermissionStatus? askedPermission,
 }) {
   if (visit == null) {
     return judgmentAttempted &&
         askedPermission == LocationPermissionStatus.granted;
+  }
+  // 손에 든 판정이 마지막 실행의 답이 아니면 그 안의 "권한이 있었다"도 옛
+  // 사실이다 — 다시 물은 답만 믿는다. (이 갈래는
+  // [currentLocationNeedsPermissionAnswer] 의 같은 갈래와 짝이라, 여기 닿는
+  // 부름에는 그 조회가 이미 켜져 있다.)
+  if (judgmentAttempted && !lastRunJudged) {
+    return askedPermission == LocationPermissionStatus.granted;
   }
   return switch (visit.reason) {
     StadiumVisitReason.permissionMissing => false,
@@ -176,11 +219,32 @@ bool currentLocationVisible(
 /// 이 갈래를 좁게 두는 데는 실측 근거가 있다(파일 첫머리 참조): 홈이 모든
 /// 빌드에서 권한을 새로 묻던 첫 판은 위치 게이트웨이를 override 하지 않는
 /// 부팅 시험들을 무더기로 깨뜨렸다.
+///
+/// **[currentLocationVisible] 과 갈래가 정확히 같아야 한다** — 저쪽이
+/// [askedPermission] 으로 답을 정하는 갈래에서 이쪽이 거짓이면 그 답은 늘
+/// null 이라 자리가 영영 접히고, 반대면 물을 까닭 없는 조회가 생긴다. 그
+/// 짝을 값으로 붙잡아 두는 시험이 `current_location_test.dart` 에 있다
+/// ("두 함수의 갈래가 어긋나지 않는다").
+///
+/// 이 물음이 참인 세 갈래:
+///  1. 판정이 아직 없는데 트리거는 돌았다([judgmentAttempted]).
+///  2. **마지막 시도가 판정까지 가지 못했다**([lastRunJudged] 이 거짓) —
+///     4.2 의 게이트가 닫혔거나 콘텐츠를 못 얻은 실행. 그 뒤로는 손에 든
+///     판정이 권한을 대신 말해 주지 못한다(round 3 의 REJECT 사유).
+///  3. 판정이 [StadiumVisitReason.noGameToday] 로 끝나 권한을 아예 묻지
+///     않았다.
+///
+/// 셋 다 **복귀당 한 번**만 다시 답한다 — [locationPermissionStatusProvider]
+/// 는 `autoDispose` 이고 그것을 버리는 자리는 [StadiumVisitTrigger] 의
+/// 포그라운드 복귀뿐이라, 이 물음이 참인 동안 홈이 몇 번 다시 그려지든
+/// 조회는 늘지 않는다.
 bool currentLocationNeedsPermissionAnswer(
   StadiumVisitResult? visit, {
   required bool judgmentAttempted,
+  required bool lastRunJudged,
 }) {
   if (visit == null) return judgmentAttempted;
+  if (judgmentAttempted && !lastRunJudged) return true;
   return visit.reason == StadiumVisitReason.noGameToday;
 }
 

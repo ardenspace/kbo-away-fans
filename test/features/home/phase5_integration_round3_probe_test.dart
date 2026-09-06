@@ -246,22 +246,21 @@ void main() {
       );
     },
     timeout: const Timeout(Duration(seconds: 60)),
-    // **이 탐침은 지금 빨간불이고, 그것이 phase 5 통합 검증 round 3 의 REJECT
-    // 사유다.** 실측(2026-09-06): 자리가 그대로 서 있고 권한 조회 횟수는 복귀
-    // 전후 1 → 1 이다 — 앱은 권한이 꺼진 것을 알 길이 자체가 없다.
+    // **이 탐침은 round 3 의 REJECT 사유였고(그때 실측: 자리가 그대로 서 있고
+    // 권한 조회 횟수가 복귀 전후 1 → 1), 이제 회귀 못이다.**
     //
-    // 까닭: `currentLocationVisible` 이 `visited` 를 비롯한 네 이유를 "권한이
-    // 있다는 뜻"으로 읽는데, 그것이 참인 것은 **그 판정이 난 순간**이다. 4.2 의
-    // `judgingAddsNothing` 게이트가 닫혀 있는 동안 그 판정은 갱신되지 않으므로
-    // (Q1 본문의 fixReads 단언이 그것을 못 박는다) 그 읽기는 최대 다섯 시간
-    // 동안 옛 사실이다. 5.2 는 같은 어긋남을 **구장 이름** 쪽에서는 이미
-    // 닫았다(`stadiumVisitRunProvider` 의 `judged`) — 빠진 것은 **자리를
-    // 그릴지**를 정하는 쪽에 같은 잣대를 대는 것이다.
+    // 까닭이었던 것: `currentLocationVisible` 이 `visited` 를 비롯한 네 이유를
+    // "권한이 있다는 뜻"으로 읽는데, 그것이 참인 것은 **그 판정이 난 순간**
+    // 이다. 4.2 의 `judgingAddsNothing` 게이트가 닫혀 있는 동안 그 판정은
+    // 갱신되지 않으므로(위 fixReads 단언이 그것을 못 박는다) 그 읽기는 최대
+    // 다섯 시간 동안 옛 사실이었다.
     //
-    // 고치면 이 `skip` 을 지우십시오(4.2 의 절제를 되돌리지 않고 닫을 수 있다 —
-    // 마지막 시도가 판정까지 가지 못했으면 `noGameToday` 갈래와 똑같이
-    // `locationPermissionStatusProvider` 로 권한을 한 번 물으면 된다).
-    skip: true,
+    // 닫은 방법: 5.2 가 **구장 이름** 쪽에 이미 대 두었던 잣대
+    // (`stadiumVisitRunProvider` 의 `judged`)를 **자리를 그릴지** 쪽에도
+    // 댔다 — 마지막 시도가 판정까지 가지 못했으면 `noGameToday` 갈래와 똑같이
+    // `locationPermissionStatusProvider` 로 권한을 한 번 묻는다. 새로 생기는
+    // 것은 다이얼로그 없는 `status()` 하나뿐이라 4.1·4.2 의 측위 절제는
+    // 그대로다(위 fixReads 단언이 그것도 함께 지킨다).
   );
 
   testWidgets(
