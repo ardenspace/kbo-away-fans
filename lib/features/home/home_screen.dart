@@ -6,7 +6,7 @@ import '../../content/models.dart';
 import '../../design/tokens.dart';
 import '../../location/location.dart'
     show LocationPermissionStatus, locationPermissionStatusProvider;
-import '../../location/visit_check.dart';
+import '../../location/visit_check.dart' show StadiumVisitResult;
 import '../../ui/shared/category_labels.dart';
 import '../../ui/shared/dday_header.dart';
 import '../../ui/shared/empty_state_notice.dart';

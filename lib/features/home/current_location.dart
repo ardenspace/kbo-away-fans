@@ -91,8 +91,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../content/models.dart';
 import '../../design/tokens.dart';
-import '../../location/location.dart';
-import '../../location/visit_check.dart';
+import '../../location/location.dart' show LocationPermissionStatus;
+import '../../location/visit_check.dart'
+    show StadiumVisitResult, StadiumVisitReason;
 import 'next_away_game.dart' show clockProvider;
 
 /// 홈 목록에서 위치 자리를 가리키는 표지 — **"상단"을 자리로 재기 위한

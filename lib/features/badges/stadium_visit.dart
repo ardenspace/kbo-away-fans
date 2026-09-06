@@ -359,9 +359,15 @@ class _StadiumVisitTriggerState extends ConsumerState<StadiumVisitTrigger>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state != AppLifecycleState.resumed) return;
-    // 판정보다 먼저 권한 답을 버린다 — 그래야 이 복귀에서 다시 그리는 화면이
-    // 옛 답을 한 프레임도 참으로 쓰지 않는다. 구독하는 화면이 없으면 아무
-    // 조회도 생기지 않는다(위 문서 참조).
+    // 판정보다 먼저 권한 답을 버린다 — 그래야 이 복귀가 새 조회를 곧장
+    // 띄운다. 다만 그 조회가 끝나기 전까지는 화면이 옛 답을 아예 안 쓰는
+    // 것은 아니다: `ref.invalidate` 직후에도 `AsyncValue.value` 는 새
+    // 조회가 끝날 때까지 이전 값을 그대로 돌려주므로(실측:
+    // `ProviderContainer` 로 재 보면 invalidate 직후 상태 조회는 이미
+    // 떠났는데 — 호출 횟수 +1 — `.value` 는 이전 답이다), 그 사이 다시
+    // 그려지는 화면은 옛 답을 그대로 읽는다. 옛 답은 새 답이 오는 즉시
+    // 접힌다. 구독하는 화면이 없으면 아무 조회도 생기지 않는다(위 문서
+    // 참조).
     if (mounted) ref.invalidate(locationPermissionStatusProvider);
     _check();
   }
