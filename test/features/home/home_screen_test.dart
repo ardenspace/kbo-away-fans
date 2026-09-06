@@ -16,9 +16,12 @@ import 'package:kbo_away_fans/content/content_providers.dart';
 import 'package:kbo_away_fans/content/models.dart';
 import 'package:kbo_away_fans/design/team_themes.dart';
 import 'package:kbo_away_fans/design/tokens.dart';
+import 'package:kbo_away_fans/features/badges/stadium_visit.dart';
+import 'package:kbo_away_fans/features/home/current_location.dart';
 import 'package:kbo_away_fans/features/home/home_screen.dart';
 import 'package:kbo_away_fans/features/home/next_away_game.dart';
 import 'package:kbo_away_fans/features/places/stadium_places_screen.dart';
+import 'package:kbo_away_fans/location/visit_check.dart';
 import 'package:kbo_away_fans/ui/shared/category_chip.dart';
 import 'package:kbo_away_fans/ui/shared/dday_header.dart';
 import 'package:kbo_away_fans/ui/shared/stadium_picker.dart';
@@ -28,6 +31,23 @@ import 'package:kbo_away_fans/weather/weather.dart';
 
 Map<String, Object?> _readJson(String path) =>
     jsonDecode(File(path).readAsStringSync()) as Map<String, Object?>;
+
+/// [stadiumVisitProvider] 를 고정 값으로 갈아 끼우는 대역 (step 5.2) — 실
+/// 판정을 돌리지 않고 홈 상단 위치 문구만 재는 시험에 쓴다.
+/// `test/features/badges/visit_status_notice_test.dart` 의
+/// `_FixedStadiumVisitCheck` 와 같은 모양이다(각 시험 파일이 재는 화면이
+/// 달라 그대로 공유하지 않고 이 파일에도 짧게 둔다).
+class _FixedStadiumVisitCheck extends StadiumVisitCheck {
+  _FixedStadiumVisitCheck(this._fixed);
+
+  final StadiumVisitResult? _fixed;
+
+  @override
+  StadiumVisitResult? build() => _fixed;
+
+  @override
+  Future<void> run() async {}
+}
 
 void main() {
   late TeamsDocument teamsDoc;
@@ -98,6 +118,9 @@ void main() {
     required List<Game> games,
     required DateTime now,
     WeatherEffect weather = WeatherEffect.none,
+    // step 5.2 — 기본값 null 이라 이 인자를 주지 않는 기존 시나리오는 전부
+    // 홈 상단 위치 자리가 접힌 채로 그대로 지나간다.
+    StadiumVisitResult? stadiumVisit,
   }) {
     final scheduleDoc =
         ScheduleDocument(generatedAt: DateTime.utc(2026), games: games);
@@ -117,6 +140,9 @@ void main() {
         ),
         scheduleProvider.overrideWith(
           (ref) async => ContentFresh<ScheduleDocument>(scheduleDoc),
+        ),
+        stadiumVisitProvider.overrideWith(
+          () => _FixedStadiumVisitCheck(stadiumVisit),
         ),
       ],
       child: MaterialApp(home: HomeScreen(teamId: teamId)),
@@ -598,6 +624,155 @@ void main() {
       expect(find.text('7 : 2', skipOffstage: false), findsOneWidget);
       // 승패: 원정 승리 → 승.
       expect(find.text('승', skipOffstage: false), findsOneWidget);
+    });
+  });
+
+  group('홈 상단 현재 위치 (step 5.2) — 화면에 실제로 뜨는지', () {
+    // acceptance criteria 세 문장을 렌더 레벨로 확인한다: 5.1 이 REJECT 된
+    // 자리와 같은 종류의 구멍(섹션을 통째로 없애는 변이가 로직 시험만으로는
+    // 안 잡힌다)을 여기서 막는다. [stadiumVisit] 을 직접 주입하는 것은
+    // 4.1 이 이미 돌리는 [stadiumVisitProvider] 를 이 화면이 그대로 읽을
+    // 뿐(새 권한 조회를 만들지 않는다)이기 때문이다 — `current_location.dart`
+    // docstring 참조.
+    Finder locationRow() => find.byWidgetPredicate(
+      (widget) =>
+          widget is Icon && widget.icon == Icons.location_on_rounded,
+      skipOffstage: false,
+    );
+
+    testWidgets('판정이 없으면(아직 안 돌았거나 오늘 경기가 없어 후보가 없음) 위치 자리가 없다',
+        (tester) async {
+      await tester.pumpWidget(home(
+        teamId: 'lotte',
+        games: const [],
+        now: now,
+        // stadiumVisit 기본값 null — 아직 판정이 없는 실행.
+      ));
+      await tester.pumpAndSettle();
+
+      expect(locationRow(), findsNothing);
+      expect(
+        find.text(kCurrentLocationGenericLabel, skipOffstage: false),
+        findsNothing,
+      );
+    });
+
+    testWidgets('권한이 없으면(permissionMissing) 위치 자리가 없다', (tester) async {
+      await tester.pumpWidget(home(
+        teamId: 'lotte',
+        games: const [],
+        now: now,
+        stadiumVisit: const StadiumVisitResult.rejected(
+          StadiumVisitReason.permissionMissing,
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      expect(locationRow(), findsNothing);
+    });
+
+    testWidgets('오늘 경기가 없으면(noGameToday) 위치 자리가 없다', (tester) async {
+      await tester.pumpWidget(home(
+        teamId: 'lotte',
+        games: const [],
+        now: now,
+        stadiumVisit: const StadiumVisitResult.rejected(
+          StadiumVisitReason.noGameToday,
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      expect(locationRow(), findsNothing);
+    });
+
+    testWidgets('위치 자리가 없어도 홈의 나머지(D-day·최근 5경기·탐색)는 그대로다',
+        (tester) async {
+      await tester.pumpWidget(home(
+        teamId: 'lotte',
+        games: [
+          game(date: '2026-08-25', home: 'lg', away: 'lotte', stadium: 'jamsil'),
+        ],
+        now: now,
+        stadiumVisit: const StadiumVisitResult.rejected(
+          StadiumVisitReason.permissionMissing,
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      expect(locationRow(), findsNothing);
+      // D-day 얼굴 — 오늘 원정 경기가 있는 픽스처라 "오늘"이 뜬다.
+      expect(find.text('오늘'), findsOneWidget);
+      // 최근 5경기 섹션 자체는 상시 렌더(내용이 비어도 안내가 뜬다).
+      expect(find.text('최근 5경기'), findsOneWidget);
+      // 구장 골라 구경하기(탐색) — 경기 유무와 무관한 상시 섹션.
+      expect(
+        find.byType(StadiumPicker, skipOffstage: false),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('권한은 있는데 지금 구장이 아니면(outsideRadius) 일반 문구가 뜬다',
+        (tester) async {
+      await tester.pumpWidget(home(
+        teamId: 'lotte',
+        games: const [],
+        now: now,
+        stadiumVisit: const StadiumVisitResult.rejected(
+          StadiumVisitReason.outsideRadius,
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      expect(locationRow(), findsOneWidget);
+      expect(
+        find.text(kCurrentLocationGenericLabel, skipOffstage: false),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('방문이 확정되면 그 구장 이름이 뜬다 (구장 근접 표시)', (tester) async {
+      await tester.pumpWidget(home(
+        teamId: 'lotte',
+        games: const [],
+        now: now,
+        stadiumVisit: const StadiumVisitResult.visited(
+          stadiumId: 'sajik',
+          gameId: '2026-08-25-sajik-lotte-kt',
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      expect(locationRow(), findsOneWidget);
+      expect(find.text('사직야구장 근처예요', skipOffstage: false), findsOneWidget);
+      // 일반 문구로 겹쳐 뜨지 않는다 — 한 자리에 문구 하나만.
+      expect(
+        find.text(kCurrentLocationGenericLabel, skipOffstage: false),
+        findsNothing,
+      );
+    });
+
+    testWidgets('위치 자리가 있어도 홈의 나머지(D-day·최근 5경기·탐색)는 그대로다',
+        (tester) async {
+      await tester.pumpWidget(home(
+        teamId: 'lotte',
+        games: [
+          game(date: '2026-08-25', home: 'lg', away: 'lotte', stadium: 'jamsil'),
+        ],
+        now: now,
+        stadiumVisit: const StadiumVisitResult.visited(
+          stadiumId: 'jamsil',
+          gameId: '2026-08-25-jamsil-lotte-lg',
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      expect(locationRow(), findsOneWidget);
+      expect(find.text('오늘'), findsOneWidget);
+      expect(find.text('최근 5경기'), findsOneWidget);
+      expect(
+        find.byType(StadiumPicker, skipOffstage: false),
+        findsOneWidget,
+      );
     });
   });
 }
