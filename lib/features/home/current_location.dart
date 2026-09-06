@@ -47,18 +47,18 @@
 /// 전체 앱 부팅 시험들(`test/phase2_journey_probe_test.dart` 등)이 실 플랫폼
 /// 채널을 만지며 타이머가 위젯 트리 해제 뒤까지 남아 깨졌다(전체 스위트에서
 /// 23개 파일·33개 시험이 함께 흔들렸다, `.wellbegun/decisions.md` 2026-09-06
-/// 참조). 지금 이 갈래는 그와 다르다 — 재조회가 서는 것은 `noGameToday`
-/// 판정을 받은 빌드뿐이고, 그 값을 실제로 만드는 것은 `stadiumVisitProvider`
-/// 를 직접 돌리는 실행(`StadiumVisitTrigger` 를 씌운 화면)뿐이다. 저장소를
-/// 훑어 그 조건을 만드는 시험들을 모두 확인했다 — `stadiumVisitProvider`
-/// 를 고정값으로 갈아 끼우거나(`_FixedStadiumVisitCheck` 류) `scheduleProvider`
-/// 를 못 얻은 것으로 두어 `StadiumVisitCheck.run` 이 일찍 반환하는 시험은 이
-/// 갈래에 닿지 않고, 실제로 `noGameToday` 를 만드는 시험(`test/phase3_seam_audit_probe_test.dart`
-/// 등)은 스케줄 문서 자체를 못 얻은 것으로 두어 판정이 아예 돌지 않거나
-/// [stadiumVisitCheckerProvider] 를 통째로 갈아 껴 권한 게이트웨이를 거치지
-/// 않는다. `test/features/home/home_screen_test.dart` 는 [stadiumVisit] 을
-/// 직접 주입해 `noGameToday` 를 실제로 만드므로, 그 파일에는
-/// [locationPermissionGatewayProvider] override 를 새로 더했다.
+/// 참조). 지금은 그와 다르다 — 재조회가 서는 것은 매 빌드가 아니라
+/// [currentLocationNeedsPermissionAnswer] 가 참인 두 갈래뿐이고, 그 값을
+/// 만드는 것은 판정을 실제로 돌리는 실행(`StadiumVisitTrigger` 를 씌운
+/// 화면)뿐이다.
+///
+/// **그래도 대가는 남았고, 실측해서 닫았다.** 갈래를 "판정이 아예 없는
+/// 실행"까지 넓히자(탐침 E) 콘텐츠를 못 얻은 채 앱을 띄우는 부팅 시험들이
+/// 실 플랫폼 채널을 물어 같은 모양으로 깨졌다 — 8개 파일·24개 시험, 전부
+/// "A Timer is still pending"이다. 산출물이 아니라 그 시험들에
+/// [locationPermissionGatewayProvider] 대역을 더해 닫았다(단언은 그대로).
+/// **앱을 통째로 띄우는 시험을 새로 쓰면 그 대역을 함께 두십시오** — 이
+/// 화면은 판정이 없는 실행에서 권한을 한 번 묻는다.
 ///
 /// **표기 형태는 "구장 근접 표시"를 고른다** (plan.md step 5.2 discretion).
 /// [StadiumVisitResult] 는 방문이 확정된 갈래에만 구장 id 를 담으므로
@@ -70,6 +70,7 @@
 /// 뜬다 — `outsideRadius` 등 다른 세 이유와 같은 문구다.
 library;
 
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../content/models.dart';
@@ -87,6 +88,16 @@ final currentLocationPermissionProvider =
         () => ref.read(locationPermissionGatewayProvider).status(),
       ),
     );
+
+/// 홈 목록에서 위치 자리를 가리키는 표지 — **"상단"을 자리로 재기 위한
+/// 것이다** (5.2 acceptance 의 "권한이 있으면 현재 위치가 **상단에** 뜬다").
+///
+/// 이 표지가 없던 동안에는 그 조각을 홈 `ListView` 의 맨 아래로 옮겨도
+/// 저장소 전체가 초록불이었다(phase 5 통합 검증의 실측). 문구를 찾는 시험은
+/// 순서를 재지 못하고, 화면 밖으로 밀려나 우연히 안 잡히는 것에 기대는 것도
+/// 순서를 재는 것이 아니다 — 그래서 목록의 **몇 번째 자식인지**를 그대로
+/// 보는 시험을 `home_screen_test.dart` 에 두었다.
+const Key kCurrentLocationRowKey = ValueKey('home-current-location');
 
 /// 판정 하나가 **"지금 위치"로 통하는 시간** (plan.md step 5.2 의 discretion
 /// "갱신 주기").

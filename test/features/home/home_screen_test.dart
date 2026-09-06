@@ -945,6 +945,41 @@ void main() {
       expect(locationRow(), findsNothing);
     });
 
+    testWidgets('위치 자리는 홈 목록의 맨 위다 (acceptance 의 "상단")', (tester) async {
+      // 문구를 찾는 시험은 순서를 재지 못한다 — 이 조각을 홈 ListView 의 맨
+      // 아래로 옮겨도 저장소 전체가 초록불이었다(phase 5 통합 검증의 실측).
+      // 그래서 자리 자체를 본다: 목록의 **첫 자식**이어야 한다. 화면 밖으로
+      // 밀려나 우연히 안 잡히는 것에 기대지 않으려고 위젯 목록을 직접 읽는다
+      // (ListView(children:) 는 화면 밖 자식도 위젯으로는 다 지어 둔다).
+      await tester.pumpWidget(home(
+        teamId: 'lotte',
+        games: [
+          game(date: '2026-08-25', home: 'lg', away: 'lotte', stadium: 'jamsil'),
+        ],
+        now: now,
+        stadiumVisit: const StadiumVisitResult.visited(
+          stadiumId: 'sajik',
+          gameId: '2026-08-25-sajik-lotte-kt',
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      final listView = tester.widgetList<ListView>(find.byType(ListView)).first;
+      final children =
+          (listView.childrenDelegate as SliverChildListDelegate).children;
+      expect(
+        children.first.key,
+        kCurrentLocationRowKey,
+        reason: '위치 자리를 다른 자리로 옮기면 여기가 빨간불이 된다',
+      );
+
+      // 자리 순서가 화면에서도 그대로인지 — D-day 얼굴보다 위에 있다.
+      expect(
+        tester.getTopLeft(find.byKey(kCurrentLocationRowKey)).dy,
+        lessThan(tester.getTopLeft(find.byType(DdayHeader)).dy),
+      );
+    });
+
     testWidgets('위치 자리가 있어도 홈의 나머지(D-day·최근 5경기·탐색)는 그대로다',
         (tester) async {
       await tester.pumpWidget(home(

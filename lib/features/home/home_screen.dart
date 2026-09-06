@@ -290,6 +290,10 @@ class _HomeScaffold extends StatelessWidget {
     );
     return [
       Padding(
+        // 이 자리가 홈 목록의 **맨 위**라는 것을 시험이 자리 자체로 잴 수
+        // 있게 하는 표지다 (5.2 acceptance 의 "상단"). 그 전에는 이 조각을
+        // 목록 맨 아래로 옮겨도 저장소 전체가 초록불이었다.
+        key: kCurrentLocationRowKey,
         padding: const EdgeInsets.fromLTRB(
           SpaceTokens.lg,
           SpaceTokens.lg,
