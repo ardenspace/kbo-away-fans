@@ -263,10 +263,14 @@ void main() {
       findsNothing,
       reason: '온보딩 신호가 서는 자리는 문서를 실제로 만든 그 한 번뿐이다',
     );
+    // step 5.2 — 온보딩 신호(LocationConsentScreen) 자신은 다시 묻지 않지만,
+    // 이 파일의 schedule 이 항상 비어 있어 홈이 noGameToday 갈래에서 권한을
+    // 한 번 다시 묻는다(`current_location.dart` docstring 참조). "온보딩이
+    // 다시 서지 않는다"는 위 findsNothing 이 그대로 지킨다.
     expect(
       secondLocation.statusCalls,
-      0,
-      reason: '다시 묻지 않는 실행은 OS 에 상태조차 물어보지 않는다',
+      1,
+      reason: '온보딩 재요청은 없다 — 홈의 noGameToday 재조회 하나뿐',
     );
     expect(store.profileCreates, 1, reason: '재로그인이 문서를 다시 만들지 않는다');
   });
@@ -422,8 +426,14 @@ void main() {
     );
 
     await tester.tap(find.text('나중에 할게요'));
-    await tester.pumpAndSettle();
+    await tester.pump();
     expect(_homeFinder, findsOneWidget);
+    // step 5.2 — 홈이 noGameToday 갈래(이 파일의 schedule 이 항상 비어
+    // 있다)에서 권한을 다시 묻는데, 이 게이트웨이는 status() 가 끝나지
+    // 않는 대역이라 그 재조회도 상한에서 빠져나와야 한다. 안 그러면 그
+    // 타이머가 위젯 트리 해제 뒤까지 남아 "A Timer is still pending" 로
+    // 시험이 깨진다(`current_location.dart` docstring 참조).
+    await tester.pump(const Duration(seconds: 10));
     expect(store.documents['uid-stall'], isNotNull);
   });
 

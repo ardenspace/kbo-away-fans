@@ -11,6 +11,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kbo_away_fans/content/models.dart';
 import 'package:kbo_away_fans/features/home/current_location.dart';
+import 'package:kbo_away_fans/location/location.dart';
 import 'package:kbo_away_fans/location/visit_check.dart';
 
 Map<String, Object?> _readJson(String path) =>
@@ -88,13 +89,83 @@ void main() {
       );
     });
 
-    test('noGameToday 는 접는다 — 권한조차 묻지 않은 판정', () {
+    test('noGameToday 는 기본값(권한 답 없음)으로는 접는다', () {
       expect(
         currentLocationVisible(
           const StadiumVisitResult.rejected(StadiumVisitReason.noGameToday),
         ),
         isFalse,
       );
+    });
+
+    group('noGameToday + noGameTodayPermission (계약 위반 시정)', () {
+      // 권한이 있으면 오늘 경기가 없는 날에도 위치 자리가 떠야 한다
+      // (acceptance 첫 문장). judgeStadiumVisit 이 noGameToday 갈래에서는
+      // 권한 자체를 묻지 않으므로, 그 답은 이 매개변수로 밖에서 받는다.
+      const rejected = StadiumVisitResult.rejected(
+        StadiumVisitReason.noGameToday,
+      );
+
+      test('권한이 granted 면 그린다', () {
+        expect(
+          currentLocationVisible(
+            rejected,
+            noGameTodayPermission: LocationPermissionStatus.granted,
+          ),
+          isTrue,
+        );
+      });
+
+      test('권한이 denied 면 접는다', () {
+        expect(
+          currentLocationVisible(
+            rejected,
+            noGameTodayPermission: LocationPermissionStatus.denied,
+          ),
+          isFalse,
+        );
+      });
+
+      test('권한이 permanentlyDenied 면 접는다', () {
+        expect(
+          currentLocationVisible(
+            rejected,
+            noGameTodayPermission: LocationPermissionStatus.permanentlyDenied,
+          ),
+          isFalse,
+        );
+      });
+
+      test('아직 답이 없으면(null — provider 로딩 중) 접는다', () {
+        expect(
+          currentLocationVisible(rejected, noGameTodayPermission: null),
+          isFalse,
+        );
+      });
+
+      test('noGameToday 가 아닌 갈래에서는 noGameTodayPermission 이 granted 여도 영향이 없다', () {
+        // 이미 그리는 갈래(outsideRadius)가 이 매개변수 때문에 접히지
+        // 않는다는 것과, 이미 접는 갈래(permissionMissing)가 이 매개변수
+        // 때문에 그려지지 않는다는 것을 함께 확인한다.
+        expect(
+          currentLocationVisible(
+            const StadiumVisitResult.rejected(
+              StadiumVisitReason.outsideRadius,
+            ),
+            noGameTodayPermission: LocationPermissionStatus.denied,
+          ),
+          isTrue,
+        );
+        expect(
+          currentLocationVisible(
+            const StadiumVisitResult.rejected(
+              StadiumVisitReason.permissionMissing,
+            ),
+            noGameTodayPermission: LocationPermissionStatus.granted,
+          ),
+          isFalse,
+        );
+      });
     });
 
     for (final reason in [

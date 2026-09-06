@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../content/content_providers.dart';
 import '../../content/models.dart';
 import '../../design/tokens.dart';
+import '../../location/location.dart' show LocationPermissionStatus;
 import '../../location/visit_check.dart';
 import '../../ui/shared/category_labels.dart';
 import '../../ui/shared/dday_header.dart';
@@ -84,12 +85,23 @@ class HomeScreen extends ConsumerWidget {
             ) ==
             WeatherEffect.rain;
 
-    // 홈 상단 현재 위치 (step 5.2) — 새 권한 조회를 만들지 않고 4.1 이 앱을
-    // 열 때·포그라운드로 돌아올 때 이미 돌리고 있는 판정 결과만 읽는다
-    // (`current_location.dart` docstring 참조 — 독립된 조회를 따로 뒀다가
-    // 위치 게이트웨이를 override 하지 않는 부팅 시험들이 무더기로 깨진
-    // 실측이 있다).
+    // 홈 상단 현재 위치 (step 5.2) — 기본은 새 권한 조회를 만들지 않고 4.1 이
+    // 앱을 열 때·포그라운드로 돌아올 때 이미 돌리고 있는 판정 결과만 읽는다
+    // (`current_location.dart` docstring 참조 — 독립된 조회를 매 빌드마다
+    // 뒀다가 위치 게이트웨이를 override 하지 않는 부팅 시험들이 무더기로
+    // 깨진 실측이 있다).
     final stadiumVisit = ref.watch(stadiumVisitProvider);
+
+    // 딱 한 갈래(`noGameToday`)에서만 권한을 다시 묻는다 — 그 갈래는
+    // `judgeStadiumVisit` 이 권한보다 후보 게이트를 먼저 보아 권한 자체를
+    // 묻지 않은 판정이라, 이 provider 가 아니면 "권한이 있는지" 알 길이
+    // 없다(`current_location.dart` docstring 참조). 다른 다섯 갈래에서는
+    // 이 provider 를 구독조차 하지 않는다 — `autoDispose` 라 그동안
+    // 인스턴스화되지 않는다.
+    final LocationPermissionStatus? noGameTodayPermission =
+        stadiumVisit?.reason == StadiumVisitReason.noGameToday
+            ? ref.watch(noGameTodayPermissionProvider).value
+            : null;
 
     final team = teamsDoc?.byId(teamId);
     final scaffold = _HomeScaffold(
@@ -104,6 +116,7 @@ class HomeScreen extends ConsumerWidget {
       schedule: scheduleDoc,
       now: now,
       stadiumVisit: stadiumVisit,
+      noGameTodayPermission: noGameTodayPermission,
       scheduleLoading: scheduleDoc == null && scheduleAsync is AsyncLoading,
       // 재시도는 콘텐츠 4종을 함께 다시 로드 — 부분 복구로 홈이
       // raw id 저하 렌더되는 비일관성을 막는다.
@@ -130,6 +143,7 @@ class _HomeScaffold extends StatelessWidget {
     required this.schedule,
     required this.now,
     required this.stadiumVisit,
+    required this.noGameTodayPermission,
     required this.scheduleLoading,
     required this.onRetrySchedule,
   });
@@ -162,6 +176,12 @@ class _HomeScaffold extends StatelessWidget {
   /// 가장 최근 방문 판정 (step 4.1 이 이미 돌리는 [stadiumVisitProvider]) —
   /// 홈 상단 위치 자리를 그릴지·"어느 구장 근처인지"를 아는 유일한 자리다.
   final StadiumVisitResult? stadiumVisit;
+
+  /// [stadiumVisit] 의 이유가 [StadiumVisitReason.noGameToday] 일 때만 뜻을
+  /// 갖는 값 — 그 갈래에서 [HomeScreen] 이 딱 한 번 더 물은 권한 상태다
+  /// (`current_location.dart` docstring 참조). 다른 다섯 갈래에서는 항상
+  /// null 이고 [currentLocationVisible] 도 그 값을 쓰지 않는다.
+  final LocationPermissionStatus? noGameTodayPermission;
 
   /// schedule 이 아직 로드 중인지 (null 인 이유의 구분).
   final bool scheduleLoading;
@@ -213,8 +233,9 @@ class _HomeScaffold extends StatelessWidget {
   }
 
   /// 홈 상단 현재 위치 (step 5.2) — 위치 권한이 있으면(그리고 4.1 이 이미
-  /// 그것을 실제로 확인한 판정이 있으면) 구장 근접 표시를, 아니면 자리를
-  /// 그대로 접는다. 새 권한 조회는 만들지 않는다 — `current_location.dart`
+  /// 그것을 실제로 확인한 판정이 있거나, 오늘 경기가 없어 [noGameTodayPermission]
+  /// 이 대신 답했으면) 구장 근접 표시를, 아니면 자리를 그대로 접는다. 그
+  /// 재조회 하나를 뺀 새 권한 조회는 만들지 않는다 — `current_location.dart`
   /// docstring 참조.
   ///
   /// **재요청 버튼을 두지 않는다.** acceptance 가 허용한 두 갈래("자리가
@@ -223,10 +244,16 @@ class _HomeScaffold extends StatelessWidget {
   /// 같은 결정을 두 화면에서 각자 묻게 된다.
   ///
   /// **좌표는 이 메서드에 값으로 온 적이 없다** — [stadiumVisit] 은 4.1 이
-  /// 이미 돌리고 있는 판정 결과([StadiumVisitResult])이고, 그 타입 자체에
-  /// 좌표 필드가 없다(`lib/location/visit_check.dart` 겹 5).
+  /// 이미 돌리고 있는 판정 결과([StadiumVisitResult])이고, [noGameTodayPermission]
+  /// 은 권한 상태([LocationPermissionStatus])뿐이다. 둘 다 좌표 필드가
+  /// 없다(`lib/location/visit_check.dart` 겹 5·`lib/location/location.dart`).
   List<Widget> _currentLocation(BuildContext context) {
-    if (!currentLocationVisible(stadiumVisit)) return const [];
+    if (!currentLocationVisible(
+      stadiumVisit,
+      noGameTodayPermission: noGameTodayPermission,
+    )) {
+      return const [];
+    }
     final label = currentLocationLabel(
       visit: stadiumVisit,
       stadiums: stadiums,

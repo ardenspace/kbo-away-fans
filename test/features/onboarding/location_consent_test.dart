@@ -242,7 +242,12 @@ void main() {
       reason: '팀 변경은 계약이 다루는 온보딩이 아니다',
     );
     expect(find.byType(HomeScreen), findsOneWidget);
-    expect(location.statusCalls, 0, reason: '위치 게이트웨이에 물어보지도 않았다');
+    // step 5.2 — 팀 변경 흐름(LocationConsentScreen) 자신은 게이트웨이에
+    // 묻지 않지만, 이 파일의 schedule 이 항상 비어 있어 홈이 noGameToday
+    // 갈래에서 권한을 딱 한 번 다시 묻는다(`current_location.dart` docstring
+    // 참조) — 그 재조회가 이 값을 0 에서 1 로 올린다. "온보딩 흐름 자체가
+    // 묻지 않는다"는 위 `LocationConsentScreen findsNothing` 이 그대로 지킨다.
+    expect(location.statusCalls, 1, reason: '홈의 noGameToday 재조회 하나뿐 — 팀 변경 흐름은 묻지 않았다');
     expect(location.requestCalls, 0);
   });
 
@@ -307,7 +312,9 @@ void main() {
       reason: '이 사람은 처음 고르는 중이 아니라 이미 lg 를 응원하던 사람이다',
     );
     expect(find.byType(HomeScreen), findsOneWidget);
-    expect(location.statusCalls, 0);
+    // step 5.2 — 위 test 의 같은 까닭: 이 파일의 schedule 이 항상 비어 있어
+    // 홈이 noGameToday 갈래에서 권한을 한 번 다시 묻는다.
+    expect(location.statusCalls, 1);
     expect(location.requestCalls, 0);
   });
   testWidgets('팀 변경 모드에서 문서가 실제로 만들어지는 드문 경로에서도 위치 설명이 뜨지 않는다', (
@@ -361,7 +368,9 @@ void main() {
       reason: '변경 모드에서 고른 선택이므로 문서를 새로 만들어도 위치를 묻지 않는다',
     );
     expect(find.byType(HomeScreen), findsOneWidget);
-    expect(location.statusCalls, 0);
+    // step 5.2 — 위 두 test 와 같은 까닭: schedule 이 항상 비어 있어 홈이
+    // noGameToday 갈래에서 권한을 한 번 다시 묻는다.
+    expect(location.statusCalls, 1);
     expect(location.requestCalls, 0);
   });
 
@@ -419,8 +428,14 @@ void main() {
       expect(tester.takeException(), isNull);
 
       await tester.tap(find.text('나중에 할게요'));
-      await tester.pumpAndSettle();
+      await tester.pump();
       expect(find.byType(HomeScreen), findsOneWidget);
+      // step 5.2 — 홈이 noGameToday 갈래(이 파일의 schedule 이 항상 비어
+      // 있다)에서 권한을 다시 묻는데, 이 게이트웨이는 status() 가 끝나지
+      // 않는 대역이라 그 재조회도 상한에서 빠져나와야 한다. 안 그러면 그
+      // 타이머가 위젯 트리 해제 뒤까지 남아 "A Timer is still pending" 로
+      // 시험이 깨진다(`current_location.dart` docstring 참조).
+      await tester.pump(_generousLocationBound);
     });
 
     testWidgets('request() 가 던져도 허용 버튼이 침묵하지 않는다', (tester) async {

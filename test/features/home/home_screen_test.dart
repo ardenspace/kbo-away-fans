@@ -21,6 +21,7 @@ import 'package:kbo_away_fans/features/home/current_location.dart';
 import 'package:kbo_away_fans/features/home/home_screen.dart';
 import 'package:kbo_away_fans/features/home/next_away_game.dart';
 import 'package:kbo_away_fans/features/places/stadium_places_screen.dart';
+import 'package:kbo_away_fans/location/location.dart';
 import 'package:kbo_away_fans/location/visit_check.dart';
 import 'package:kbo_away_fans/ui/shared/category_chip.dart';
 import 'package:kbo_away_fans/ui/shared/dday_header.dart';
@@ -28,6 +29,8 @@ import 'package:kbo_away_fans/ui/shared/stadium_picker.dart';
 import 'package:kbo_away_fans/ui/shared/team_theme_scope.dart';
 import 'package:kbo_away_fans/ui/shared/weather_backdrop.dart';
 import 'package:kbo_away_fans/weather/weather.dart';
+
+import '../../location/fake_location_permission_gateway.dart';
 
 Map<String, Object?> _readJson(String path) =>
     jsonDecode(File(path).readAsStringSync()) as Map<String, Object?>;
@@ -121,6 +124,13 @@ void main() {
     // step 5.2 — 기본값 null 이라 이 인자를 주지 않는 기존 시나리오는 전부
     // 홈 상단 위치 자리가 접힌 채로 그대로 지나간다.
     StadiumVisitResult? stadiumVisit,
+    // noGameToday 갈래에서만 홈이 다시 묻는 권한 상태(계약 위반 시정) — 대역이
+    // 없으면 실 플랫폼 채널(DevicePermissionHandlerGateway)이 물려 위젯 트리
+    // 해제 뒤까지 남는 타이머로 부팅 시험이 깨진다(`current_location.dart`
+    // docstring 참조). 기본값 denied 는 이 인자를 주지 않는 기존 시나리오의
+    // 결과를 바꾸지 않는다 — noGameToday 가 아닌 갈래에서는 이 게이트웨이가
+    // 아예 구독되지 않는다.
+    LocationPermissionGateway? locationGateway,
   }) {
     final scheduleDoc =
         ScheduleDocument(generatedAt: DateTime.utc(2026), games: games);
@@ -143,6 +153,12 @@ void main() {
         ),
         stadiumVisitProvider.overrideWith(
           () => _FixedStadiumVisitCheck(stadiumVisit),
+        ),
+        locationPermissionGatewayProvider.overrideWithValue(
+          locationGateway ??
+              FakeLocationPermissionGateway(
+                initial: LocationPermissionStatus.denied,
+              ),
         ),
       ],
       child: MaterialApp(home: HomeScreen(teamId: teamId)),
@@ -671,18 +687,55 @@ void main() {
       expect(locationRow(), findsNothing);
     });
 
-    testWidgets('오늘 경기가 없으면(noGameToday) 위치 자리가 없다', (tester) async {
-      await tester.pumpWidget(home(
-        teamId: 'lotte',
-        games: const [],
-        now: now,
-        stadiumVisit: const StadiumVisitResult.rejected(
-          StadiumVisitReason.noGameToday,
-        ),
-      ));
-      await tester.pumpAndSettle();
+    group('오늘 경기가 없으면(noGameToday) — 계약 위반 시정: 권한을 다시 물어 가른다', () {
+      // judgeStadiumVisit 이 이 갈래에서는 권한 자체를 묻지 않으므로, 홈이
+      // noGameTodayPermissionProvider 로 딱 이 갈래에서만 다시 묻는다
+      // (`current_location.dart` docstring 참조). 권한이 없는 사람과
+      // 구분되지 않던 acceptance 위반(월요일·비시즌에 권한을 허용한 사람도
+      // 자리가 통째로 사라짐)을 닫는 자리다.
+      const rejected = StadiumVisitResult.rejected(
+        StadiumVisitReason.noGameToday,
+      );
 
-      expect(locationRow(), findsNothing);
+      testWidgets('권한이 없으면(denied) 위치 자리가 없다', (tester) async {
+        await tester.pumpWidget(home(
+          teamId: 'lotte',
+          games: const [],
+          now: now,
+          stadiumVisit: rejected,
+          locationGateway: FakeLocationPermissionGateway(
+            initial: LocationPermissionStatus.denied,
+          ),
+        ));
+        await tester.pumpAndSettle();
+
+        expect(locationRow(), findsNothing);
+      });
+
+      testWidgets('권한이 있으면(granted) 위치 자리가 뜬다 — 경기 없는 날에도', (tester) async {
+        final gateway = FakeLocationPermissionGateway(
+          initial: LocationPermissionStatus.granted,
+        );
+        await tester.pumpWidget(home(
+          teamId: 'lotte',
+          games: const [],
+          now: now,
+          stadiumVisit: rejected,
+          locationGateway: gateway,
+        ));
+        await tester.pumpAndSettle();
+
+        expect(locationRow(), findsOneWidget);
+        // 구장을 특정할 수 없으므로 일반 문구 — outsideRadius 등과 같은 표기.
+        expect(
+          find.text(kCurrentLocationGenericLabel, skipOffstage: false),
+          findsOneWidget,
+        );
+        // OS 다이얼로그를 새로 띄우는 request() 는 절대 불리지 않는다 —
+        // status() 만으로 답을 얻는다(begin.md [XL] 결정 · plan.md 5.2 계약).
+        expect(gateway.requestCalls, 0);
+        expect(gateway.statusCalls, greaterThanOrEqualTo(1));
+      });
     });
 
     testWidgets('위치 자리가 없어도 홈의 나머지(D-day·최근 5경기·탐색)는 그대로다',

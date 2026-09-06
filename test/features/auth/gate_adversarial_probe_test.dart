@@ -27,10 +27,12 @@ import 'package:kbo_away_fans/features/home/home_screen.dart';
 import 'package:kbo_away_fans/features/places/stadium_places_screen.dart';
 import 'package:kbo_away_fans/features/team_select/selected_team.dart';
 import 'package:kbo_away_fans/features/team_select/team_select_screen.dart';
+import 'package:kbo_away_fans/location/location.dart';
 import 'package:kbo_away_fans/ui/shared/social_sign_in_button.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../backend/fake_backend.dart';
+import '../../location/fake_location_permission_gateway.dart';
 
 /// 로그인해 둔 사람 — uid 를 [FakeAuthService] 의 구글 로그인이 세우는 것과
 /// 같게 잡는다 (캐시가 계정에 매여 있어서, 다시 로그인하는 갈래가 같은 계정으로
@@ -446,6 +448,13 @@ void main() {
             ),
             scheduleProvider.overrideWith(
               (ref) async => ContentFresh<ScheduleDocument>(emptySchedule),
+            ),
+            // step 5.2 — 이 schedule 이 비어 있어 홈이 noGameToday 갈래에서
+            // 권한을 다시 묻는다(`current_location.dart` docstring 참조).
+            // 대역을 두지 않으면 실 플랫폼 채널이 물려 위젯 트리 해제 뒤까지
+            // 남는 타이머로 이 시험이 깨진다.
+            locationPermissionGatewayProvider.overrideWithValue(
+              FakeLocationPermissionGateway(),
             ),
           ],
           child: const KboAwayFansApp(),
