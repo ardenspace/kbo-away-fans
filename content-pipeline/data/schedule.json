@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-09-08T17:28:01.186Z",
+  "generatedAt": "2026-09-09T13:45:38.633Z",
   "games": [
     {
       "id": "20260826HHSK02026",
@@ -699,7 +699,10 @@
       "homeTeamId": "samsung",
       "awayTeamId": "kt",
       "stadiumId": "daegu",
-      "status": "scheduled"
+      "status": "finished",
+      "homeScore": 0,
+      "awayScore": 2,
+      "result": "away_win"
     },
     {
       "id": "20260909LGHH02026",
@@ -708,7 +711,10 @@
       "homeTeamId": "hanwha",
       "awayTeamId": "lg",
       "stadiumId": "daejeon",
-      "status": "scheduled"
+      "status": "finished",
+      "homeScore": 19,
+      "awayScore": 3,
+      "result": "home_win"
     },
     {
       "id": "20260909NCHT02026",
@@ -717,7 +723,10 @@
       "homeTeamId": "kia",
       "awayTeamId": "nc",
       "stadiumId": "gwangju",
-      "status": "scheduled"
+      "status": "finished",
+      "homeScore": 4,
+      "awayScore": 5,
+      "result": "away_win"
     },
     {
       "id": "20260909SKOB02026",
@@ -726,7 +735,10 @@
       "homeTeamId": "doosan",
       "awayTeamId": "ssg",
       "stadiumId": "jamsil",
-      "status": "scheduled"
+      "status": "finished",
+      "homeScore": 0,
+      "awayScore": 1,
+      "result": "away_win"
     },
     {
       "id": "20260910HHSK02026",
