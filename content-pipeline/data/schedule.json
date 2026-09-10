@@ -1,64 +1,7 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-09-10T13:37:16.825Z",
+  "generatedAt": "2026-09-10T17:08:52.341Z",
   "games": [
-    {
-      "id": "20260827HHSK02026",
-      "date": "2026-08-27",
-      "startTime": "18:30",
-      "homeTeamId": "ssg",
-      "awayTeamId": "hanwha",
-      "stadiumId": "munhak",
-      "status": "finished",
-      "homeScore": 13,
-      "awayScore": 6,
-      "result": "home_win"
-    },
-    {
-      "id": "20260827LTHT02026",
-      "date": "2026-08-27",
-      "startTime": "18:30",
-      "homeTeamId": "kia",
-      "awayTeamId": "lotte",
-      "stadiumId": "gwangju",
-      "status": "canceled"
-    },
-    {
-      "id": "20260827NCLG02026",
-      "date": "2026-08-27",
-      "startTime": "18:30",
-      "homeTeamId": "lg",
-      "awayTeamId": "nc",
-      "stadiumId": "jamsil",
-      "status": "finished",
-      "homeScore": 3,
-      "awayScore": 13,
-      "result": "away_win"
-    },
-    {
-      "id": "20260827OBKT02026",
-      "date": "2026-08-27",
-      "startTime": "18:30",
-      "homeTeamId": "kt",
-      "awayTeamId": "doosan",
-      "stadiumId": "suwon",
-      "status": "finished",
-      "homeScore": 5,
-      "awayScore": 4,
-      "result": "home_win"
-    },
-    {
-      "id": "20260827SSWO02026",
-      "date": "2026-08-27",
-      "startTime": "18:30",
-      "homeTeamId": "kiwoom",
-      "awayTeamId": "samsung",
-      "stadiumId": "gocheok",
-      "status": "finished",
-      "homeScore": 2,
-      "awayScore": 15,
-      "result": "away_win"
-    },
     {
       "id": "20260828KTSS02026",
       "date": "2026-08-28",
