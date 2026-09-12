@@ -171,9 +171,8 @@ class _RootGateState extends ConsumerState<RootGate> {
       AsyncValue(hasError: true) => const SignInScreen(
         notice: '로그인 상태를 확인하지 못했어요. 다시 로그인해 주세요.',
       ),
-      AsyncValue(hasValue: true, :final value) => value == null
-          ? const SignInScreen()
-          : const _SignedInGate(),
+      AsyncValue(hasValue: true, :final value) =>
+        value == null ? const SignInScreen() : const _SignedInGate(),
       _ => _gateLoading,
     };
   }
@@ -207,17 +206,16 @@ class _RootGateState extends ConsumerState<RootGate> {
 bool _isSignedIn(AsyncValue<AuthUser?> state) =>
     !state.hasError && state.hasValue && state.value != null;
 
-/// 로그인한 뒤의 분기 — 응원 팀이 없으면 온보딩, 있으면 홈(그 사이에 step
+/// 로그인한 뒤의 분기 — 프로필이 없으면 온보딩, 있으면 팀 없음도 홈(그 사이에 step
 /// 2.5 의 위치 권한 게이트가 낀다 — [OnboardingLocationGate] 문서 참조).
 class _SignedInGate extends ConsumerWidget {
   const _SignedInGate();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return switch (ref.watch(selectedTeamIdProvider)) {
-      AsyncData(:final value) => value == null
-          ? const TeamSelectScreen()
-          : const OnboardingLocationGate(),
+    return switch (ref.watch(selectedProfileExistsProvider)) {
+      AsyncData(:final value) =>
+        !value ? const TeamSelectScreen() : const OnboardingLocationGate(),
       AsyncError() => const TeamSelectScreen(),
       _ => _gateLoading,
     };

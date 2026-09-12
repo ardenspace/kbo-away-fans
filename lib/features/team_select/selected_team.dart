@@ -57,9 +57,8 @@
 /// UI 가 아직 없고, 앱이 강제 종료되는 갈래는 그 처리를 지나지 않아 같은
 /// 빈틈이 그대로 남는다.
 ///
-/// 팀 선택이 사용자 문서를 만드는 자리이기도 하다 — 문서는 다섯 필수 필드를
-/// 갖춰 한 번에 만들어지고(`docs/firestore-schema.md`), 그중 `favoriteTeamId`
-/// 가 정해지는 시점이 곧 온보딩의 끝이다.
+/// 팀 선택이 사용자 문서를 만드는 자리이기도 하다 — 팀 없음도 계약 필드를
+/// 갖춘 문서를 한 번에 만들고(`docs/firestore-schema.md`) 온보딩을 마친다.
 ///
 /// **온보딩과 팀 변경은 같은 화면이지만 다른 갈래다.** 서버 문서를 아직 보지
 /// 못한 채 온보딩에서 고른 팀은 이미 있는 원본을 덮지 않고 물러선다 — 그
@@ -152,12 +151,33 @@ class SelectedTeamStore {
       '$uid$_cacheOwnerSeparator$teamId',
     );
   }
+
+  /// 빈 팀 자리도 계정에 귀속된 정상 프로필 캐시다.
+  Future<void> writeNoTeam(String uid) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(kSelectedTeamPrefsKey, '$uid$_cacheOwnerSeparator');
+  }
+
+  Future<bool> hasNoTeamProfile(String uid) async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(kSelectedTeamPrefsKey) ==
+        '$uid$_cacheOwnerSeparator';
+  }
 }
 
 /// 캐시 주입 지점 (테스트에서 override 가능).
 final selectedTeamStoreProvider = Provider<SelectedTeamStore>(
   (_) => const SelectedTeamStore(),
 );
+
+final cachedNoTeamProfileProvider = FutureProvider<bool>((ref) async {
+  final user = ref.watch(authStateProvider).value;
+  if (user == null) return false;
+  return ref
+      .watch(selectedTeamStoreProvider)
+      .hasNoTeamProfile(user.uid)
+      .timeout(kCachedTeamReadTimeout, onTimeout: () => false);
+}, retry: (retryCount, error) => null);
 
 /// 캐시에 남아 있는 **지금 계정의** 팀 id — 서버 값을 모르는 동안의 첫
 /// 프레임용.
@@ -172,8 +192,7 @@ final selectedTeamStoreProvider = Provider<SelectedTeamStore>(
 /// 남긴다.
 /// 세션을 아직 모르거나 로그아웃 상태면 읽을 계정이 없으므로 null 이다 — 그
 /// 구간에서 루트 게이트는 어차피 대기 화면이나 로그인 화면에 있다.
-final cachedTeamIdProvider =
-    AsyncNotifierProvider<CachedTeamId, String?>(
+final cachedTeamIdProvider = AsyncNotifierProvider<CachedTeamId, String?>(
   CachedTeamId.new,
   retry: (retryCount, error) => null,
 );
@@ -191,7 +210,7 @@ class CachedTeamId extends AsyncNotifier<String?> {
   /// 때문이다(로그아웃한 뒤 다른 계정으로 로그인). 팀 id 만 기억하면 새 계정이
   /// 같은 팀을 고른 순간 "이미 적었다"로 판정되어 캐시의 소유자가 앞사람인 채
   /// 남는다.
-  ({String uid, String teamId})? _written;
+  ({String uid, String? teamId})? _written;
 
   @override
   Future<String?> build() async {
@@ -220,12 +239,18 @@ class CachedTeamId extends AsyncNotifier<String?> {
   /// 실패는 그대로 던진다 — 무엇을 할지는 부르는 쪽이 정한다
   /// ([SelectedTeamNotifier._writeCache] 참조). 실패한 자리에서는 [_written] 을
   /// 옮기지 않으므로 다음 갱신이 다시 시도한다.
-  Future<void> write(String uid, String teamId) async {
+  Future<void> write(String uid, String? teamId) async {
     final entry = (uid: uid, teamId: teamId);
     if (_written == entry) return;
-    await ref.read(selectedTeamStoreProvider).write(uid, teamId);
+    final store = ref.read(selectedTeamStoreProvider);
+    if (teamId == null) {
+      await store.writeNoTeam(uid);
+    } else {
+      await store.write(uid, teamId);
+    }
     _written = entry;
     state = AsyncData(teamId);
+    ref.invalidate(cachedNoTeamProfileProvider);
   }
 }
 
@@ -247,8 +272,8 @@ class CachedTeamId extends AsyncNotifier<String?> {
 /// 세션에서 홈이 다시 그려질 때마다 신호가 남아 있으면 매번 다시 뜬다).
 final onboardingJustOnboardedProvider =
     NotifierProvider<OnboardingJustOnboarded, bool>(
-  OnboardingJustOnboarded.new,
-);
+      OnboardingJustOnboarded.new,
+    );
 
 /// [onboardingJustOnboardedProvider] 의 몸통 — 세우는 자리는
 /// [SelectedTeamNotifier] 하나, 끄는 자리는 소비하는 화면 하나로 좁혀 둔다.
@@ -263,10 +288,11 @@ class OnboardingJustOnboarded extends Notifier<bool> {
   void consume() => state = false;
 }
 
-/// 현재 응원 팀 id — null 이면 미선택(온보딩 대상).
+/// 현재 응원 팀 id — null은 정상적인 팀 없음과 온보딩 전 모두 가능하다.
+/// 온보딩 여부는 [selectedProfileExistsProvider]로 구분한다.
 ///
-/// 루트 게이트(`lib/app.dart` 의 `_SignedInGate`)가 이 값으로 온보딩·홈·대기
-/// 화면을 가른다. 여기가 오류가 되는 것은 **캐시 읽기가 실패했을 때**뿐이고,
+/// 루트 게이트(`lib/app.dart` 의 `_SignedInGate`)는 프로필 존재와 이 값의
+/// 로딩·오류를 함께 본다. 여기가 오류가 되는 것은 **캐시 읽기가 실패했을 때**뿐이고,
 /// 그때는 게이트가 온보딩으로 읽는다(아는 값이 하나도 없으므로).
 ///
 /// **서버 스냅샷이 오류로 끝난 실행은 오류가 아니라 캐시 값이 된다.** 이미
@@ -279,11 +305,30 @@ class OnboardingJustOnboarded extends Notifier<bool> {
 /// 중이고 캐시도 비어 있으면 여기는 로딩이고, 게이트는 대기 화면에 머무른다.
 final selectedTeamIdProvider =
     NotifierProvider<SelectedTeamNotifier, AsyncValue<String?>>(
-  SelectedTeamNotifier.new,
-);
+      SelectedTeamNotifier.new,
+    );
+
+/// 팀 유무와 별개인 프로필 완료 상태. 팀 없음도 홈으로 진입한다.
+final selectedProfileExistsProvider = Provider<AsyncValue<bool>>((ref) {
+  final selected = ref.watch(selectedTeamIdProvider);
+  return selected.whenData(
+    (_) => ref.read(selectedTeamIdProvider.notifier).hasProfile,
+  );
+});
 
 /// 응원 팀 선택 상태 — 서버 문서를 원본으로 삼고 캐시를 그 뒤에 맞춘다.
 class SelectedTeamNotifier extends Notifier<AsyncValue<String?>> {
+  bool _hasProfile = false;
+  bool get hasProfile => _hasProfile;
+
+  // null → null인 선택도 온보딩 전 → 정상 프로필로 바뀔 수 있다.
+  // 팀 값이 같아도 프로필 존재를 구독하는 게이트에는 변화를 전달한다.
+  @override
+  bool updateShouldNotify(
+    AsyncValue<String?> previous,
+    AsyncValue<String?> next,
+  ) => true;
+
   /// 이 실행이 사용자 문서에 **직접 쓴** 계정 (만들었거나 고쳤거나).
   ///
   /// 이 하나가 이 계층이 문서에 관해 들고 다니는 유일한 상태다. 생애를 한자리에
@@ -319,6 +364,7 @@ class SelectedTeamNotifier extends Notifier<AsyncValue<String?>> {
   AsyncValue<String?> build() {
     final profile = ref.watch(userProfileProvider);
     if (profile case AsyncData(:final value)) {
+      _hasProfile = value != null;
       final teamId = value?.favoriteTeamId;
       // 서버를 알게 된 순간부터 캐시는 사본이다 — 다음 콜드 스타트의 첫
       // 프레임이 이 값으로 그려진다.
@@ -333,6 +379,11 @@ class SelectedTeamNotifier extends Notifier<AsyncValue<String?>> {
     // 둘에서 온다: 캐시를 아직 읽는 중이거나, 캐시가 비어 있어 서버의 첫
     // 답을 기다리는 중이거나.
     final cached = ref.watch(cachedTeamIdProvider);
+    final noTeam = ref.watch(cachedNoTeamProfileProvider);
+    _hasProfile = cached.value != null || noTeam.value == true;
+    if (cached.hasValue && noTeam.value == true) {
+      return const AsyncData(null);
+    }
     return switch (cached) {
       AsyncData(value: final teamId?) => AsyncData(teamId),
       // 캐시 읽기가 실패했다 = 아는 값이 하나도 없다. 게이트가 온보딩으로
@@ -340,17 +391,18 @@ class SelectedTeamNotifier extends Notifier<AsyncValue<String?>> {
       AsyncError() => cached,
       // 캐시가 비어 있다. 여기서 갈래가 둘로 나뉘고, 그 둘을 가르는 것은
       // **서버에 물어볼 길이 남아 있는가**다.
-      AsyncData() => profile.hasError
-          // 서버를 읽지 **못했다**. 스냅샷 스트림은 오류와 함께 끝나고 자동
-          // 재시도도 없으므로 더 기다려도 답이 오지 않는다 — 아는 것(캐시,
-          // 여기서는 빈 값)으로 갈래를 정한다. 캐시에 값이 있는 실행이 홈에
-          // 머무르는 것과 같은 규칙이고, 다른 결과는 캐시가 비어 있어서다.
-          ? const AsyncData<String?>(null)
-          // 서버가 아직 답하지 않았을 뿐이다. 이것은 "팀이 없다"가 아니라
-          // "아직 모른다"이고, 답이 아닌 것을 답으로 쓰면 기기를 바꿔
-          // 로그인한 사람이 첫 왕복 내내 온보딩을 본다. 이 기다림의 상한은
-          // `watchProfile` 이 든다.
-          : const AsyncLoading<String?>(),
+      AsyncData() =>
+        profile.hasError
+            // 서버를 읽지 **못했다**. 스냅샷 스트림은 오류와 함께 끝나고 자동
+            // 재시도도 없으므로 더 기다려도 답이 오지 않는다 — 아는 것(캐시,
+            // 여기서는 빈 값)으로 갈래를 정한다. 캐시에 값이 있는 실행이 홈에
+            // 머무르는 것과 같은 규칙이고, 다른 결과는 캐시가 비어 있어서다.
+            ? const AsyncData<String?>(null)
+            // 서버가 아직 답하지 않았을 뿐이다. 이것은 "팀이 없다"가 아니라
+            // "아직 모른다"이고, 답이 아닌 것을 답으로 쓰면 기기를 바꿔
+            // 로그인한 사람이 첫 왕복 내내 온보딩을 본다. 이 기다림의 상한은
+            // `watchProfile` 이 든다.
+            : const AsyncLoading<String?>(),
       _ => const AsyncLoading<String?>(),
     };
   }
@@ -396,14 +448,19 @@ class SelectedTeamNotifier extends Notifier<AsyncValue<String?>> {
   /// 값은 누르기 직전의 상태다 — 변경 모드에서는 원본이 아는 팀이고, 온보딩
   /// 에서는 "팀 없음"이다. 실패 안내(`TeamSelectScreen.saveFailureNotice`)와
   /// 짝이다.
-  Future<void> select(String teamId, {bool isChange = false}) async {
-    assert(kTeamIds.contains(teamId), '알 수 없는 teamId: $teamId');
+  Future<void> select(String? teamId, {bool isChange = false}) async {
+    assert(
+      teamId == null || kTeamIds.contains(teamId),
+      '알 수 없는 teamId: $teamId',
+    );
     final owner = ref.read(authStateProvider).value;
     // 스냅샷이 지금 이 계정의 문서를 보여 주고 있는가 — 눌린 순간의 사정이다.
     final documentSeen =
         owner != null && ref.read(userProfileProvider).value?.uid == owner.uid;
     // 되돌릴 자리 — 아직 아무것도 바뀌지 않은 지금의 화면이다.
     final rollback = state;
+    final rollbackHasProfile = _hasProfile;
+    _hasProfile = true;
     state = AsyncData(teamId);
     final task = _queue.then(
       // 앞선 선택이 실패했더라도 줄은 이어진다 — 한 번의 통신 실패가 그
@@ -419,7 +476,7 @@ class SelectedTeamNotifier extends Notifier<AsyncValue<String?>> {
     try {
       await task;
     } on Object {
-      _rollbackFailedSelection(teamId, rollback);
+      _rollbackFailedSelection(teamId, rollback, rollbackHasProfile);
       rethrow;
     }
   }
@@ -432,8 +489,13 @@ class SelectedTeamNotifier extends Notifier<AsyncValue<String?>> {
   ///
   /// 되돌릴 자리가 **로딩**이면 "팀 없음"으로 내린다 — 대기 화면으로 되돌리면
   /// 게이트가 스피너를 다시 그리고, 그 구간을 끝낼 기다림은 이미 지나갔다.
-  void _rollbackFailedSelection(String teamId, AsyncValue<String?> rollback) {
+  void _rollbackFailedSelection(
+    String? teamId,
+    AsyncValue<String?> rollback,
+    bool rollbackHasProfile,
+  ) {
     if (state.value != teamId) return;
+    _hasProfile = rollbackHasProfile;
     state = rollback.hasValue || rollback.hasError
         ? rollback
         : const AsyncData<String?>(null);
@@ -444,7 +506,7 @@ class SelectedTeamNotifier extends Notifier<AsyncValue<String?>> {
   /// [isChange] 와 [documentSeen] 은 이 선택이 **줄에 설 때** 정해진 사정이다
   /// ([select] 참조). 실행 시점에 다시 읽지 않는다.
   Future<void> _store(
-    String teamId,
+    String? teamId,
     AuthUser? owner,
     bool isChange,
     bool documentSeen,
@@ -465,7 +527,7 @@ class SelectedTeamNotifier extends Notifier<AsyncValue<String?>> {
   /// 원본에 남기지 않았다"는 뜻이고(계정이 바뀌었거나, 이미 있는 문서를 덮지
   /// 않고 물러섰거나), 그때는 사본도 옮기지 않는다.
   Future<bool> _writeProfile(
-    String teamId,
+    String? teamId,
     AuthUser owner,
     bool isChange,
     bool documentSeen,
@@ -558,7 +620,9 @@ class SelectedTeamNotifier extends Notifier<AsyncValue<String?>> {
   /// `BackendError` 안내 경로가 그 던짐을 받는다
   /// (`team_select_screen.dart` 의 `_select`).
   Future<void> _convergeToServer(AuthUser owner) async {
-    final profile = await ref.read(userDataStoreProvider).readProfile(owner.uid);
+    final profile = await ref
+        .read(userDataStoreProvider)
+        .readProfile(owner.uid);
     if (profile == null) {
       // 방금 "이미 있다"고 답한 문서가 읽을 때는 없다. 앱에 문서를 지우는
       // 경로가 없으니 실제로 오기 어려운 자리이지만, 수렴시킬 값이 없는 것은
@@ -569,8 +633,10 @@ class SelectedTeamNotifier extends Notifier<AsyncValue<String?>> {
     // 읽는 사이에 계정이 바뀌었으면 이 값은 지금 사람의 것이 아니다 — 그대로
     // 세우면 새 계정이 앞사람의 팀으로 홈에 들어간다(캐시까지 함께 옮겨진다).
     if (ref.read(authStateProvider).value?.uid != owner.uid) return;
+    _hasProfile = true;
     state = AsyncData(profile.favoriteTeamId);
-    await _writeCache(profile.favoriteTeamId, owner.uid);
+    final teamId = profile.favoriteTeamId;
+    await _writeCache(teamId, owner.uid);
   }
 
   /// 캐시를 서버 값에 맞춘다 — 그 문서를 가진 계정의 것으로 적는다.
@@ -582,10 +648,11 @@ class SelectedTeamNotifier extends Notifier<AsyncValue<String?>> {
   /// 그 값을 화면에는 그대로 흘리되 사본에는 남기지 않는다.
   void _mirror(UserProfile? profile) {
     if (profile == null) return;
-    if (!kTeamIds.contains(profile.favoriteTeamId)) return;
+    final teamId = profile.favoriteTeamId;
+    if (teamId != null && !kTeamIds.contains(teamId)) return;
     // 기다리지 않는 것은 이 갱신이 화면을 막을 이유가 없어서다 — 캐시는 다음
     // 콜드 스타트의 첫 프레임에만 쓰인다.
-    unawaited(_writeCache(profile.favoriteTeamId, profile.uid));
+    unawaited(_writeCache(teamId, profile.uid));
   }
 
   /// 캐시를 [uid] 계정의 것으로 적는다.
@@ -598,7 +665,7 @@ class SelectedTeamNotifier extends Notifier<AsyncValue<String?>> {
   /// 것뿐이다 — 원본은 이미 서버에 있다. 반면 이 실패를 던지면 이미 서버에
   /// 남은 선택이 실패한 것처럼 보이고, 화면 쪽 `BackendError` 처리에도 걸리지
   /// 않아 안내 없이 샌다.
-  Future<void> _writeCache(String teamId, String uid) async {
+  Future<void> _writeCache(String? teamId, String uid) async {
     try {
       await ref.read(cachedTeamIdProvider.notifier).write(uid, teamId);
     } on Object {

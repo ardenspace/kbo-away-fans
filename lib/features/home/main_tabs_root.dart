@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../ui/shared/content_fallback.dart';
+import '../../ui/shared/empty_state_notice.dart';
 import '../../ui/shared/main_tab_scaffold.dart';
 import '../badges/badges_tab_screen.dart';
 import '../badges/stadium_visit.dart';
@@ -10,6 +11,7 @@ import '../likes/likes_tab_screen.dart';
 import '../places/recommend_tab_screen.dart';
 import '../profile/profile_tab_screen.dart';
 import '../team_select/selected_team.dart';
+import '../team_select/team_select_screen.dart';
 import 'home_screen.dart';
 
 /// 로그인 이후 앱의 최상위 골격 (step 3.1) — 하단 5탭을 [MainTabScaffold] 위에
@@ -126,11 +128,48 @@ class _HomeTab extends ConsumerWidget {
       AsyncData(:final value) => value,
       _ => null,
     };
-    // 이 탭에 닿는 이상 게이트가 이미 팀이 있음을 보장했다. 그래도 재구독
-    // 순간처럼 한 프레임 비어 있을 수 있는 자리는 조용히 대기 화면으로
-    // 넘긴다 — 사람을 붙잡지 않는다.
+    // 프로필 존재와 팀 유무는 별개다. 팀 없음도 탐색 가능한 홈이다.
     if (teamId == null) {
-      return const Scaffold(body: ContentFallback(loading: true));
+      if (ref.watch(selectedProfileExistsProvider).value != true) {
+        return const Scaffold(body: ContentFallback(loading: true));
+      }
+      return Scaffold(
+        key: const ValueKey('no-team-home'),
+        appBar: AppBar(
+          title: const Text('KBO 원정러'),
+          actions: [
+            IconButton(
+              tooltip: '응원 팀 바꾸기',
+              icon: const Icon(Icons.swap_horiz_rounded),
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => const TeamSelectScreen(isChange: true),
+                ),
+              ),
+            ),
+          ],
+        ),
+        body: Column(
+          children: [
+            const Expanded(
+              child: EmptyStateNotice(
+                title: '팀 없이도 원정을 즐겨요',
+                message: '구장을 골라 주변 장소를 둘러보세요.',
+              ),
+            ),
+            SafeArea(
+              child: FilledButton(
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const RecommendTabScreen(),
+                  ),
+                ),
+                child: const Text('구장 골라 구경하기'),
+              ),
+            ),
+          ],
+        ),
+      );
     }
     return HomeScreen(teamId: teamId);
   }

@@ -43,7 +43,11 @@ class TeamSelectScreen extends ConsumerWidget {
   /// true 면 팀 변경 모드 — 앱바(뒤로 가기)가 있고 선택 후 pop 한다.
   final bool isChange;
 
-  Future<void> _select(BuildContext context, WidgetRef ref, Team team) async {
+  Future<void> _select(
+    BuildContext context,
+    WidgetRef ref,
+    String? teamId,
+  ) async {
     // 안내를 띄울 자리를 **첫 await 앞에서** 잡아 둔다. 변경 모드에서는 아래
     // `pop()` 이 이 화면을 트리에서 빼내는데, 서버 쓰기는 그 뒤에 끝나므로
     // 실패는 언제나 화면이 사라진 다음에 온다 — 그때 가서 context 로 조회하면
@@ -59,7 +63,7 @@ class TeamSelectScreen extends ConsumerWidget {
     // 사본(기기 캐시)은 그 뒤에 그 순서로 따라간다.
     final saved = ref
         .read(selectedTeamIdProvider.notifier)
-        .select(team.id, isChange: isChange);
+        .select(teamId, isChange: isChange);
     // 서버 쓰기를 기다리지 않고 곧바로 닫는다 — `await saved` 뒤로 옮기면
     // 통신이 나쁜 자리에서 팀을 눌러도 이 화면이 그대로 남아 선택이 먹히지
     // 않은 것처럼 보인다.
@@ -87,7 +91,7 @@ class TeamSelectScreen extends ConsumerWidget {
           teams: data.teams,
           currentId: currentId,
           isChange: isChange,
-          onSelect: (team) => _select(context, ref, team),
+          onSelect: (team) => _select(context, ref, team.id),
         ),
         ContentUnavailable() => _LoadFailure(
           onRetry: () => ref.invalidate(teamsProvider),
@@ -107,7 +111,25 @@ class TeamSelectScreen extends ConsumerWidget {
               title: Text('응원 팀 바꾸기', style: _titleStyle),
             )
           : null,
-      body: SafeArea(child: body),
+      body: SafeArea(
+        child: Column(
+          children: [
+            Expanded(child: body),
+            Padding(
+              padding: const EdgeInsets.all(SpaceTokens.md),
+              child: TextButton.icon(
+                onPressed: () => _select(context, ref, null),
+                icon: Icon(
+                  currentId == null && isChange
+                      ? Icons.check_circle_outline
+                      : Icons.sports_baseball_outlined,
+                ),
+                label: Text(isChange ? '팀 없음으로 변경' : '팀 없이 시작하기'),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
