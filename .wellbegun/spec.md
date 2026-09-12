@@ -1,132 +1,75 @@
 ---
 status: approved
-cycle: 2
+cycle: 3
 ---
 
-# kbo-away-fans — spec (사이클 2)
-
-<!--
-  델타 spec. 사이클 1의 spec 은 `cycles/01/spec.md` 에 있고, 레지스트리는 이미
-  코드로 존재한다. 이 문서는 **이번 사이클이 더하거나 바꾸는 몫만** 적는다.
-  입력: `.wellbegun/begin.md` (승인됨), `.wellbegun/audit.md`, `cycles/01/spec.md`
--->
+# kbo-away-fans — spec (사이클 3)
 
 ## Resolved decisions
-<!-- S로 내려간 항목은 표에 없고 Implementer discretion 에 있다 -->
+
 | decision | grade | choice | ADR |
 |---|---|---|---|
-| 사용자 데이터 백엔드 도입 형태 | XL | Firebase Authentication + Cloud Firestore, 자체 운영 서버 없음. 콘텐츠는 기존 정적 JSON 파이프라인 유지 | see decisions.md 2026-09-01 |
-| 소셜 로그인 세 제공자를 붙이는 방식 | L | 구글·애플은 Firebase Auth 기본 제공자, 카카오는 Cloud Functions 가 커스텀 토큰 발급 | see decisions.md 2026-09-01 |
-| 구장 방문 확인 방식 (스탬프 인증) | L | 포그라운드 판정 — 경기일 + 구장 반경 + 시간 창 세 조건 | see decisions.md 2026-09-01 |
-| 도장 중복 방지 (오프라인 포함) | L | 도장 문서 id 를 `{stadiumId}_{gameId}` 결정적 조합으로 두어 쓰기가 멱등 | see decisions.md 2026-09-01 |
-| 배지 판의 읽기 패턴 | L | 사용자 문서에 칸별 요약(개수·등급)을 두고 판은 그것만 읽음. 도장 상세는 칸을 열 때만 | see decisions.md 2026-09-01 |
-| 최근 5경기 결과 데이터 범위 | L | 점수·승패·구장·날짜까지. 선발 투수·날씨는 제외, schedule 계약 schemaVersion 2 | see decisions.md 2026-09-01 |
-| 위치 권한 요청 시점 | M | 온보딩 팀 선택 직후, 용도 설명과 함께. 거절해도 나머지 기능은 동작 | see decisions.md 2026-09-01 |
-| 하단 5탭 구조 전환 방식 | M | 라우터 패키지 없이 BottomNavigationBar + IndexedStack + 탭별 Navigator | see decisions.md 2026-09-01 |
-| 기기 저장값과 계정의 관계 | M | 선택 팀의 원본은 Firestore, shared_preferences 는 첫 렌더용 캐시로만 | see decisions.md 2026-09-01 |
+| 팀·기본 테마의 전역 소유권 | L | 앱 루트 Riverpod 상태가 하나의 `AppVisualTheme`을 만들고 `MaterialApp`·탭 Navigator·route·sheet·overlay가 모두 이를 상속 | see decisions.md 2026-09-12 |
+| 팀 없음 프로필과 설정 저장 | L | `favoriteTeamId`를 nullable로 바꾸고 `defaultThemeFamily`(A/B), `brightnessPreference`(auto/light/dark)를 사용자 문서에 저장; 기기 prefs는 계정 귀속 첫 프레임 캐시 | see decisions.md 2026-09-12 |
+| 자동 밝기와 수동 override | M | KST 07:00–18:59는 밝음, 나머지는 어두움; light/dark 수동값은 auto로 복귀할 때까지 우선 | see decisions.md 2026-09-12 |
+| 실시간 원정 상태 판정 | M | `cancelled > live > nearby > moving > postGame > preGame > idle` 우선순위의 순수 feature 모델; 신호가 없거나 실패하면 idle | see decisions.md 2026-09-12 |
 
-## Registries
-<!-- 델타 모드: **확장분만** 적는다. 기존 로스터는 `lib/ui/shared/REGISTRY.md`,
-     `content-pipeline/REGISTRY.md`, `cycles/01/spec.md` 를 그대로 유지한다. -->
+## Registries — cycle 3 extensions
 
 ### Design tokens
-**추가 위치:** `lib/design/tokens.dart` (기존 파일에 그룹 추가)
 
-| name | purpose (one line) | location | use when |
+토큰 원본은 `lib/design/tokens.dart`, 팀 원본은 `lib/design/team_themes.dart`다.
+
+| name | purpose | concrete values / location | use when |
 |---|---|---|---|
-| `text.*` | 폰트·크기·굵기·색을 묶은 **이름 있는 조합 스타일** (승격 후보 3) | `lib/design/tokens.dart` | 모든 텍스트 — 낱개 토큰 조합을 손으로 다시 쓰지 않는다 |
-| `badge.*` | 배지 판 수치 — 칸 크기·간격, 빈 칸 투명도, 등급 표시 크기 | `lib/design/tokens.dart` | 배지 판과 도장 렌더 |
-| `badgeTier.*` | 등급별 표현 값 (기본/중간/최고) — 팀 색 위에 얹는 등급 액센트 | `lib/design/tokens.dart` | 등급이 있는 도장 |
-| `motion.stamp` | 도장이 찍히는 순간의 지속·커브 (`MotionTokens` 확장) | `lib/design/tokens.dart` | 도장 획득 연출 — begin 이 지목한 이 사이클의 대표 연출 |
-
-> `text.*` 는 감사의 승격 후보 3(13개 파일 38회 반복)을 받는다. 기존 38곳도 같은
-> 사이클에서 전부 교체한다 — 새 화면만 쓰고 기존을 남기면 두 방식이 공존해 훅으로
-> 강제할 수 없다.
+| `neutral.*` | 공통 쿨톤 배경·표면·잉크 | light bg `#EEF3FB`, surface `#F9FBFF`, ink `#15213A`, muted `#68738A`, line `#D8E0ED`; dark bg `#11162B`, surface `#1A2140`, ink `#F8F7FF`, muted `#B8C0D4`, line `#313A5C` | 앱 본체 모든 표면(스플래시 제외) |
+| `defaultTheme.a.*` | 팀 없음 A 계열 | light: primary `#9381FF`, secondary `#FFD8BE`, bg `#F8F7FF`; dark: primary `#9381FF`, secondary `#FFD8BE`, bg `#5141AA`; 전경은 대비 토큰 | 팀 없음 + A 선택 |
+| `defaultTheme.b.*` | 팀 없음 B 계열 | light: primary `#4A69CE`, secondary `#ECFFBE`, bg `#E5F8F0`; dark: primary `#4A69CE`, secondary `#ECFFBE`, bg `#314B9D`; 전경은 대비 토큰 | 팀 없음 + B 선택 |
+| `semantic.*` | 성공·경고·취소 의미 우선 | 기존 success/warning/danger 유지, 테마색으로 치환 금지 | 상태 전달 |
+| `journey.*` | 약한 티켓 혼합·경로·도착·라이브 연출 수치 | ticket end = primary 70% + secondary 30%, tint 6–8%, 기존 MotionTokens/reduced motion 사용 | 실시간 홈 상태 비주얼 |
 
 ### Shared components
-**추가 위치:** `lib/ui/shared/` (기존 폴더, 같은 커밋에 `REGISTRY.md` 행 추가)
 
-| name | purpose (one line) | location | use when |
+| name | purpose | location | use when |
 |---|---|---|---|
-| `ContentFallback` | 로딩 스피너 / 실패 안내 + 재시도 버튼의 단일 구현 (승격 후보 1) | `lib/ui/shared/content_fallback.dart` | 콘텐츠·사용자 데이터를 못 얻은 모든 화면 |
-| `TeamThemedAppBar` | 팀 테마에서 배경·전경색을 꺼내 오는 앱바 (승격 후보 2) | `lib/ui/shared/team_themed_app_bar.dart` | 팀 맥락이 있는 모든 화면 상단 |
-| `MainTabScaffold` | 하단 5탭 골격 — 탭별 Navigator 스택 유지 | `lib/ui/shared/main_tab_scaffold.dart` | 로그인 이후 앱의 최상위 골격 |
-| `StampBoard` | 10칸 배지 판 — 빈 칸까지 전부 렌더 | `lib/ui/shared/stamp_board.dart` | 배지 탭, 그리고 판을 요약해 보여줄 곳 |
-| `StampBadge` | 칸 하나 — 빈 상태·획득·등급 세 모습 | `lib/ui/shared/stamp_badge.dart` | 판 안, 도장 획득 연출, 칸 상세 |
-| `LikeButton` | 좋아요 토글 (낙관적 반영 + 실패 시 되돌림) | `lib/ui/shared/like_button.dart` | 장소 카드·상세 시트 등 좋아요가 붙는 모든 곳 |
-| `SocialSignInButton` | 제공자별 로그인 버튼 (구글·카카오·애플) 한 모양 | `lib/ui/shared/social_sign_in_button.dart` | 로그인 화면 |
+| `AppVisualTheme` | 앱 전역 최종 색 역할과 ThemeData를 단일 값으로 표현 | `lib/design/app_theme.dart` | `MaterialApp`부터 모든 route/overlay까지; 실제 루트 소유·배선은 plan 3.1 |
+| `ThemedSurface` | 쿨톤 surface + 선택적 팀 tint의 표준 카드 | `lib/ui/shared/themed_surface.dart` | 두 화면 이상 카드 표면 |
+| `JourneyTicket` | 약한 primary→30% secondary 티켓 | `lib/ui/shared/journey_ticket.dart` | 홈 경기 전·취소 상태 |
+| `JourneyStatusVisual` | 이동·도착·라이브·취소 상태의 사건 중심 비주얼 | `lib/ui/shared/journey_status_visual.dart` | 홈 실시간 여정 |
+| `ThemeSettingsSheet` | A/B 계열과 auto/light/dark 설정 | `lib/ui/shared/theme_settings_sheet.dart` | 설정 진입점 |
+
+기존 `TeamThemeScope`는 목적지/경기 보조 맥락용으로만 남기고 앱 최종 테마를 소유하지 않는다.
 
 ### Backend common layers
-이 사이클에서 이 영역이 **둘로 갈린다.** 기존 콘텐츠 파이프라인은 그대로 두고,
-사용자 데이터용 계층이 새로 생긴다.
 
-**새 위치:** `lib/backend/` (+ `lib/backend/REGISTRY.md`, `lib/backend/CLAUDE.md`)
-
-> 규칙: Firebase SDK import 는 이 폴더 안에만 둔다. 화면은 이 계층의 타입만
-> 소비한다 (사이클 1이 `StadiumMapView`·`analytics`·`weather` 에 쓴 경계와 같은 규칙).
-
-| name | purpose (one line) | location | use when |
+| name | purpose | location | use when |
 |---|---|---|---|
-| 인증 공통 | 세 제공자 로그인·로그아웃·세션 상태를 한 타입 뒤로 | `lib/backend/auth.dart` | 로그인 게이트, 마이페이지 |
-| 사용자 데이터 접근 | 사용자 문서·도장·좋아요 읽기/쓰기의 단일 경로 | `lib/backend/user_data.dart` | 배지·좋아요·프로필을 다루는 모든 곳 |
-| 오류 봉투 | Firebase 예외를 앱 도메인 오류(네트워크/권한/알수없음)로 변환 | `lib/backend/errors.dart` | 백엔드 호출의 모든 실패 경로 |
-| 카카오 커스텀 토큰 함수 | 카카오 액세스 토큰 검증 → Firebase 커스텀 토큰 발급 | `functions/` (Cloud Functions) | 카카오 로그인 |
-
-**기존 파이프라인 확장분** (`content-pipeline/`)
-
-| name | purpose (one line) | location | use when |
-|---|---|---|---|
-| 과거 경기 크롤 창 | 크롤 범위를 과거로 넓혀 최근 경기 결과를 산출물에 남김 | `content-pipeline/crawl-schedule.mjs` | 최근 5경기 요약의 데이터 원천 |
+| `UserDataStore` profile theme fields | nullable favorite team과 기본 계열·밝기 설정의 원본 및 patch | `lib/backend/user_data.dart` | 프로필 생성·팀/테마 설정 변경 |
 
 ### DB schema
-사용자 데이터는 **Firestore**, 콘텐츠는 기존 **JSON 계약** — 둘 다 계약 변경은
-마이그레이션급(L)으로 다룬다.
 
-**Firestore (새로 생김)** — 규칙: 모든 문서는 본인만 읽고 쓴다.
-
-| entity | purpose (one line) | path | ownership notes |
+| entity | delta | defined in | ownership notes |
 |---|---|---|---|
-| 사용자 | 닉네임, 프로필 색(팀 테마 키), 선택 팀, 가입 시각, **칸별 요약** | `users/{uid}` | 본인 소유. 선택 팀의 원본이 여기로 옮겨온다 |
-| 도장 | 구장, 찍힌 팀 색, 경기 id, 날짜 | `users/{uid}/stamps/{stadiumId}_{gameId}` | 본인 소유. id 가 결정적이라 쓰기가 멱등 |
-| 좋아요 | 장소 id, 구장 id, 카테고리, 누른 시각 | `users/{uid}/likes/{placeId}` | 본인 소유 |
+| `users/{uid}` | `favoriteTeamId: teamId?`, `defaultThemeFamily: a|b`, `brightnessPreference: auto|light|dark`; `profileThemeKey` 제거 | `docs/firestore-schema.md`, `firestore.rules` | profile/theme slice only; 기존 문서는 읽기 시 favoriteTeamId와 A/auto 기본값으로 호환 |
 
-> **위치 좌표 필드를 두지 않는다.** begin 의 데이터 소유권 결정("위치는 남기지
-> 않는다")이 스키마 수준의 규칙이다. 구장 근처 판정은 기기에서 하고 결과만 올린다.
+### Promotion candidate disposition
 
-> **칸별 요약은 사용자 문서 안에 산다.** 10칸 각각의 도장 개수와 현재 등급을
-> 담는다. 도장을 쓸 때 요약 갱신을 같은 트랜잭션으로 함께 수행해 둘이 어긋나지
-> 않게 한다. 배지 판은 이 문서 하나만 읽고, 개별 도장은 칸 상세를 열 때만 읽는다 —
-> 읽기 수가 도장 개수에 비례하지 않게 하는 것이 목적이다.
-
-**JSON 계약 변경분**
-
-| entity | 변경 | defined in | ownership notes |
-|---|---|---|---|
-| `schedule.json` | 점수·승패 필드 추가 + 과거 경기 포함 → `schemaVersion` 1 → **2** | `content-pipeline/schema/schedule.schema.json` | 마이그레이션급: 앱 파서 하위 호환 확인 필요 |
+- 앱 전역 응원팀 테마 브리지 — L, 승격 (`AppVisualTheme`).
+- 실시간 원정 상태 모델 — M, feature-level 공통 순수 모델로 승격.
+- 쿨톤 표면 셸 — M, `ThemedSurface`로 승격.
+- 분위기/모션 설정 경계 — M, 앱 테마 설정과 접근성 정책에 승격.
 
 ## Implementer discretion
-아래는 **의도적으로** 정하지 않는다. 구현자가 그 자리에서 결정한다.
-- 배지 등급이 갈리는 임계 개수와 등급 이름
-- 구장 반경·시간 창의 구체적 수치(초기값을 잡고 실측으로 조정)
-- 배지 판의 배치(격자/지도형)와 칸 상세 화면의 레이아웃
-- Firestore 문서의 필드 이름과 인덱스 구성
-- 로그인·권한 요청 화면의 문구와 카피 톤
-- 좋아요 목록의 정렬과 카테고리 묶는 방식
-- 탭 아이콘 선택, 탭 전환 연출 세부
-- Cloud Functions 의 런타임·언어와 내부 구조
-- `text.*` 조합 스타일의 정확한 항목 이름과 개수
+
+- provider/notifier의 내부 클래스 분할과 private helper 이름
+- 상태별 한국어 세부 카피와 아이콘 선택
+- 테스트 fixture 및 golden 사용 여부
+- 07:00/19:00 경계 외의 전환 애니메이션 내부 구현
+- 한 화면에서만 쓰는 장식 painter의 파일 분리
 
 ## Enforcement plan
-사이클 1의 두 검사를 유지하고 새 경계 두 개를 추가한다. 설치는 wellplan phase 1
-의 단계로 수행한다.
 
-- `check-hardcoded-values.sh` — 그대로 유지 (PostToolUse + pre-commit).
-- `check-registry-sync.sh` — 짝을 하나 늘린다: `lib/backend/` ↔
-  `lib/backend/REGISTRY.md`. 기존 두 짝은 그대로. (pre-commit)
-- **`check-no-location-upload.sh` (신설)** — `lib/backend/` 안에서 위도·경도로
-  읽히는 필드명(`lat`, `lng`, `latitude`, `longitude`, `coord`)이 서버로 올라가는
-  자리에 나타나면 막는다. begin 의 "위치는 남기지 않는다"는 개인정보 약속을 사람의
-  주의력이 아니라 검사로 지킨다. (PostToolUse + pre-commit)
-- **`check-firebase-import-boundary.sh` (신설)** — `firebase_*` / `cloud_firestore`
-  import 가 `lib/backend/` 와 `lib/analytics/` 밖에 나타나면 막는다. 사이클 1이
-  지도 SDK·날씨에 세운 경계를 백엔드에도 같은 방식으로 강제한다. (pre-commit)
+- 기존 `check-hardcoded-values.sh`, `check-registry-sync.sh`, 위치·Firebase 경계 검사를 pre-commit에서 유지한다.
+- phase 1에서 `git config core.hooksPath scripts/hooks`를 복구하고 실제 위반 fixture로 차단을 확인한다.
+- cycle 3 전역 테마 seam 테스트는 `MaterialApp`, 중첩 Navigator, sheet, overlay가 같은 `AppVisualTheme`을 읽는지 검증한다.
+- `flutter analyze`, 전체 `flutter test`, `git diff --check`를 최종 게이트로 사용한다.

@@ -1,54 +1,59 @@
 ---
-cycle: 2
-date: 2026-09-01
+cycle: 3
+date: 2026-09-12
 ---
 
-# Registry audit — before cycle 2
+# Registry audit — before cycle 3
 
 ## Roster ↔ code drift
-드리프트는 전부 같은 방향이었습니다. 코드에는 있는데 `spec.md` 로스터에만 빠진
-항목들이며, 반대 방향(로스터에 있는데 코드가 사라진 항목)은 없었습니다.
-사이클 1 진행 중에 폴더별 `REGISTRY.md` 는 같은 커밋에서 갱신되었지만
-상위 로스터인 `spec.md` 까지는 되돌려 반영되지 않은 것이 원인입니다.
 
-- **Design tokens**: `RainTokens`(`rain.*`)·`SplashTokens`(`splash.*`) 두 그룹이
-  `lib/design/tokens.dart` 에 있는데 로스터에 없었습니다 → 로스터에 두 행 추가.
-- **Shared components**: `map_links`·`kCategoryLabels`(`category_labels.dart`)·
-  `TeamBadge` 세 항목이 `lib/ui/shared/REGISTRY.md` 에만 있고 `spec.md` 로스터에는
-  없었습니다 → 로스터에 세 행 추가.
-- **Backend common layers (콘텐츠 파이프라인)**: `crawl-schedule.mjs`(일정 크롤러)·
-  `build-places.mjs`(장소 병합기)가 `content-pipeline/REGISTRY.md` 에만 있었습니다
-  → 로스터에 두 행 추가.
-- **DB schema (JSON 계약)**: `common.defs.schema.json`(팀·구장 안정 id 로스터의
-  단일 원본)이 로스터에 없었습니다 → 로스터에 한 행 추가.
+- **Design tokens:** 확인된 드리프트 없음. `ColorTokens`·`TextTokens`·`RainTokens`·
+  `SplashTokens`·`BadgeTokens`·`BadgeTierTokens`·`MotionTokens`·`ProfileTokens`와
+  `TeamThemes` 10종이 현재 코드와 사이클 1·2 로스터의 합에 맞는다.
+- **Shared components:** 확인된 드리프트 없음. `lib/ui/shared/REGISTRY.md`의 21개
+  경로가 실제 파일과 일치하고 `check-registry-sync.sh`가 통과한다.
+- **Backend common layers:** 확인된 드리프트 없음. `lib/backend/REGISTRY.md`의 경로가
+  실제 파일과 일치하고 `check-registry-sync.sh`가 통과한다.
+- **DB schema / content pipeline:** 확인된 드리프트 없음. 네 JSON 산출물이 현재
+  스키마로 검증되고 content pipeline 61개 테스트가 통과한다.
+
+이번 감사에서 로스터를 고칠 항목은 없었다. 사용자가 작업 중인 홈 헤더 변경과
+`visualizations/`의 미추적 디자인 파일은 보존했으며 감사 커밋은 만들지 않았다.
 
 ## Enforcement status
-전체 코드베이스 기준으로 실행했습니다. 실패한 검사는 없습니다.
 
-- `scripts/hooks/check-hardcoded-values.sh` (PostToolUse + pre-commit): pass (exit 0)
-- `scripts/hooks/check-registry-sync.sh` (pre-commit): pass (exit 0)
-- pre-commit 설치 상태: pass — `core.hooksPath = scripts/hooks` 로 연결되어 있습니다.
+- `scripts/hooks/check-hardcoded-values.sh`: pass (exit 0)
+- `scripts/hooks/check-registry-sync.sh`: pass (exit 0)
+- `scripts/hooks/check-no-location-upload.sh`: pass (exit 0)
+- `scripts/hooks/check-firebase-import-boundary.sh`: pass (exit 0)
 - `flutter analyze`: pass — 지적 사항 없음
-- `flutter test`: pass — 154개 통과, 1개 skip
-- `node content-pipeline/common/validate.mjs`: pass — `data/` 산출물 4종 전부 통과
-- `npm --prefix content-pipeline test`: pass — 33개 전부 통과
+- `flutter test`: pass — 928개 통과, 1개 skip
+- `node content-pipeline/common/validate.mjs`: pass — 산출물 4종 통과
+- `npm --prefix content-pipeline test`: pass — 61개 통과
+- pre-commit 설치 상태: **FAIL** — 저장소 안의 `scripts/hooks/pre-commit`은 있으나
+  이 clone의 `core.hooksPath`가 설정되어 있지 않다. 새 사이클의 기반 단계에서
+  `git config core.hooksPath scripts/hooks`로 복구하고 실제 위반 커밋 차단을 확인한다.
+
+> 첫 content pipeline 실행은 `content-pipeline/node_modules`가 없어 `ajv` import에서
+> 실패했다. `npm ci --prefix content-pipeline` 후 위 두 검사를 다시 실행해 통과했다.
+> 의존성 설치 문제이며 코드·계약 실패는 아니다.
 
 ## Promotion candidates (input to wellspec delta step 2)
-- **콘텐츠 로드 실패 + 재시도 폴백** — `lib/features/home/home_screen.dart:335`
-  (`_scheduleFallback`), `lib/features/places/stadium_places_screen.dart:135`
-  (`_placesFallback`), `lib/features/team_select/team_select_screen.dart:205`
-  (`_LoadFailure`) 세 곳에서 "로딩 스피너 / 제목 + 안내 문구 + 다시 시도 버튼" 구조가
-  거의 그대로 반복됩니다. 재시도 경로도 셋 다 `invalidateContent` 로 같습니다.
-  → shared components 로 승격할 후보입니다.
-- **팀 테마 앱바** — `lib/features/home/home_screen.dart:143`,
-  `lib/features/places/stadium_places_screen.dart:115`,
-  `lib/features/places/place_map_screen.dart:92` 세 곳에서
-  `TeamThemeScope.maybeOf(context)` 로 배경·전경색을 꺼내고 같은 제목 스타일을 붙이는
-  `AppBar` 구성이 반복됩니다. 화면이 늘어날수록 그대로 복제될 자리입니다.
-  → shared components 로 승격할 후보입니다.
-- **타이포 조합 스타일** — `TextStyle(fontFamily: TypeTokens.fontFamily, fontSize:
-  TypeTokens.*, fontWeight: TypeTokens.*, color: ColorTokens.*)` 네 줄짜리 조합이
-  13개 파일에서 38회 반복됩니다. 지금 토큰 레지스트리는 크기·굵기·색을 각각
-  낱개로만 제공해서, 조합은 매번 손으로 다시 씁니다.
-  → design tokens 에 이름 있는 조합 스타일(예: `TextTokens.heading`)을 추가할
-  후보입니다.
+
+- **앱 전역 응원팀 테마 브리지** — `TeamThemeScope`는 일부 위젯만 직접 읽고
+  `MaterialApp.ThemeData`는 고정 팔레트라, AppBar·하단 탭·버튼·시트·선택 상태가
+  화면마다 `ColorTokens` 또는 팀 색을 따로 고른다. `lib/app.dart`,
+  `lib/ui/shared/main_tab_scaffold.dart`, `lib/ui/shared/team_themed_app_bar.dart`,
+  `lib/features/*/*_screen.dart` 전반에서 보인다. 응원팀을 앱 테마의 주체로 삼는
+  공통 경계가 design tokens/shared components 로 승격될 후보.
+- **실시간 원정 상태 모델** — 다음 경기·취소·날씨·위치 신호를
+  `lib/features/home/home_screen.dart`가 직접 조합하고 있다. 경기 전/이동 중/구장
+  근처/경기 중/경기 후/우천 취소를 여러 화면과 모션이 함께 소비하려면 우선순위와
+  시간 경계를 한 값으로 내보내는 feature-level 공통 모델 후보.
+- **쿨톤 표면 셸** — 테두리 있는 중립 카드가 `scratch_card.dart`,
+  `visit_status_notice.dart`, `home_screen.dart`, `stadium_picker.dart` 등에서 각각
+  `Container`/`BoxDecoration`으로 조립된다. 새 쿨톤 surface·팀색 tint·선택/강조
+  상태를 일관되게 적용할 shared component 또는 명명된 decoration token 후보.
+- **분위기/모션 설정 경계** — 현재 `WeatherBackdrop`과 각 애니메이션은 독립적으로
+  움직이고, 시간대 분위기 끄기·모션 감소·배터리 절약을 한곳에서 전달하는 계약이
+  없다. 앱 설정과 여러 상태 비주얼이 함께 소비할 공통 설정/정책 후보.
