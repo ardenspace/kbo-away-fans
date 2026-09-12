@@ -10,19 +10,19 @@ import 'package:flutter/material.dart';
 /// `color.*` — 기본 팔레트 + 시맨틱 색. 팀 테마와 무관한 모든 색.
 abstract final class ColorTokens {
   // 배경·표면
-  static const Color background = Color(0xFFF7F6F2);
-  static const Color surface = Color(0xFFFFFFFF);
+  static const Color background = NeutralTokens.lightBackground;
+  static const Color surface = NeutralTokens.lightSurface;
 
   /// 스플래시 배경 — 실밥 에셋(`assets/splash/seam_*.png`)에 구워진
   /// 오프화이트와 정확히 같은 값이어야 이음매가 보이지 않는다.
   /// 에셋을 다시 만들면 이 값도 함께 맞춘다.
   static const Color splashBackground = Color(0xFFF1F0EF);
-  static const Color surfaceDim = Color(0xFFEDEBE6);
-  static const Color outline = Color(0xFFD9D6CF);
+  static const Color surfaceDim = Color(0xFFE8EEF8);
+  static const Color outline = NeutralTokens.lightOutline;
 
   // 텍스트
-  static const Color textPrimary = Color(0xFF1A1A1E);
-  static const Color textSecondary = Color(0xFF6B6B73);
+  static const Color textPrimary = NeutralTokens.lightInk;
+  static const Color textSecondary = NeutralTokens.lightMuted;
   static const Color textInverse = Color(0xFFFFFFFF);
 
   // 시맨틱
@@ -48,6 +48,41 @@ abstract final class ColorTokens {
   static const Color googleBlue = Color(0xFF4285F4);
   static const Color googleYellow = Color(0xFFFBBC05);
   static const Color googleGreen = Color(0xFF34A853);
+}
+
+/// `neutral.*` — 스플래시를 제외한 앱 본체의 공통 쿨톤 뉴트럴.
+///
+/// 기존 [ColorTokens]의 밝은 얼굴 별칭은 아직 `AppVisualTheme`으로 옮겨 가지
+/// 않은 화면을 위한 호환 경로다. 새 화면은 밝기별 역할을 직접 고르지 않고
+/// `AppVisualTheme`의 최종 역할 값을 사용한다.
+abstract final class NeutralTokens {
+  static const Color lightBackground = Color(0xFFEEF3FB);
+  static const Color lightSurface = Color(0xFFF9FBFF);
+  static const Color lightInk = Color(0xFF15213A);
+  static const Color lightMuted = Color(0xFF68738A);
+  static const Color lightOutline = Color(0xFFD8E0ED);
+
+  static const Color darkBackground = Color(0xFF11162B);
+  static const Color darkSurface = Color(0xFF1A2140);
+  static const Color darkInk = Color(0xFFF8F7FF);
+  static const Color darkMuted = Color(0xFFB8C0D4);
+  static const Color darkOutline = Color(0xFF313A5C);
+}
+
+/// `defaultTheme.*` — 응원팀이 없는 사용자의 A/B 계열 두 얼굴.
+///
+/// 계열 선택과 밝기 선택은 서로 독립이다. 앱 루트가 두 값을 조합해 네 얼굴 중
+/// 하나를 고르고, 응원팀이 생기면 이 강조색 대신 팀 색을 우선한다.
+abstract final class DefaultThemeTokens {
+  static const Color aPrimary = Color(0xFF9381FF);
+  static const Color aSecondary = Color(0xFFFFD8BE);
+  static const Color aLightBackground = Color(0xFFF8F7FF);
+  static const Color aDarkBackground = Color(0xFF5141AA);
+
+  static const Color bPrimary = Color(0xFF4A69CE);
+  static const Color bSecondary = Color(0xFFECFFBE);
+  static const Color bLightBackground = Color(0xFFE5F8F0);
+  static const Color bDarkBackground = Color(0xFF314B9D);
 }
 
 /// `space.*` — 간격 스케일. 마진, 패딩, 갭.
@@ -748,6 +783,21 @@ abstract final class MotionTokens {
     duration: Duration(milliseconds: 420),
     curve: emphasized,
   );
+}
+
+/// `journey.*` — 경기 전 티켓과 실시간 여정 상태의 표현 수치.
+///
+/// 색 자체는 만들지 않는다. 앱 루트가 공급한 `AppVisualTheme` 역할색을 이
+/// 비율로만 섞어, 팀/기본 계열과 밝기가 바뀌어도 같은 위계를 유지한다.
+abstract final class JourneyTokens {
+  /// 표면 위에 강조색이 살짝 비치는 정도.
+  static const double surfaceTintOpacity = 0.08;
+
+  /// 티켓 그라데이션 끝점에서 secondary가 차지하는 비율(나머지는 primary).
+  static const double ticketSecondaryBlend = 0.30;
+
+  /// 상태 아이콘 배경이 표면 위에 비치는 정도.
+  static const double statusTintOpacity = 0.16;
 }
 
 /// `profile.*` — 마이페이지(3.4) 프로필 색 스와치 수치 토큰.
