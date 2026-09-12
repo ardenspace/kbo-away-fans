@@ -42,6 +42,12 @@ class ThemeSettingsNotifier extends Notifier<ThemeSettings> {
   String? _ownerUid;
   AppThemeFamily? _pendingFamily;
   ThemeMode? _pendingBrightnessMode;
+  int _familyRevision = 0;
+  int? _pendingFamilyRevision;
+  int? _completedFamilyRevision;
+  int _brightnessRevision = 0;
+  int? _pendingBrightnessRevision;
+  int? _completedBrightnessRevision;
 
   @override
   ThemeSettings build() {
@@ -52,6 +58,10 @@ class ThemeSettingsNotifier extends Notifier<ThemeSettings> {
       _ownerUid = ownerUid;
       _pendingFamily = null;
       _pendingBrightnessMode = null;
+      _pendingFamilyRevision = null;
+      _completedFamilyRevision = null;
+      _pendingBrightnessRevision = null;
+      _completedBrightnessRevision = null;
       _queue = Future<void>.value();
     }
     if (profile == null || profile.uid != ownerUid) {
@@ -62,9 +72,15 @@ class ThemeSettingsNotifier extends Notifier<ThemeSettings> {
       profile.defaultThemeFamily.name,
     );
     final storedBrightnessMode = _themeModeOf(profile.brightnessPreference);
-    if (_pendingFamily == storedFamily) _pendingFamily = null;
-    if (_pendingBrightnessMode == storedBrightnessMode) {
+    if (_pendingFamily == storedFamily &&
+        _pendingFamilyRevision == _completedFamilyRevision) {
+      _pendingFamily = null;
+      _pendingFamilyRevision = null;
+    }
+    if (_pendingBrightnessMode == storedBrightnessMode &&
+        _pendingBrightnessRevision == _completedBrightnessRevision) {
       _pendingBrightnessMode = null;
+      _pendingBrightnessRevision = null;
     }
     return ThemeSettings(
       family: _pendingFamily ?? storedFamily,
@@ -77,16 +93,30 @@ class ThemeSettingsNotifier extends Notifier<ThemeSettings> {
     final previous = state.family;
     if (family == previous) return Future<void>.value();
 
+    final revision = ++_familyRevision;
     _pendingFamily = family;
+    _pendingFamilyRevision = revision;
     state = state.copyWith(family: family);
     return _enqueue(
       profile: profile,
       patch: UserProfilePatch(
         defaultThemeFamily: DefaultThemeFamily.values.byName(family.name),
       ),
-      rollback: () {
-        if (_pendingFamily != family) return;
+      onCompleted: () {
+        _completedFamilyRevision = revision;
+        if (_pendingFamilyRevision != revision) return;
+        final stored = ref.read(userProfileProvider).value;
+        if (stored?.uid != profile.uid ||
+            stored?.defaultThemeFamily.name != family.name) {
+          return;
+        }
         _pendingFamily = null;
+        _pendingFamilyRevision = null;
+      },
+      rollback: () {
+        if (_pendingFamilyRevision != revision) return;
+        _pendingFamily = null;
+        _pendingFamilyRevision = null;
         state = state.copyWith(family: previous);
       },
     );
@@ -97,16 +127,30 @@ class ThemeSettingsNotifier extends Notifier<ThemeSettings> {
     final previous = state.brightnessMode;
     if (mode == previous) return Future<void>.value();
 
+    final revision = ++_brightnessRevision;
     _pendingBrightnessMode = mode;
+    _pendingBrightnessRevision = revision;
     state = state.copyWith(brightnessMode: mode);
     return _enqueue(
       profile: profile,
       patch: UserProfilePatch(
         brightnessPreference: _brightnessPreferenceOf(mode),
       ),
-      rollback: () {
-        if (_pendingBrightnessMode != mode) return;
+      onCompleted: () {
+        _completedBrightnessRevision = revision;
+        if (_pendingBrightnessRevision != revision) return;
+        final stored = ref.read(userProfileProvider).value;
+        if (stored?.uid != profile.uid ||
+            _themeModeOf(stored!.brightnessPreference) != mode) {
+          return;
+        }
         _pendingBrightnessMode = null;
+        _pendingBrightnessRevision = null;
+      },
+      rollback: () {
+        if (_pendingBrightnessRevision != revision) return;
+        _pendingBrightnessMode = null;
+        _pendingBrightnessRevision = null;
         state = state.copyWith(brightnessMode: previous);
       },
     );
@@ -124,6 +168,7 @@ class ThemeSettingsNotifier extends Notifier<ThemeSettings> {
   Future<void> _enqueue({
     required UserProfile profile,
     required UserProfilePatch patch,
+    required VoidCallback onCompleted,
     required VoidCallback rollback,
   }) async {
     Future<void> write() async {
@@ -135,6 +180,7 @@ class ThemeSettingsNotifier extends Notifier<ThemeSettings> {
     _queue = task;
     try {
       await task;
+      if (_ownerUid == profile.uid) onCompleted();
     } on Object {
       if (_ownerUid == profile.uid) rollback();
       rethrow;
