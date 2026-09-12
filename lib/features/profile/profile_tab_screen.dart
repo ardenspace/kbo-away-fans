@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -7,6 +9,8 @@ import '../../design/tokens.dart';
 import '../../ui/shared/content_fallback.dart';
 import '../../ui/shared/team_theme_scope.dart';
 import '../../ui/shared/team_themed_app_bar.dart';
+import '../../ui/shared/theme_settings_sheet.dart';
+import 'theme_settings.dart';
 
 /// 마이페이지 탭 (step 3.4) — 닉네임·대표 이메일을 보여주고
 /// 닉네임을 바꿀 수 있게 하며 로그아웃 진입점을 둔다.
@@ -51,6 +55,13 @@ class ProfileTabScreen extends ConsumerWidget {
 
   /// 대표 이메일 구역 제목.
   static const String emailSectionTitle = '이메일';
+
+  /// 화면 테마 설정 진입점의 접근성 이름.
+  static const String themeSettingsTooltip = '화면 테마 설정';
+
+  /// 테마 설정이 서버에 남지 못했을 때의 안내.
+  static const String themeSaveFailureNotice =
+      '테마 설정을 저장하지 못했어요. 잠시 뒤 다시 시도해 주세요.';
 
   /// 이메일을 주지 않는 계정(카카오)의 자리 표시 — 빈칸이 아니라 이 문구로
   /// 대신한다.
@@ -117,7 +128,17 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody> {
 
     final scaffold = Scaffold(
       backgroundColor: ColorTokens.background,
-      appBar: const TeamThemedAppBar(title: ProfileTabScreen.title),
+      appBar: TeamThemedAppBar(
+        title: ProfileTabScreen.title,
+        actions: [
+          IconButton(
+            key: const ValueKey('profile-theme-settings'),
+            tooltip: ProfileTabScreen.themeSettingsTooltip,
+            icon: const Icon(Icons.palette_outlined),
+            onPressed: _openThemeSettings,
+          ),
+        ],
+      ),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(SpaceTokens.lg),
@@ -165,6 +186,54 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody> {
     return teamId == null
         ? scaffold
         : TeamThemeScope.forTeam(teamId: teamId, child: scaffold);
+  }
+
+  Future<void> _openThemeSettings() {
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    return showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => Consumer(
+        builder: (context, ref, _) {
+          final settings = ref.watch(themeSettingsProvider);
+          return ThemeSettingsSheet(
+            selectedFamily: settings.family,
+            brightnessMode: settings.brightnessMode,
+            onFamilyChanged: (family) {
+              unawaited(
+                _saveThemeSetting(
+                  ref.read(themeSettingsProvider.notifier).setFamily(family),
+                  messenger,
+                ),
+              );
+            },
+            onBrightnessModeChanged: (mode) {
+              unawaited(
+                _saveThemeSetting(
+                  ref
+                      .read(themeSettingsProvider.notifier)
+                      .setBrightnessMode(mode),
+                  messenger,
+                ),
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _saveThemeSetting(
+    Future<void> saved,
+    ScaffoldMessengerState? messenger,
+  ) async {
+    try {
+      await saved;
+    } on Object {
+      messenger?.showSnackBar(
+        const SnackBar(content: Text(ProfileTabScreen.themeSaveFailureNotice)),
+      );
+    }
   }
 
   // -------------------------------------------------------------------------

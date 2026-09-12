@@ -6,12 +6,14 @@ import 'content/content_providers.dart';
 import 'design/tokens.dart';
 import 'features/auth/sign_in_screen.dart';
 import 'features/onboarding/location_consent.dart';
+import 'features/profile/theme_settings.dart';
 import 'features/splash/splash_screen.dart';
 import 'features/team_select/selected_team.dart';
 import 'features/team_select/team_select_screen.dart';
 import 'ui/shared/content_fallback.dart';
 
-/// 앱 루트 위젯 — 기본 토큰으로 ThemeData 를 깔고 루트 게이트를 띄운다.
+/// 앱 루트 위젯 — 프로필/선택 상태에서 해석한 단일 ThemeData 를 깔고 루트
+/// 게이트를 띄운다.
 ///
 /// 앱 생명주기를 구독해 백그라운드 → 포그라운드 복귀(resumed)마다
 /// [invalidateContent] 로 콘텐츠 4종을 다시 로드한다 — 우천 취소가
@@ -47,12 +49,10 @@ class _KboAwayFansAppState extends ConsumerState<KboAwayFansApp>
 
   @override
   Widget build(BuildContext context) {
+    final visualTheme = ref.watch(appVisualThemeProvider);
     return MaterialApp(
       title: 'KBO 원정러',
-      theme: ThemeData(
-        scaffoldBackgroundColor: ColorTokens.background,
-        fontFamily: TypeTokens.fontFamily,
-      ),
+      theme: visualTheme.toThemeData(),
       home: const SplashGate(),
     );
   }
