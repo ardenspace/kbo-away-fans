@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'backend/auth.dart';
 import 'content/content_providers.dart';
+import 'design/app_theme.dart';
 import 'design/tokens.dart';
 import 'features/auth/sign_in_screen.dart';
 import 'features/home/next_away_game.dart' show clockProvider;
@@ -15,8 +16,8 @@ import 'features/team_select/selected_team.dart';
 import 'features/team_select/team_select_screen.dart';
 import 'ui/shared/content_fallback.dart';
 
-/// 앱 루트 위젯 — 프로필/선택 상태에서 해석한 단일 ThemeData 를 깔고 루트
-/// 게이트를 띄운다.
+/// 앱 루트 위젯 — 스플래시에는 A/auto 기본 ThemeData를, 그 뒤에는 프로필/선택
+/// 상태에서 해석한 단일 ThemeData를 깔고 루트 게이트를 띄운다.
 ///
 /// 앱 생명주기를 구독해 백그라운드 → 포그라운드 복귀(resumed)마다
 /// [invalidateContent] 로 콘텐츠 4종을 다시 로드한다 — 우천 취소가
@@ -33,6 +34,7 @@ class _KboAwayFansAppState extends ConsumerState<KboAwayFansApp>
     with WidgetsBindingObserver {
   Timer? _themeBoundaryTimer;
   AppLifecycleState? _lifecycleState;
+  bool _profileThemeEnabled = false;
 
   @override
   void initState() {
@@ -62,12 +64,23 @@ class _KboAwayFansAppState extends ConsumerState<KboAwayFansApp>
 
   @override
   Widget build(BuildContext context) {
-    final visualTheme = ref.watch(appVisualThemeProvider);
+    final visualTheme = _profileThemeEnabled
+        ? ref.watch(appVisualThemeProvider)
+        : AppVisualTheme.resolve(
+            favoriteTeamId: null,
+            defaultFamily: AppThemeFamily.a,
+            brightness: automaticThemeBrightness(ref.watch(clockProvider)()),
+          );
     _scheduleThemeBoundaryRefresh();
     return MaterialApp(
       title: 'KBO 원정러',
       theme: visualTheme.toThemeData(),
-      home: const SplashGate(),
+      home: SplashGate(
+        onComplete: () {
+          if (!mounted) return;
+          setState(() => _profileThemeEnabled = true);
+        },
+      ),
     );
   }
 
@@ -79,6 +92,7 @@ class _KboAwayFansAppState extends ConsumerState<KboAwayFansApp>
   void _scheduleThemeBoundaryRefresh() {
     _themeBoundaryTimer?.cancel();
     _themeBoundaryTimer = null;
+    if (!_profileThemeEnabled) return;
     final lifecycle = _lifecycleState;
     if (lifecycle != null && lifecycle != AppLifecycleState.resumed) return;
     if (ref.read(themeSettingsProvider).brightnessMode != ThemeMode.system) {
@@ -97,11 +111,15 @@ class _KboAwayFansAppState extends ConsumerState<KboAwayFansApp>
 
 /// 스플래시 연출을 먼저 재생하고, 끝나면 [RootGate] 로 페이드 전환한다.
 ///
-/// 연출이 도는 동안 응원 팀 조회와 콘텐츠 로드가 뒤에서 함께 진행되므로
-/// 실제 대기 시간이 늘지는 않는다. 스플래시는 콜드 스타트에서만 뜬다
+/// 연출이 도는 동안 콘텐츠 로드는 뒤에서 함께 진행된다. 프로필 조회는 연출이
+/// 끝나 [RootGate]가 서는 순간 시작해 서버 확인 상한을 스플래시가 미리
+/// 소비하지 않는다. 스플래시는 콜드 스타트에서만 뜬다
 /// (포그라운드 복귀는 위젯 트리가 유지되므로 다시 재생되지 않는다).
 class SplashGate extends StatefulWidget {
-  const SplashGate({super.key});
+  const SplashGate({super.key, required this.onComplete});
+
+  /// 스플래시가 끝나 루트 게이트를 세우는 순간을 앱 루트에도 알린다.
+  final VoidCallback onComplete;
 
   @override
   State<SplashGate> createState() => _SplashGateState();
@@ -118,7 +136,9 @@ class _SplashGateState extends State<SplashGate> {
           ? const RootGate()
           : SplashScreen(
               onComplete: () {
-                if (mounted) setState(() => _splashDone = true);
+                if (!mounted || _splashDone) return;
+                setState(() => _splashDone = true);
+                widget.onComplete();
               },
             ),
     );
