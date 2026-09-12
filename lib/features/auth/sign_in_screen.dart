@@ -117,7 +117,9 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
   @override
   Widget build(BuildContext context) {
     final notice = _failure ?? widget.notice;
+    final reduceMotion = MediaQuery.disableAnimationsOf(context);
     return Scaffold(
+      backgroundColor: ColorTokens.splashBackground,
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -125,36 +127,67 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
               horizontal: SpaceTokens.lg,
               vertical: SpaceTokens.xxl,
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text('원정 가자', style: TextTokens.display),
-                const SizedBox(height: SpaceTokens.sm),
-                const Text(
-                  '로그인하면 다녀온 구장의 도장과 찜한 장소가\n계정에 남아요.',
-                  style: TextTokens.bodyMuted,
+            child: TweenAnimationBuilder<double>(
+              duration: reduceMotion ? Duration.zero : MotionTokens.slow,
+              curve: MotionTokens.standard,
+              tween: Tween<double>(begin: 0, end: 1),
+              builder: (context, progress, child) => Opacity(
+                opacity: progress,
+                child: Transform.translate(
+                  offset: Offset(
+                    0,
+                    LoginTokens.entranceOffset * (1 - progress),
+                  ),
+                  child: child,
                 ),
-                const SizedBox(height: SpaceTokens.xxl),
-                for (final provider in AuthProviderId.values)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: SpaceTokens.md),
-                    child: SocialSignInButton(
-                      provider: provider,
-                      // 진행 중이면 셋 다 잠기고, 진행 중이라는 사실은 사용자가
-                      // 누른 그 버튼의 스피너가 말한다 — 잠긴 버튼 셋만 남으면
-                      // 로그인이 도는 중인지 화면이 죽은 것인지 알 수 없다.
-                      busy: _pending == provider,
-                      onPressed: _pending == null
-                          ? () => _signIn(provider)
-                          : null,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Semantics(
+                    label: 'KBO 원정러',
+                    image: true,
+                    child: ExcludeSemantics(
+                      child: Center(
+                        child: Image.asset(
+                          'assets/splash/logo.png',
+                          width: LoginTokens.logoWidth,
+                        ),
+                      ),
                     ),
                   ),
-                if (notice != null) ...[
-                  const SizedBox(height: SpaceTokens.sm),
-                  SignInNotice(message: notice),
+                  const SizedBox(height: SpaceTokens.xxl),
+                  for (final provider in const [
+                    AuthProviderId.kakao,
+                    AuthProviderId.google,
+                    AuthProviderId.apple,
+                  ])
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: SpaceTokens.md),
+                      child: SocialSignInButton(
+                        provider: provider,
+                        // 진행 중이면 셋 다 잠기고, 진행 중이라는 사실은 사용자가
+                        // 누른 그 버튼의 스피너가 말한다 — 잠긴 버튼 셋만 남으면
+                        // 로그인이 도는 중인지 화면이 죽은 것인지 알 수 없다.
+                        busy: _pending == provider,
+                        onPressed: _pending == null
+                            ? () => _signIn(provider)
+                            : null,
+                      ),
+                    ),
+                  AnimatedSwitcher(
+                    duration: reduceMotion ? Duration.zero : MotionTokens.base,
+                    child: notice == null
+                        ? const SizedBox.shrink()
+                        : Padding(
+                            key: ValueKey(notice),
+                            padding: const EdgeInsets.only(top: SpaceTokens.sm),
+                            child: SignInNotice(message: notice),
+                          ),
+                  ),
                 ],
-              ],
+              ),
             ),
           ),
         ),

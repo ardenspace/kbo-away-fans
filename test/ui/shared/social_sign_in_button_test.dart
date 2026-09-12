@@ -5,6 +5,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kbo_away_fans/backend/auth.dart';
+import 'package:kbo_away_fans/design/tokens.dart';
 import 'package:kbo_away_fans/ui/shared/social_sign_in_button.dart';
 
 Widget host(Widget child) => MaterialApp(home: Scaffold(body: child));
@@ -20,11 +21,27 @@ void main() {
 
       final label = SocialSignInButton.labelOf(provider);
       expect(find.text(label), findsOneWidget);
-      expect(find.byIcon(SocialSignInButton.iconOf(provider)), findsOneWidget);
+      expect(
+        find.byKey(SocialSignInButton.iconKeyOf(provider)),
+        findsOneWidget,
+      );
       labels.add(label);
     }
 
     expect(labels, hasLength(AuthProviderId.values.length));
+  });
+
+  testWidgets('세 제공자 아이콘은 같은 크기의 시각 기준 상자를 쓴다', (tester) async {
+    for (final provider in AuthProviderId.values) {
+      await tester.pumpWidget(
+        host(SocialSignInButton(provider: provider, onPressed: () {})),
+      );
+
+      expect(
+        tester.getSize(find.byKey(SocialSignInButton.iconKeyOf(provider))),
+        const Size.square(LoginTokens.providerIconSize),
+      );
+    }
   });
 
   testWidgets('누르면 콜백이 그 제공자로 불린다', (tester) async {
@@ -59,17 +76,15 @@ void main() {
     );
 
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
-    expect(
-      find.byIcon(SocialSignInButton.iconOf(provider)),
-      findsNothing,
-      reason: '스피너가 아이콘 옆에 붙으면 버튼의 글자가 밀린다',
-    );
+    expect(find.byKey(SocialSignInButton.iconKeyOf(provider)), findsNothing);
     expect(find.text(SocialSignInButton.labelOf(provider)), findsOneWidget);
   });
 
   testWidgets('busy 가 아니면 스피너가 없다', (tester) async {
     await tester.pumpWidget(
-      host(SocialSignInButton(provider: AuthProviderId.apple, onPressed: () {})),
+      host(
+        SocialSignInButton(provider: AuthProviderId.apple, onPressed: () {}),
+      ),
     );
 
     expect(find.byType(CircularProgressIndicator), findsNothing);

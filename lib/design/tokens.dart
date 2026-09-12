@@ -40,6 +40,14 @@ abstract final class ColorTokens {
   /// ([textPrimary])에 알파를 얹었다. 화면 뒤 내용을 완전히 가리지 않으면서
   /// 그 위 도장·문구가 확실히 도드라지게 한다.
   static const Color overlayScrim = Color(0xCC1A1A1E);
+
+  // 로그인 제공자 색 — 버튼 몸통 외에는 쓰지 않는다.
+  static const Color kakao = Color(0xFFFEE500);
+  static const Color onKakao = Color(0xFF191600);
+  static const Color googleRed = Color(0xFFEA4335);
+  static const Color googleBlue = Color(0xFF4285F4);
+  static const Color googleYellow = Color(0xFFFBBC05);
+  static const Color googleGreen = Color(0xFF34A853);
 }
 
 /// `space.*` — 간격 스케일. 마진, 패딩, 갭.
@@ -61,6 +69,51 @@ abstract final class RadiusTokens {
 
   /// 칩·필 형태 (사실상 완전한 라운드).
   static const double pill = 999;
+}
+
+/// `login.*` — 로그인 화면의 로고와 입장권 버튼 수치.
+abstract final class LoginTokens {
+  /// 스플래시와 같은 로고를 로그인 화면에서는 이 폭으로 보여 준다.
+  static const double logoWidth = 232;
+
+  /// 소셜 로그인 입장권 한 장의 높이.
+  static const double ticketHeight = 60;
+
+  /// 제공자 아이콘이 차지하는 고정 폭.
+  static const double iconSlotWidth = 28;
+
+  /// 로그인 제공자 심볼의 보이는 긴 변.
+  ///
+  /// Google 은 이 크기를 그대로 쓰고, 원본 PNG 안에 여백이 든 Apple·Kakao 는
+  /// 아래 배율로 여백만 상쇄한다. 따라서 세 심볼 모두 눈에 보이는 긴 변이 이
+  /// 값에 가깝다.
+  static const double providerIconSize = 18;
+
+  /// 카카오 공식 버튼 원본의 픽셀 크기. 왼쪽의 정사각형 심볼 영역만 자른다.
+  static const double kakaoAssetWidth = 183;
+  static const double kakaoAssetHeight = 45;
+
+  /// 원본 버튼 안쪽 여백을 제외한 말풍선의 긴 변을 [providerIconSize]에 맞춘다.
+  static const double kakaoSymbolScale = 2.5;
+
+  /// Apple 공식 로고 PNG 안쪽 여백을 제외한 심볼의 긴 변을
+  /// [providerIconSize]에 맞춘다.
+  static const double appleSymbolScale = 2.3;
+
+  /// 입장권 오른쪽 절취 영역의 폭.
+  static const double ticketStubWidth = 42;
+
+  /// 절취선 굵기.
+  static const double perforationWidth = 1;
+
+  /// 절취선 한 획과 빈칸 길이.
+  static const double perforationDash = SpaceTokens.xs;
+
+  /// 화면 진입 때 콘텐츠가 아래에서 올라오는 거리.
+  static const double entranceOffset = SpaceTokens.xl;
+
+  /// 로그인이 진행 중인 입장권이 눌리는 비율.
+  static const double busyScale = 0.985;
 }
 
 /// `type.*` — 폰트 패밀리·크기·굵기. 트렌디하고 둥근 볼드 지향.
