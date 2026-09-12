@@ -215,9 +215,26 @@ describe('필드 화이트리스트 — 계약 밖 필드는 서버에 닿지 �
     await assertFails(setDoc(ref, withoutNickname));
 
     await assertFails(setDoc(ref, userDoc({ favoriteTeamId: 'yankees' })));
+    await assertFails(setDoc(ref, userDoc({ defaultThemeFamily: 'c' })));
+    await assertFails(setDoc(ref, userDoc({ brightnessPreference: 'system' })));
     await assertFails(
       setDoc(doc(db, paths.like(OWNER_UID, 'x-place')), likeDoc({ placeId: 'x-place', category: 'bar' })),
     );
+  });
+
+  it('팀 없음은 정상 프로필이고 기존 문서도 소유자가 읽을 수 있다', async () => {
+    const db = asUser(env, OWNER_UID);
+    const ref = doc(db, paths.user(OWNER_UID));
+
+    await assertSucceeds(setDoc(ref, userDoc({ favoriteTeamId: null })));
+    await seed(env, async (adminDb) => {
+      await setDoc(doc(adminDb, paths.user(OWNER_UID)), {
+        nickname: '기존사용자',
+        joinedAt: new Date('2026-09-01T00:00:00Z'),
+        board: {},
+      });
+    });
+    await assertSucceeds(getDoc(ref));
   });
 });
 

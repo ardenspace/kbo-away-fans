@@ -46,7 +46,8 @@ const Duration _beforeAnyBound = Duration(seconds: 1);
 Map<String, Object?> _serverDocument(String teamId) => <String, Object?>{
   UserFields.nickname: '먼저있던닉',
   UserFields.favoriteTeamId: teamId,
-  UserFields.profileThemeKey: teamId,
+  UserFields.defaultThemeFamily: 'a',
+  UserFields.brightnessPreference: 'auto',
   UserFields.joinedAt: DateTime.utc(2026, 3, 1),
   UserFields.board: const <String, Object?>{},
 };
@@ -137,9 +138,7 @@ void main() {
     }
   }
 
-  testWidgets('허용: 상태가 미결정이면 설명이 뜨고, 허용하면 홈으로 넘어간다', (
-    tester,
-  ) async {
+  testWidgets('허용: 상태가 미결정이면 설명이 뜨고, 허용하면 홈으로 넘어간다', (tester) async {
     location = FakeLocationPermissionGateway(
       initial: LocationPermissionStatus.denied,
       afterRequest: LocationPermissionStatus.granted,
@@ -190,9 +189,7 @@ void main() {
     expect(find.byType(HomeScreen), findsOneWidget);
   });
 
-  testWidgets('이미 결정됨: 이미 허용된 상태에서는 설명을 다시 띄우지 않는다', (
-    tester,
-  ) async {
+  testWidgets('이미 결정됨: 이미 허용된 상태에서는 설명을 다시 띄우지 않는다', (tester) async {
     location = FakeLocationPermissionGateway(
       initial: LocationPermissionStatus.granted,
     );
@@ -204,9 +201,7 @@ void main() {
     expect(location.requestCalls, 0, reason: '이미 결정된 상태를 다시 묻지 않는다');
   });
 
-  testWidgets('이미 결정됨(영구 거절): 이 상태에서도 설명을 다시 띄우지 않는다', (
-    tester,
-  ) async {
+  testWidgets('이미 결정됨(영구 거절): 이 상태에서도 설명을 다시 띄우지 않는다', (tester) async {
     location = FakeLocationPermissionGateway(
       initial: LocationPermissionStatus.permanentlyDenied,
     );
@@ -247,7 +242,11 @@ void main() {
     // 갈래에서 권한을 딱 한 번 다시 묻는다(`current_location.dart` docstring
     // 참조) — 그 재조회가 이 값을 0 에서 1 로 올린다. "온보딩 흐름 자체가
     // 묻지 않는다"는 위 `LocationConsentScreen findsNothing` 이 그대로 지킨다.
-    expect(location.statusCalls, 1, reason: '홈의 noGameToday 재조회 하나뿐 — 팀 변경 흐름은 묻지 않았다');
+    expect(
+      location.statusCalls,
+      1,
+      reason: '홈의 noGameToday 재조회 하나뿐 — 팀 변경 흐름은 묻지 않았다',
+    );
     expect(location.requestCalls, 0);
   });
 
@@ -277,9 +276,7 @@ void main() {
     expect(location.requestCalls, 0);
   });
 
-  testWidgets('이미 있는 문서로 물러선 선택 뒤에는 위치 설명이 뜨지 않는다', (
-    tester,
-  ) async {
+  testWidgets('이미 있는 문서로 물러선 선택 뒤에는 위치 설명이 뜨지 않는다', (tester) async {
     location = FakeLocationPermissionGateway(
       initial: LocationPermissionStatus.denied,
     );
@@ -317,9 +314,7 @@ void main() {
     expect(location.statusCalls, 1);
     expect(location.requestCalls, 0);
   });
-  testWidgets('팀 변경 모드에서 문서가 실제로 만들어지는 드문 경로에서도 위치 설명이 뜨지 않는다', (
-    tester,
-  ) async {
+  testWidgets('팀 변경 모드에서 문서가 실제로 만들어지는 드문 경로에서도 위치 설명이 뜨지 않는다', (tester) async {
     // 지휘자가 변이 주입으로 잡은 자리 — `_writeProfile` 의 create 성공 갈래는
     // `isChange` 와 무관하게 지나갈 수 있다(서버에 문서가 아예 없으면 변경
     // 모드에서도 `createProfile` 이 새로 만든다). 앞의 "팀 변경 모드" 시험은
@@ -356,11 +351,7 @@ void main() {
     await tester.tap(kt);
     await tester.pumpAndSettle();
 
-    expect(
-      store.profileCreates,
-      1,
-      reason: '서버에 문서가 없었으니 이 선택이 실제로 새로 만든다',
-    );
+    expect(store.profileCreates, 1, reason: '서버에 문서가 없었으니 이 선택이 실제로 새로 만든다');
     expect(store.documents[uid]![UserFields.favoriteTeamId], 'kt');
     expect(
       find.byType(LocationConsentScreen),
@@ -389,11 +380,7 @@ void main() {
       );
       await pickHanwhaOnboarding(tester);
 
-      expect(
-        tester.takeException(),
-        isNull,
-        reason: '아무도 받지 않는 예외가 남지 않는다',
-      );
+      expect(tester.takeException(), isNull, reason: '아무도 받지 않는 예외가 남지 않는다');
       expect(
         find.byType(LocationConsentScreen),
         findsOneWidget,

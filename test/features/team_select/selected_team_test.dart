@@ -36,14 +36,15 @@ import '../../backend/fake_backend.dart';
 /// 서버에 이미 남아 있는 사용자 문서 — 가입 시각과 배지 판을 함께 들고 있어야
 /// "재로그인이 덮지 않는다"를 잴 수 있다.
 Map<String, Object?> _serverDocument(String teamId) => <String, Object?>{
-      UserFields.nickname: '먼저있던닉',
-      UserFields.favoriteTeamId: teamId,
-      UserFields.profileThemeKey: teamId,
-      UserFields.joinedAt: DateTime.utc(2026, 3, 1),
-      UserFields.board: <String, Object?>{
-        'jamsil_lg': BoardCell.forCount(count: 2).toData(),
-      },
-    };
+  UserFields.nickname: '먼저있던닉',
+  UserFields.favoriteTeamId: teamId,
+  UserFields.defaultThemeFamily: 'a',
+  UserFields.brightnessPreference: 'auto',
+  UserFields.joinedAt: DateTime.utc(2026, 3, 1),
+  UserFields.board: <String, Object?>{
+    'jamsil_lg': BoardCell.forCount(count: 2).toData(),
+  },
+};
 
 void main() {
   const uid = 'kakao:1234567890';
@@ -101,8 +102,8 @@ void main() {
     expect(store.profileCreates, 1);
     final document = store.documents[uid]!;
     expect(document[UserFields.favoriteTeamId], 'hanwha');
-    // 프로필 색이 선택한 팀 색으로 함께 선다.
-    expect(document[UserFields.profileThemeKey], 'hanwha');
+    expect(document[UserFields.defaultThemeFamily], 'a');
+    expect(document[UserFields.brightnessPreference], 'auto');
     expect(document[UserFields.nickname], '카카오원정러');
     expect(document[UserFields.joinedAt], kFakeServerNow);
     expect(document[UserFields.board], isEmpty);
@@ -123,7 +124,10 @@ void main() {
 
     final nickname = store.documents[uid]![UserFields.nickname]! as String;
     expect(nickname, seedNickname(uid: uid));
-    expect(nickname.length, inInclusiveRange(kNicknameMinLength, kNicknameMaxLength));
+    expect(
+      nickname.length,
+      inInclusiveRange(kNicknameMinLength, kNicknameMaxLength),
+    );
   });
 
   test('재로그인은 문서를 덮지 않는다 — 가입 시각과 배지 판이 그대로다', () async {
@@ -198,7 +202,6 @@ void main() {
 
     final document = store.documents[uid]!;
     expect(document[UserFields.favoriteTeamId], 'doosan');
-    expect(document[UserFields.profileThemeKey], 'doosan');
     expect(document[UserFields.updatedAt], kFakeServerNow);
     // 문서를 새로 만들지 않았다 — 가입 시각과 배지 판이 그대로다.
     expect(store.profileCreates, 0);
@@ -228,7 +231,6 @@ void main() {
       'lg',
       reason: '문서를 모른 채 고른 선택이 원본을 덮었다',
     );
-    expect(document[UserFields.profileThemeKey], 'lg');
     expect(document[UserFields.joinedAt], DateTime.utc(2026, 3, 1));
     // 고른 팀은 사본에도 남지 않는다 — 서버에 없는 팀이 다음 콜드 스타트의 첫
     // 프레임을 칠하면 같은 오해가 한 번 더 선다. 사본은 물러선 자리에서 읽어
@@ -258,11 +260,7 @@ void main() {
     await pumpEventQueue();
 
     final state = container.read(selectedTeamIdProvider);
-    expect(
-      state.hasError,
-      isFalse,
-      reason: '오류로 읽히면 게이트가 이 사람을 온보딩으로 되돌린다',
-    );
+    expect(state.hasError, isFalse, reason: '오류로 읽히면 게이트가 이 사람을 온보딩으로 되돌린다');
     expect(
       state.value,
       'lg',
@@ -358,7 +356,6 @@ void main() {
 
     final document = store.documents[uid]!;
     expect(document[UserFields.favoriteTeamId], 'kia');
-    expect(document[UserFields.profileThemeKey], 'kia');
     // 문서는 여전히 한 번만 만들어졌다 — 가입 시각이 두 번 서지 않는다.
     expect(store.profileCreates, 1);
 
@@ -382,11 +379,7 @@ void main() {
     await pumpEventQueue();
 
     final state = container.read(selectedTeamIdProvider);
-    expect(
-      state.hasError,
-      isFalse,
-      reason: '오류로 읽히면 게이트가 이 사람을 온보딩으로 되돌린다',
-    );
+    expect(state.hasError, isFalse, reason: '오류로 읽히면 게이트가 이 사람을 온보딩으로 되돌린다');
     expect(state.value, 'lg');
   });
 
@@ -503,7 +496,11 @@ void main() {
 
     store.emitProfileError(const BackendNetworkError(code: 'unavailable'));
     await pumpEventQueue();
-    expect(container.read(selectedTeamIdProvider).value, isNull, reason: '온보딩이다');
+    expect(
+      container.read(selectedTeamIdProvider).value,
+      isNull,
+      reason: '온보딩이다',
+    );
 
     await container.read(selectedTeamIdProvider.notifier).select('kt');
     await pumpEventQueue();
@@ -588,7 +585,11 @@ void main() {
       graced.holdProfiles = true;
       final c = container();
       await pumpEventQueue();
-      expect(c.read(selectedTeamIdProvider).isLoading, isTrue, reason: '아직 상한 안이다');
+      expect(
+        c.read(selectedTeamIdProvider).isLoading,
+        isTrue,
+        reason: '아직 상한 안이다',
+      );
 
       await passGrace();
 
@@ -663,7 +664,6 @@ void main() {
 
       final document = store.documents[uid]!;
       expect(document[UserFields.favoriteTeamId], 'kt');
-      expect(document[UserFields.profileThemeKey], 'kt');
       expect(store.profileCreates, 0);
       expect(document[UserFields.joinedAt], DateTime.utc(2026, 3, 1));
       expect(await cachedTeamId(), 'kt');
@@ -699,7 +699,9 @@ void main() {
       final container = makeContainer();
       expect(await settledTeamId(container), 'lg');
 
-      store.profileWriteFailure = const BackendNetworkError(code: 'unavailable');
+      store.profileWriteFailure = const BackendNetworkError(
+        code: 'unavailable',
+      );
       await expectLater(
         container
             .read(selectedTeamIdProvider.notifier)
@@ -724,7 +726,9 @@ void main() {
       final container = makeContainer();
       expect(await settledTeamId(container), isNull);
 
-      store.profileWriteFailure = const BackendNetworkError(code: 'unavailable');
+      store.profileWriteFailure = const BackendNetworkError(
+        code: 'unavailable',
+      );
       await expectLater(
         container.read(selectedTeamIdProvider.notifier).select('kt'),
         throwsA(isA<BackendNetworkError>()),
@@ -754,7 +758,9 @@ void main() {
         overrides: [
           authServiceProvider.overrideWithValue(auth),
           userDataStoreProvider.overrideWithValue(failing),
-          selectedTeamStoreProvider.overrideWithValue(const _FailingCacheStore()),
+          selectedTeamStoreProvider.overrideWithValue(
+            const _FailingCacheStore(),
+          ),
         ],
       );
       addTearDown(container.dispose);

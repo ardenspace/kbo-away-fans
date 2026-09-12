@@ -123,13 +123,14 @@ service cloud.firestore {
     // ---- 문서별 계약 ----
 
     function validUser(d) {
-      return d.keys().hasAll(['nickname', 'favoriteTeamId', 'profileThemeKey', 'joinedAt', 'board'])
-        && d.keys().hasOnly(['nickname', 'favoriteTeamId', 'profileThemeKey', 'joinedAt', 'updatedAt', 'board'])
+      return d.keys().hasAll(['nickname', 'favoriteTeamId', 'defaultThemeFamily', 'brightnessPreference', 'joinedAt', 'board'])
+        && d.keys().hasOnly(['nickname', 'favoriteTeamId', 'defaultThemeFamily', 'brightnessPreference', 'joinedAt', 'updatedAt', 'board'])
         && d.nickname is string
         && d.nickname.size() >= 1
         && d.nickname.size() <= 20
-        && d.favoriteTeamId in teamIds()
-        && d.profileThemeKey in teamIds()
+        && (d.favoriteTeamId == null || d.favoriteTeamId in teamIds())
+        && d.defaultThemeFamily in ['a', 'b']
+        && d.brightnessPreference in ['auto', 'light', 'dark']
         && d.joinedAt is timestamp
         && (!('updatedAt' in d) || d.updatedAt is timestamp)
         && validBoard(d.board);

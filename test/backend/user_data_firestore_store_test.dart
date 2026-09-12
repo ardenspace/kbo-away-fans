@@ -54,7 +54,8 @@ void main() {
         encodeBackendValues(<String, Object?>{
           UserFields.nickname: '먼저있던닉',
           UserFields.favoriteTeamId: teamId,
-          UserFields.profileThemeKey: teamId,
+          UserFields.defaultThemeFamily: 'b',
+          UserFields.brightnessPreference: 'dark',
           UserFields.joinedAt: ExactTimestamp(joinedAt),
           UserFields.board: <String, Object?>{
             'jamsil_lg': BoardCell.forCount(count: 2).toData(),
@@ -74,7 +75,8 @@ void main() {
         const NewUserProfile(
           nickname: '원정러',
           favoriteTeamId: 'hanwha',
-          profileThemeKey: 'hanwha',
+          defaultThemeFamily: DefaultThemeFamily.b,
+          brightnessPreference: BrightnessPreference.light,
         ),
       );
 
@@ -83,11 +85,30 @@ void main() {
       final profile = await store.readProfile(uid);
       expect(profile, isNotNull);
       expect(profile!.favoriteTeamId, 'hanwha');
-      expect(profile.profileThemeKey, 'hanwha');
+      expect(profile.defaultThemeFamily, DefaultThemeFamily.b);
+      expect(profile.brightnessPreference, BrightnessPreference.light);
       expect(profile.nickname, '원정러');
       expect(profile.board, isEmpty);
       // 서버 시각 센티널이 실제 시각으로 확정된다.
       expect(profile.joinedAt, isA<DateTime>());
+    });
+
+    test('사이클 3 이전 문서는 팀 없음과 A/auto로 호환해 읽는다', () async {
+      await db
+          .collection(kUsersCollection)
+          .doc(uid)
+          .set(
+            encodeBackendValues(<String, Object?>{
+              UserFields.nickname: '기존사용자',
+              UserFields.joinedAt: ExactTimestamp(joinedAt),
+              UserFields.board: <String, Object?>{},
+            }),
+          );
+
+      final profile = (await store.readProfile(uid))!;
+      expect(profile.favoriteTeamId, isNull);
+      expect(profile.defaultThemeFamily, DefaultThemeFamily.a);
+      expect(profile.brightnessPreference, BrightnessPreference.auto);
     });
 
     test('이미 있는 문서는 덮지 않는다 — 가입 시각과 배지 판이 남는다', () async {
@@ -95,11 +116,7 @@ void main() {
 
       final created = await store.createProfile(
         uid,
-        const NewUserProfile(
-          nickname: '나중닉',
-          favoriteTeamId: 'kia',
-          profileThemeKey: 'kia',
-        ),
+        const NewUserProfile(nickname: '나중닉', favoriteTeamId: 'kia'),
       );
 
       // 트랜잭션의 존재 판정을 지우거나 무조건 set 으로 바꾸는 두 변이가
@@ -121,7 +138,11 @@ void main() {
 
       await store.patchProfile(
         uid,
-        const UserProfilePatch(favoriteTeamId: 'kt', profileThemeKey: 'kt'),
+        const UserProfilePatch(
+          favoriteTeamId: 'kt',
+          defaultThemeFamily: DefaultThemeFamily.a,
+          brightnessPreference: BrightnessPreference.auto,
+        ),
       );
 
       // update 를 set 으로 바꾸는 변이가 여기서 빨간불이 된다 — set 은 문서를
@@ -129,21 +150,29 @@ void main() {
       // 쓰기가 규칙의 hasAll 에 걸려 팀 변경 자체가 실패한다.
       final profile = (await store.readProfile(uid))!;
       expect(profile.favoriteTeamId, 'kt');
-      expect(profile.profileThemeKey, 'kt');
+      expect(profile.defaultThemeFamily, DefaultThemeFamily.a);
+      expect(profile.brightnessPreference, BrightnessPreference.auto);
       expect(profile.nickname, '먼저있던닉');
       expect(profile.joinedAt, joinedAt);
       expect(profile.board['jamsil_lg']!.count, 2);
       expect(profile.updatedAt, isNotNull);
     });
 
+    test('응원팀을 null로 바꿀 수 있다', () async {
+      await seedDocument('lg');
+
+      await store.patchProfile(
+        uid,
+        const UserProfilePatch(favoriteTeamId: null),
+      );
+
+      expect((await store.readProfile(uid))!.favoriteTeamId, isNull);
+    });
+
     test('나가는 문서에는 계약 밖 필드가 없다', () async {
       await store.createProfile(
         uid,
-        const NewUserProfile(
-          nickname: '원정러',
-          favoriteTeamId: 'nc',
-          profileThemeKey: 'nc',
-        ),
+        const NewUserProfile(nickname: '원정러', favoriteTeamId: 'nc'),
       );
       await store.patchProfile(uid, const UserProfilePatch(nickname: '바꾼닉'));
 
@@ -166,11 +195,7 @@ void main() {
 
       await store.createProfile(
         uid,
-        const NewUserProfile(
-          nickname: '원정러',
-          favoriteTeamId: 'ssg',
-          profileThemeKey: 'ssg',
-        ),
+        const NewUserProfile(nickname: '원정러', favoriteTeamId: 'ssg'),
       );
       await pumpEventQueue();
 
@@ -283,7 +308,8 @@ void main() {
     Map<String, dynamic> userData() => <String, dynamic>{
       UserFields.nickname: '원정러',
       UserFields.favoriteTeamId: 'lg',
-      UserFields.profileThemeKey: 'lg',
+      UserFields.defaultThemeFamily: 'a',
+      UserFields.brightnessPreference: 'auto',
       UserFields.joinedAt: Timestamp.fromDate(joinedAt),
       UserFields.board: <String, dynamic>{},
     };
@@ -484,7 +510,9 @@ class _SpyDoc implements DocumentReference<Map<String, dynamic>> {
   final String id;
 
   @override
-  Future<DocumentSnapshot<Map<String, dynamic>>> get([GetOptions? options]) async {
+  Future<DocumentSnapshot<Map<String, dynamic>>> get([
+    GetOptions? options,
+  ]) async {
     db.calls.add('get:$id');
     final gate = db.gate;
     if (gate != null && !gate.isCompleted && _data == null) {
@@ -538,11 +566,8 @@ class _SpyBatch implements WriteBatch {
   final _WriteSpyFirestore _db;
 
   @override
-  void set<T>(
-    DocumentReference<T> document,
-    T data, [
-    SetOptions? options,
-  ]) => _db.calls.add('batch.set:${document.id}');
+  void set<T>(DocumentReference<T> document, T data, [SetOptions? options]) =>
+      _db.calls.add('batch.set:${document.id}');
 
   @override
   void update<T>(DocumentReference<T> document, T data) =>

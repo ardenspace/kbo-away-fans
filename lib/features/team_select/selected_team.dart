@@ -487,12 +487,11 @@ class SelectedTeamNotifier extends Notifier<AsyncValue<String?>> {
       final created = await store.createProfile(
         owner.uid,
         NewUserProfile(
-          nickname: seedNickname(uid: owner.uid, displayName: owner.displayName),
+          nickname: seedNickname(
+            uid: owner.uid,
+            displayName: owner.displayName,
+          ),
           favoriteTeamId: teamId,
-          // 프로필 색은 선택한 팀 색으로 함께 선다. 두 값을 따로 둔 것은
-          // "색만 바꾸는" 경로(마이페이지)를 위해서지, 팀을 바꾼 사람의 색을
-          // 옛 팀에 남겨 두려는 것이 아니다.
-          profileThemeKey: teamId,
         ),
       );
       if (created) {
@@ -530,7 +529,7 @@ class SelectedTeamNotifier extends Notifier<AsyncValue<String?>> {
 
     await store.patchProfile(
       owner.uid,
-      UserProfilePatch(favoriteTeamId: teamId, profileThemeKey: teamId),
+      UserProfilePatch(favoriteTeamId: teamId),
     );
     // 고쳤으니 이 실행이 이 문서에 썼다 — 변경 모드로 여기 온 실행에서는 이 한
     // 줄이 다음 선택을 곧바로 수정 경로로 보낸다(문서를 또 만들어 보지 않는다).

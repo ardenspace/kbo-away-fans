@@ -29,7 +29,8 @@ import 'package:kbo_away_fans/features/badges/stadium_visit.dart';
 import 'package:kbo_away_fans/features/badges/visit_status_notice.dart';
 import 'package:kbo_away_fans/features/home/home_screen.dart';
 import 'package:kbo_away_fans/features/home/main_tabs_root.dart';
-import 'package:kbo_away_fans/features/home/next_away_game.dart' show clockProvider;
+import 'package:kbo_away_fans/features/home/next_away_game.dart'
+    show clockProvider;
 import 'package:kbo_away_fans/features/likes/likes_tab_screen.dart';
 import 'package:kbo_away_fans/features/places/recommend_tab_screen.dart';
 import 'package:kbo_away_fans/location/location.dart';
@@ -111,7 +112,10 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text(VisitStatusNotice.permissionMissingTitle), findsOneWidget);
+      expect(
+        find.text(VisitStatusNotice.permissionMissingTitle),
+        findsOneWidget,
+      );
       expect(
         find.text(VisitStatusNotice.requestPermissionLabel),
         findsOneWidget,
@@ -141,10 +145,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text(VisitStatusNotice.openSettingsLabel), findsOneWidget);
-      expect(
-        find.text(VisitStatusNotice.requestPermissionLabel),
-        findsNothing,
-      );
+      expect(find.text(VisitStatusNotice.requestPermissionLabel), findsNothing);
     });
 
     testWidgets('영구 거절에서 버튼을 누르면 설정 앱을 연다', (tester) async {
@@ -166,7 +167,11 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(gateway.openSettingsCalls, 1);
-      expect(gateway.requestCalls, 0, reason: '영구 거절 상태에서는 OS 다이얼로그를 다시 띄우지 않는다');
+      expect(
+        gateway.requestCalls,
+        0,
+        reason: '영구 거절 상태에서는 OS 다이얼로그를 다시 띄우지 않는다',
+      );
     });
 
     testWidgets('다시 물을 수 있는 상태에서 버튼을 누르면 OS 에 다시 묻는다', (tester) async {
@@ -198,9 +203,7 @@ void main() {
         afterRequest: LocationPermissionStatus.granted,
       );
       final fixed = _FixedStadiumVisitCheck(
-        const StadiumVisitResult.rejected(
-          StadiumVisitReason.permissionMissing,
-        ),
+        const StadiumVisitResult.rejected(StadiumVisitReason.permissionMissing),
       );
 
       await tester.pumpWidget(
@@ -233,9 +236,7 @@ void main() {
         afterRequest: LocationPermissionStatus.denied,
       );
       final fixed = _FixedStadiumVisitCheck(
-        const StadiumVisitResult.rejected(
-          StadiumVisitReason.permissionMissing,
-        ),
+        const StadiumVisitResult.rejected(StadiumVisitReason.permissionMissing),
       );
 
       await tester.pumpWidget(
@@ -293,7 +294,11 @@ void main() {
           findsNothing,
           reason: '권한 거부 문구와 섞이지 않는다',
         );
-        expect(find.byType(FilledButton), findsNothing, reason: '판정 실패에는 행동 버튼이 없다');
+        expect(
+          find.byType(FilledButton),
+          findsNothing,
+          reason: '판정 실패에는 행동 버튼이 없다',
+        );
       });
     }
 
@@ -413,11 +418,7 @@ void main() {
       addTearDown(auth.dispose);
       await store.createProfile(
         _uid,
-        const NewUserProfile(
-          nickname: '원정러',
-          favoriteTeamId: 'lg',
-          profileThemeKey: 'lg',
-        ),
+        const NewUserProfile(nickname: '원정러', favoriteTeamId: 'lg'),
       );
       await (await store.writeStamp(
         _uid,
@@ -470,11 +471,7 @@ void main() {
       addTearDown(auth.dispose);
       await store.createProfile(
         _uid,
-        const NewUserProfile(
-          nickname: '원정러',
-          favoriteTeamId: 'lg',
-          profileThemeKey: 'lg',
-        ),
+        const NewUserProfile(nickname: '원정러', favoriteTeamId: 'lg'),
       );
 
       await tester.pumpWidget(
@@ -511,7 +508,10 @@ void main() {
         findsNWidgets(BadgeTokens.cellCount),
         reason: '권한이 없어도 빈 칸까지 판 전체가 열린다',
       );
-      expect(find.text(VisitStatusNotice.permissionMissingTitle), findsOneWidget);
+      expect(
+        find.text(VisitStatusNotice.permissionMissingTitle),
+        findsOneWidget,
+      );
       expect(find.text(VisitStatusNotice.openSettingsLabel), findsOneWidget);
     });
   });
@@ -567,11 +567,7 @@ void main() {
       addTearDown(auth.dispose);
       await store.createProfile(
         _uid,
-        const NewUserProfile(
-          nickname: '원정러',
-          favoriteTeamId: 'lg',
-          profileThemeKey: 'lg',
-        ),
+        const NewUserProfile(nickname: '원정러', favoriteTeamId: 'lg'),
       );
 
       final gateway = FakeLocationPermissionGateway(
@@ -590,7 +586,8 @@ void main() {
               (ref) async => const ContentFresh<TeamsDocument>(teamsFixture),
             ),
             stadiumsProvider.overrideWith(
-              (ref) async => const ContentFresh<StadiumsDocument>(stadiumsFixture),
+              (ref) async =>
+                  const ContentFresh<StadiumsDocument>(stadiumsFixture),
             ),
             placesProvider.overrideWith(
               (ref) async => const ContentFresh<PlacesDocument>(placesFixture),
@@ -617,7 +614,11 @@ void main() {
       // 오늘 실제로 경기가 있는데 권한이 거부돼 있으니, `StadiumVisitTrigger`
       // (판정 트리거 그 자체)가 이미 위치 게이트웨이에 적어도 한 번은
       // 물었어야 한다.
-      expect(gateway.statusCalls, greaterThanOrEqualTo(1), reason: '트리거가 적어도 한 번은 물었다');
+      expect(
+        gateway.statusCalls,
+        greaterThanOrEqualTo(1),
+        reason: '트리거가 적어도 한 번은 물었다',
+      );
 
       // 홈(기본 탭) — 실제 팀·일정 콘텐츠로 D-day 헤더가 뜬다.
       expect(find.byType(HomeScreen), findsOneWidget);
@@ -629,8 +630,14 @@ void main() {
       // 추가로 부르지 않는다"이지 "아무도 더 부르지 않는다"가 아니다.
       await tester.tap(find.text('배지'));
       await settle();
-      expect(find.text(VisitStatusNotice.permissionMissingTitle), findsOneWidget);
-      expect(find.text(VisitStatusNotice.requestPermissionLabel), findsOneWidget);
+      expect(
+        find.text(VisitStatusNotice.permissionMissingTitle),
+        findsOneWidget,
+      );
+      expect(
+        find.text(VisitStatusNotice.requestPermissionLabel),
+        findsOneWidget,
+      );
       final baselineAfterBadges = gateway.statusCalls;
 
       // 추천 — 구장 목록이 실제로 뜬다.

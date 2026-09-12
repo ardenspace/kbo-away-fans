@@ -73,8 +73,11 @@ abstract final class UserFields {
   /// 선택 팀 — 이 필드가 원본이고 기기 저장값은 첫 렌더용 캐시다.
   static const String favoriteTeamId = 'favoriteTeamId';
 
-  /// 프로필 색의 팀 테마 키.
-  static const String profileThemeKey = 'profileThemeKey';
+  /// 팀이 없을 때 쓰는 기본 테마 계열.
+  static const String defaultThemeFamily = 'defaultThemeFamily';
+
+  /// 시간대 자동 전환 또는 밝음/어두움 수동 설정.
+  static const String brightnessPreference = 'brightnessPreference';
 
   /// 가입 시각.
   static const String joinedAt = 'joinedAt';
@@ -89,7 +92,8 @@ abstract final class UserFields {
   static const Set<String> all = {
     nickname,
     favoriteTeamId,
-    profileThemeKey,
+    defaultThemeFamily,
+    brightnessPreference,
     joinedAt,
     updatedAt,
     board,
@@ -99,7 +103,8 @@ abstract final class UserFields {
   static const Set<String> requiredFields = {
     nickname,
     favoriteTeamId,
-    profileThemeKey,
+    defaultThemeFamily,
+    brightnessPreference,
     joinedAt,
     board,
   };
@@ -209,10 +214,7 @@ const Set<String> kBoardCellIds = {
 /// 찍히는 순간을 놓치면 시간 창이 닫힌 뒤에는 되찾을 길이 없다. 밑줄을 담은
 /// `gameId` 는 특히 조용한데, 문서 id 로는 멀쩡해 보이면서 구장과 경기를
 /// 가르는 자리를 어긋나게 만든다.
-String stampDocumentIdOf({
-  required String stadiumId,
-  required String gameId,
-}) =>
+String stampDocumentIdOf({required String stadiumId, required String gameId}) =>
     '${_checkStadiumId(stadiumId, StampFields.stadiumId)}_'
     '${_checkGameId(gameId)}';
 
@@ -473,6 +475,40 @@ class BoardCell {
 // 사용자 문서
 // ---------------------------------------------------------------------------
 
+/// 사이클 3 이전 사용자 문서의 프로필 색상 필드.
+///
+/// 현재 계약의 [UserFields.all]에는 들지 않는다. legacy 문서를
+/// 부분 수정할 때 필드 삭제 대상을 가리키는 데만 쓴다.
+const String kLegacyProfileThemeKeyField = 'profileThemeKey';
+
+/// 응원팀이 없을 때 복원할 기본 테마 계열.
+enum DefaultThemeFamily { a, b }
+
+/// 앱 밝기 선택. [auto]는 KST 시간대 정책에 맡긴다.
+enum BrightnessPreference { auto, light, dark }
+
+const Object _absentProfileField = Object();
+
+T _enumOf<T extends Enum>(
+  Map<String, Object?> data,
+  String field,
+  List<T> values,
+  T fallback,
+) {
+  final raw = data[field];
+  if (raw == null) return fallback;
+  for (final value in values) {
+    if (value.name == raw) return value;
+  }
+  throw ArgumentError.value(raw, field, '허용되지 않은 값');
+}
+
+String? _optionalTeamIdOf(Map<String, Object?> data, String field) {
+  final raw = data[field];
+  if (raw == null) return null;
+  return _stringOf(data, field);
+}
+
 /// 사용자 문서를 읽은 모습.
 @immutable
 class UserProfile {
@@ -480,7 +516,8 @@ class UserProfile {
     required this.uid,
     required this.nickname,
     required this.favoriteTeamId,
-    required this.profileThemeKey,
+    required this.defaultThemeFamily,
+    required this.brightnessPreference,
     required this.joinedAt,
     required this.board,
     this.updatedAt,
@@ -509,8 +546,19 @@ class UserProfile {
     return UserProfile(
       uid: uid,
       nickname: _stringOf(data, UserFields.nickname),
-      favoriteTeamId: _stringOf(data, UserFields.favoriteTeamId),
-      profileThemeKey: _stringOf(data, UserFields.profileThemeKey),
+      favoriteTeamId: _optionalTeamIdOf(data, UserFields.favoriteTeamId),
+      defaultThemeFamily: _enumOf(
+        data,
+        UserFields.defaultThemeFamily,
+        DefaultThemeFamily.values,
+        DefaultThemeFamily.a,
+      ),
+      brightnessPreference: _enumOf(
+        data,
+        UserFields.brightnessPreference,
+        BrightnessPreference.values,
+        BrightnessPreference.auto,
+      ),
       joinedAt: _timeOf(data, UserFields.joinedAt),
       updatedAt: _optionalTimeOf(data, UserFields.updatedAt),
       board: Map.unmodifiable(board),
@@ -524,10 +572,13 @@ class UserProfile {
   final String nickname;
 
   /// 선택 팀 (원본).
-  final String favoriteTeamId;
+  final String? favoriteTeamId;
 
-  /// 프로필 색의 팀 테마 키.
-  final String profileThemeKey;
+  /// 팀 없음 상태에서 복원할 기본 테마 계열.
+  final DefaultThemeFamily defaultThemeFamily;
+
+  /// 시간대 자동 전환 또는 수동 밝기 설정.
+  final BrightnessPreference brightnessPreference;
 
   /// 가입 시각.
   final DateTime joinedAt;
@@ -547,29 +598,30 @@ class NewUserProfile {
   const NewUserProfile({
     required this.nickname,
     required this.favoriteTeamId,
-    required this.profileThemeKey,
+    this.defaultThemeFamily = DefaultThemeFamily.a,
+    this.brightnessPreference = BrightnessPreference.auto,
   });
 
   /// 표시 이름 (UTF-16 코드 단위로 1~20 — [kNicknameMaxLength] 참조).
   final String nickname;
 
   /// 선택 팀.
-  final String favoriteTeamId;
+  final String? favoriteTeamId;
 
-  /// 프로필 색의 팀 테마 키 — 보통 [favoriteTeamId] 와 같다.
-  final String profileThemeKey;
+  /// 팀 없음 상태에서 복원할 기본 테마 계열.
+  final DefaultThemeFamily defaultThemeFamily;
+
+  /// 시간대 자동 전환 또는 수동 밝기 설정.
+  final BrightnessPreference brightnessPreference;
 
   /// 문서 생성 payload. 계약을 어기면 여기서 [ArgumentError] 로 막힌다.
   Map<String, Object?> toData() => {
     UserFields.nickname: _checkNickname(nickname),
-    UserFields.favoriteTeamId: _checkTeamId(
-      favoriteTeamId,
-      UserFields.favoriteTeamId,
-    ),
-    UserFields.profileThemeKey: _checkTeamId(
-      profileThemeKey,
-      UserFields.profileThemeKey,
-    ),
+    UserFields.favoriteTeamId: favoriteTeamId == null
+        ? null
+        : _checkTeamId(favoriteTeamId!, UserFields.favoriteTeamId),
+    UserFields.defaultThemeFamily: defaultThemeFamily.name,
+    UserFields.brightnessPreference: brightnessPreference.name,
     UserFields.joinedAt: const ServerTimestamp(),
     UserFields.board: const <String, Object?>{},
   };
@@ -584,33 +636,44 @@ class NewUserProfile {
 class UserProfilePatch {
   const UserProfilePatch({
     this.nickname,
-    this.favoriteTeamId,
-    this.profileThemeKey,
-  });
+    Object? favoriteTeamId = _absentProfileField,
+    this.defaultThemeFamily,
+    this.brightnessPreference,
+  }) : _favoriteTeamPatch = (favoriteTeamId,);
 
   /// 바꿀 표시 이름.
   final String? nickname;
 
   /// 바꿀 선택 팀.
-  final String? favoriteTeamId;
+  /// 공개 nullable 인수와 미지정 sentinel을 구분해 보관하는 내부 칸.
+  final (Object?,) _favoriteTeamPatch;
 
-  /// 바꿀 프로필 색 테마 키.
-  final String? profileThemeKey;
+  /// 바꿀 선택 팀. null도 명시적인 "팀 없음" 값이다.
+  String? get favoriteTeamId =>
+      changesFavoriteTeam ? _favoriteTeamPatch.$1 as String? : null;
+
+  /// 선택 팀 필드를 실제로 수정하는지 여부.
+  bool get changesFavoriteTeam =>
+      !identical(_favoriteTeamPatch.$1, _absentProfileField);
+
+  /// 바꿀 기본 테마 계열.
+  final DefaultThemeFamily? defaultThemeFamily;
+
+  /// 바꿀 밝기 설정.
+  final BrightnessPreference? brightnessPreference;
 
   /// 수정 payload. 바꿀 것이 하나도 없으면 [ArgumentError].
   Map<String, Object?> toData() {
     final data = <String, Object?>{
       if (nickname != null) UserFields.nickname: _checkNickname(nickname!),
-      if (favoriteTeamId != null)
-        UserFields.favoriteTeamId: _checkTeamId(
-          favoriteTeamId!,
-          UserFields.favoriteTeamId,
-        ),
-      if (profileThemeKey != null)
-        UserFields.profileThemeKey: _checkTeamId(
-          profileThemeKey!,
-          UserFields.profileThemeKey,
-        ),
+      if (changesFavoriteTeam)
+        UserFields.favoriteTeamId: favoriteTeamId == null
+            ? null
+            : _checkTeamId(favoriteTeamId!, UserFields.favoriteTeamId),
+      if (defaultThemeFamily != null)
+        UserFields.defaultThemeFamily: defaultThemeFamily!.name,
+      if (brightnessPreference != null)
+        UserFields.brightnessPreference: brightnessPreference!.name,
     };
     if (data.isEmpty) {
       throw ArgumentError('바꿀 필드가 없는 수정 — 쓰기를 내보내지 않는다');
@@ -618,6 +681,25 @@ class UserProfilePatch {
     return {...data, UserFields.updatedAt: const ServerTimestamp()};
   }
 }
+
+/// 사이클 3 이전 사용자 문서에 프로필 수정 payload 를 적용할 때 빠진 테마
+/// 기본값만 보충한다.
+///
+/// 이미 문서나 수정 payload 에 있는 값은 건드리지 않는다. 따라서 닉네임·응원팀
+/// 수정은 legacy 문서를 현재 규칙이 받는 모양으로 올리면서도, 사용자가 저장한
+/// 계열·밝기 선택을 기본값으로 되돌리지 않는다.
+Map<String, Object?> backfillLegacyProfilePatch({
+  required Map<String, Object?> currentData,
+  required Map<String, Object?> patchData,
+}) => <String, Object?>{
+  ...patchData,
+  if (!currentData.containsKey(UserFields.defaultThemeFamily) &&
+      !patchData.containsKey(UserFields.defaultThemeFamily))
+    UserFields.defaultThemeFamily: DefaultThemeFamily.a.name,
+  if (!currentData.containsKey(UserFields.brightnessPreference) &&
+      !patchData.containsKey(UserFields.brightnessPreference))
+    UserFields.brightnessPreference: BrightnessPreference.auto.name,
+};
 
 // ---------------------------------------------------------------------------
 // 도장
@@ -893,6 +975,10 @@ abstract class UserDataStore {
   Future<bool> createProfile(String uid, NewUserProfile profile);
 
   /// 문서의 일부를 고친다.
+  ///
+  /// 사이클 3 이전 문서에 테마 설정이 없으면 닉네임·응원팀 수정과 함께
+  /// A/auto를 보충하고 예전 `profileThemeKey`를 제거한다. 이미 저장됐거나
+  /// 이 수정에 실린 설정은 보충값으로 덮어쓰지 않는다.
   Future<void> patchProfile(String uid, UserProfilePatch patch);
 
   /// 도장 목록. [cellId] 를 주면 그 칸의 도장만 (= 칸 상세).
@@ -1006,11 +1092,8 @@ final StreamProvider<UserProfile?> userProfileProvider =
 /// 하나가 더 있다: 칸 상세는 실패했을 때 사람이 누르는 재시도를 이미 보여준다
 /// (`BoardCellDetail`). 자동 재시도가 그 뒤에서 계속 다시 세우면 사람이
 /// 누르지도 않은 질의가 열한 번까지 나간다.
-final boardCellStampsProvider =
-    FutureProvider.autoDispose.family<List<StampRecord>, String>((
-      ref,
-      cellId,
-    ) async {
+final boardCellStampsProvider = FutureProvider.autoDispose
+    .family<List<StampRecord>, String>((ref, cellId) async {
       final user = ref.watch(authStateProvider).value;
       if (user == null) return const <StampRecord>[];
       return ref

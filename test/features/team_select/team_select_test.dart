@@ -52,12 +52,13 @@ const Duration _generousCacheBound = Duration(seconds: 10);
 
 /// 서버에 이미 남아 있는 사용자 문서.
 Map<String, Object?> serverDocument(String teamId) => <String, Object?>{
-      UserFields.nickname: '먼저있던닉',
-      UserFields.favoriteTeamId: teamId,
-      UserFields.profileThemeKey: teamId,
-      UserFields.joinedAt: DateTime.utc(2026, 3, 1),
-      UserFields.board: const <String, Object?>{},
-    };
+  UserFields.nickname: '먼저있던닉',
+  UserFields.favoriteTeamId: teamId,
+  UserFields.defaultThemeFamily: 'a',
+  UserFields.brightnessPreference: 'auto',
+  UserFields.joinedAt: DateTime.utc(2026, 3, 1),
+  UserFields.board: const <String, Object?>{},
+};
 
 void main() {
   const uid = 'uid-1';
@@ -95,8 +96,10 @@ void main() {
     // 파일/네트워크 IO 는 widget test 의 fake async 안에서 완료되지 않아
     // pumpAndSettle 이 멈춘다. schedule 은 빈 일정(시즌 종료 빈 상태)으로
     // 고정해 이 테스트를 "현재 시각"과 무관하게 만든다.
-    final emptySchedule =
-        ScheduleDocument(generatedAt: DateTime.utc(2026), games: const []);
+    final emptySchedule = ScheduleDocument(
+      generatedAt: DateTime.utc(2026),
+      games: const [],
+    );
     // 로그인 게이트를 지나야 온보딩·홈이 나온다 — 로그인한 실행을 주입한다.
     final auth = FakeAuthService(
       signedIn: const AuthUser(uid: uid, displayName: '원정러'),
@@ -164,7 +167,6 @@ void main() {
     // 원본은 사용자 문서다 — 다섯 필수 필드를 갖춰 한 번에 만들어진다.
     expect(store.profileCreates, 1);
     expect(store.documents[uid]![UserFields.favoriteTeamId], 'hanwha');
-    expect(store.documents[uid]![UserFields.profileThemeKey], 'hanwha');
     // 캐시도 따라간다 — 다음 콜드 스타트의 첫 프레임용.
     expect(await const SelectedTeamStore().read(uid), 'hanwha');
     // 선택 즉시 온보딩을 떠나 홈이 뜬다.
@@ -318,9 +320,7 @@ void main() {
     addTearDown(graced.dispose);
     graced.documents[uid] = serverDocument('lotte');
     graced.holdProfiles = true;
-    await tester.pumpWidget(
-      app(cache: _UnendingCacheStore(), backend: graced),
-    );
+    await tester.pumpWidget(app(cache: _UnendingCacheStore(), backend: graced));
     await tester.pump();
     await tester.pump(const Duration(seconds: 5));
     await tester.pump(const Duration(milliseconds: 500));
@@ -351,7 +351,8 @@ void main() {
     expect(
       kCachedTeamReadTimeout,
       lessThanOrEqualTo(const Duration(seconds: 10)),
-      reason: '늘리면 그만큼 대기 화면이 길어진다 — 서버 쪽이 이미 답한 실행에서도 '
+      reason:
+          '늘리면 그만큼 대기 화면이 길어진다 — 서버 쪽이 이미 답한 실행에서도 '
           '갈래가 정해지지 않는다',
     );
   });
@@ -436,8 +437,10 @@ void main() {
     // 서버 문서가 갱신되고(새로 만들지 않는다) 캐시도 따라갔다.
     expect(store.profileCreates, 0);
     expect(store.documents[uid]![UserFields.favoriteTeamId], 'samsung');
-    expect(store.documents[uid]![UserFields.profileThemeKey], 'samsung');
-    expect(store.documents[uid]![UserFields.joinedAt], DateTime.utc(2026, 3, 1));
+    expect(
+      store.documents[uid]![UserFields.joinedAt],
+      DateTime.utc(2026, 3, 1),
+    );
     expect(await const SelectedTeamStore().read(uid), 'samsung');
   });
 
@@ -472,7 +475,6 @@ void main() {
       'kt',
       reason: '변경 모드의 선택이 물러서서 원본이 그대로다',
     );
-    expect(store.documents[uid]![UserFields.profileThemeKey], 'kt');
     expect(store.profileCreates, 0);
     expect(await const SelectedTeamStore().read(uid), 'kt');
     expect(find.text(TeamSelectScreen.saveFailureNotice), findsNothing);
@@ -638,7 +640,8 @@ void main() {
     expect(
       find.text(TeamSelectScreen.saveFailureNotice),
       findsOneWidget,
-      reason: '화면이 닫힌 뒤에 온 실패가 조용히 지나가면, 사람은 팀이 바뀌었다고 '
+      reason:
+          '화면이 닫힌 뒤에 온 실패가 조용히 지나가면, 사람은 팀이 바뀌었다고 '
           '믿은 채 다음 콜드 스타트에서 옛 팀을 만난다',
     );
   });

@@ -80,7 +80,8 @@ export function userDoc(overrides = {}) {
   return {
     nickname: '원정러',
     favoriteTeamId: 'nc',
-    profileThemeKey: 'nc',
+    defaultThemeFamily: 'a',
+    brightnessPreference: 'auto',
     joinedAt: new Date('2026-09-01T00:00:00Z'),
     board: {},
     ...overrides,

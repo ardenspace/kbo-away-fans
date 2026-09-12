@@ -106,25 +106,24 @@ void main() {
       expect(
         match,
         isNotNull,
-        reason: '$probePath 에서 $functionName 의 payload 를 읽지 못했다 — '
+        reason:
+            '$probePath 에서 $functionName 의 payload 를 읽지 못했다 — '
             '이름이나 모양이 바뀌었으면 이 대조도 함께 고친다',
       );
       return match!.group(1)!;
     }
 
     /// 몸통에 적힌 필드 이름들 (JS 의 축약 표기 `nickname,` 도 필드다).
-    Set<String> keysOf(String body) =>
-        RegExp(r'^\s*([A-Za-z_][\w]*)\s*(?::|,\s*$)', multiLine: true)
-            .allMatches(body)
-            .map((match) => match.group(1)!)
-            .toSet();
+    Set<String> keysOf(String body) => RegExp(
+      r'^\s*([A-Za-z_][\w]*)\s*(?::|,\s*$)',
+      multiLine: true,
+    ).allMatches(body).map((match) => match.group(1)!).toSet();
 
     /// 그중 서버 시각 센티널로 적힌 것들.
-    Set<String> serverTimesOf(String body) =>
-        RegExp(r'^\s*([A-Za-z_][\w]*):\s*serverTimestamp\(\)', multiLine: true)
-            .allMatches(body)
-            .map((match) => match.group(1)!)
-            .toSet();
+    Set<String> serverTimesOf(String body) => RegExp(
+      r'^\s*([A-Za-z_][\w]*):\s*serverTimestamp\(\)',
+      multiLine: true,
+    ).allMatches(body).map((match) => match.group(1)!).toSet();
 
     /// Dart 쪽 payload 에서 서버 시각으로 나가는 필드들.
     Set<String> serverTimeFields(Map<String, Object?> data) => data.entries
@@ -136,24 +135,21 @@ void main() {
       final dart = const NewUserProfile(
         nickname: '원정러1234',
         favoriteTeamId: 'hanwha',
-        profileThemeKey: 'hanwha',
       ).toData();
       final body = bodyOf('newUserProfilePayload');
 
       expect(
         keysOf(body),
         dart.keys.toSet(),
-        reason: 'NewUserProfile.toData() 가 바뀌었는데 $probePath 의 사본이 옛 모양이다 — '
+        reason:
+            'NewUserProfile.toData() 가 바뀌었는데 $probePath 의 사본이 옛 모양이다 — '
             '탐침이 옛 앱을 검사하게 된다',
       );
       expect(serverTimesOf(body), serverTimeFields(dart));
     });
 
     test('수정 payload 의 필드가 두 쪽에서 같다', () {
-      final dart = const UserProfilePatch(
-        favoriteTeamId: 'doosan',
-        profileThemeKey: 'doosan',
-      ).toData();
+      final dart = const UserProfilePatch(favoriteTeamId: 'doosan').toData();
       final body = bodyOf('patchPayload');
 
       expect(
@@ -171,7 +167,8 @@ void main() {
       final everything = const UserProfilePatch(
         nickname: '바꾼닉',
         favoriteTeamId: 'kia',
-        profileThemeKey: 'kia',
+        defaultThemeFamily: DefaultThemeFamily.b,
+        brightnessPreference: BrightnessPreference.dark,
       ).toData();
       final known = keysOf(bodyOf('patchPayload'))
         ..addAll(keysOf(bodyOf('newUserProfilePayload')))

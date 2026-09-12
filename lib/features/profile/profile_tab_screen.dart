@@ -3,15 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../backend/auth.dart';
 import '../../backend/user_data.dart';
-import '../../content/content_ids.dart';
-import '../../design/team_themes.dart';
 import '../../design/tokens.dart';
 import '../../ui/shared/content_fallback.dart';
 import '../../ui/shared/team_theme_scope.dart';
 import '../../ui/shared/team_themed_app_bar.dart';
 
-/// 마이페이지 탭 (step 3.4) — 닉네임·프로필 색·대표 이메일을 보여주고
-/// 닉네임·프로필 색을 바꿀 수 있게 하며 로그아웃 진입점을 둔다.
+/// 마이페이지 탭 (step 3.4) — 닉네임·대표 이메일을 보여주고
+/// 닉네임을 바꿀 수 있게 하며 로그아웃 진입점을 둔다.
 /// `lib/features/home/main_tabs_root.dart` 의 마이페이지 탭 자리를 채운다.
 ///
 /// - **탭 뿌리가 provider 를 직접 구독한다** ([RecommendTabScreen]·
@@ -19,11 +17,6 @@ import '../../ui/shared/team_themed_app_bar.dart';
 ///   Navigator 는 route 를 한 번만 만들기 때문에, 이 화면이 생성자 인자로
 ///   프로필을 받으면 그 값이 얼어붙어 닉네임을 바꾼 뒤에도 화면이 갱신되지
 ///   않는다).
-/// - **`profileThemeKey` 를 실제로 쓰는 첫 화면이다.** 이 값을 쓰는 자리는
-///   지금까지 팀 선택(2.4) 둘뿐이었고 읽는 화면은 없었다 — 여기서
-///   [TeamThemeScope.forTeam] 에 그대로 넘겨 앱바를 그 색으로 칠한다. 그래서
-///   색을 바꾸면 이 화면의 앱바가 곧바로 그 팀 색으로 바뀐다(문서만 갱신되고
-///   아무도 안 보는 값으로 남지 않는다).
 /// - **이메일이 없는 계정은 빈칸이 아니라 제공자 표시로 대신한다.** 지금
 ///   이메일을 주지 않는 제공자는 카카오뿐이다(`AuthUser` 문서 참조) — 구글·
 ///   애플은 계정이 서는 순간 이메일이 Firebase 에 영구히 남는다. 그래서
@@ -62,12 +55,6 @@ class ProfileTabScreen extends ConsumerWidget {
   /// 이메일을 주지 않는 계정(카카오)의 자리 표시 — 빈칸이 아니라 이 문구로
   /// 대신한다.
   static const String noEmailProviderLabel = '카카오 계정으로 로그인했어요';
-
-  /// 프로필 색 구역 제목.
-  static const String colorSectionTitle = '프로필 색';
-
-  /// 프로필 색 쓰기가 서버에 남지 못했을 때의 안내.
-  static const String colorSaveFailureNotice = '프로필 색을 바꾸지 못했어요. 잠시 뒤 다시 시도해 주세요.';
 
   /// 로그아웃 버튼.
   static const String signOutLabel = '로그아웃';
@@ -111,10 +98,10 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody> {
   bool _editingNickname = false;
   bool _nicknameSaving = false;
   String? _nicknameFieldError;
-  late final TextEditingController _nicknameController =
-      TextEditingController(text: widget.profile.nickname);
+  late final TextEditingController _nicknameController = TextEditingController(
+    text: widget.profile.nickname,
+  );
 
-  bool _colorBusy = false;
   bool _signingOut = false;
 
   @override
@@ -128,62 +115,56 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody> {
     final profile = widget.profile;
     final user = ref.watch(authStateProvider).value;
 
-    return TeamThemeScope.forTeam(
-      teamId: profile.profileThemeKey,
-      child: Scaffold(
-        backgroundColor: ColorTokens.background,
-        appBar: const TeamThemedAppBar(title: ProfileTabScreen.title),
-        body: SafeArea(
-          child: ListView(
-            padding: const EdgeInsets.all(SpaceTokens.lg),
-            children: [
-              _nicknameSection(profile),
-              const SizedBox(height: SpaceTokens.xl),
-              const Text(
-                ProfileTabScreen.emailSectionTitle,
-                style: TextTokens.label,
-              ),
-              const SizedBox(height: SpaceTokens.xs),
-              Text(
-                user?.email ?? ProfileTabScreen.noEmailProviderLabel,
-                style: TextTokens.bodyMuted,
-              ),
-              const SizedBox(height: SpaceTokens.xl),
-              const Text(
-                ProfileTabScreen.colorSectionTitle,
-                style: TextTokens.label,
-              ),
-              const SizedBox(height: SpaceTokens.sm),
-              _colorPicker(profile),
-              const SizedBox(height: SpaceTokens.xxl),
-              const Divider(),
-              const SizedBox(height: SpaceTokens.md),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton(
-                  key: const ValueKey('profile-sign-out'),
-                  onPressed: _signingOut ? null : _signOut,
-                  child: _signingOut
-                      ? const SizedBox(
-                          width: SpaceTokens.lg,
-                          height: SpaceTokens.lg,
-                          child: CircularProgressIndicator(
-                            strokeWidth: ProfileTokens.spinnerStrokeWidth,
-                          ),
-                        )
-                      : Text(
-                          ProfileTabScreen.signOutLabel,
-                          style: TextTokens.label.copyWith(
-                            color: ColorTokens.danger,
-                          ),
+    final scaffold = Scaffold(
+      backgroundColor: ColorTokens.background,
+      appBar: const TeamThemedAppBar(title: ProfileTabScreen.title),
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.all(SpaceTokens.lg),
+          children: [
+            _nicknameSection(profile),
+            const SizedBox(height: SpaceTokens.xl),
+            const Text(
+              ProfileTabScreen.emailSectionTitle,
+              style: TextTokens.label,
+            ),
+            const SizedBox(height: SpaceTokens.xs),
+            Text(
+              user?.email ?? ProfileTabScreen.noEmailProviderLabel,
+              style: TextTokens.bodyMuted,
+            ),
+            const SizedBox(height: SpaceTokens.xxl),
+            const Divider(),
+            const SizedBox(height: SpaceTokens.md),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton(
+                key: const ValueKey('profile-sign-out'),
+                onPressed: _signingOut ? null : _signOut,
+                child: _signingOut
+                    ? const SizedBox(
+                        width: SpaceTokens.lg,
+                        height: SpaceTokens.lg,
+                        child: CircularProgressIndicator(
+                          strokeWidth: ProfileTokens.spinnerStrokeWidth,
                         ),
-                ),
+                      )
+                    : Text(
+                        ProfileTabScreen.signOutLabel,
+                        style: TextTokens.label.copyWith(
+                          color: ColorTokens.danger,
+                        ),
+                      ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
+    final teamId = profile.favoriteTeamId;
+    return teamId == null
+        ? scaffold
+        : TeamThemeScope.forTeam(teamId: teamId, child: scaffold);
   }
 
   // -------------------------------------------------------------------------
@@ -300,48 +281,6 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody> {
   }
 
   // -------------------------------------------------------------------------
-  // 프로필 색
-  // -------------------------------------------------------------------------
-
-  Widget _colorPicker(UserProfile profile) {
-    return Wrap(
-      spacing: SpaceTokens.sm,
-      runSpacing: SpaceTokens.sm,
-      children: [
-        for (final teamId in kTeamIds)
-          _ColorSwatch(
-            key: ValueKey('profile-color-$teamId'),
-            teamId: teamId,
-            selected: teamId == profile.profileThemeKey,
-            enabled: !_colorBusy,
-            onTap: () => _changeColor(profile, teamId),
-          ),
-      ],
-    );
-  }
-
-  Future<void> _changeColor(UserProfile profile, String teamId) async {
-    if (teamId == profile.profileThemeKey || _colorBusy) return;
-    setState(() => _colorBusy = true);
-    try {
-      await ref
-          .read(userDataStoreProvider)
-          .patchProfile(
-            profile.uid,
-            UserProfilePatch(profileThemeKey: teamId),
-          );
-    } on Object {
-      if (mounted) {
-        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-          const SnackBar(content: Text(ProfileTabScreen.colorSaveFailureNotice)),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _colorBusy = false);
-    }
-  }
-
-  // -------------------------------------------------------------------------
   // 로그아웃
   // -------------------------------------------------------------------------
 
@@ -362,52 +301,5 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody> {
         const SnackBar(content: Text(ProfileTabScreen.signOutFailureNotice)),
       );
     }
-  }
-}
-
-/// 프로필 색 후보 하나 — 팀 대표색 원. 선택된 색은 굵은 테두리 + 체크로
-/// 표시한다.
-class _ColorSwatch extends StatelessWidget {
-  const _ColorSwatch({
-    super.key,
-    required this.teamId,
-    required this.selected,
-    required this.enabled,
-    required this.onTap,
-  });
-
-  final String teamId;
-  final bool selected;
-  final bool enabled;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = TeamThemes.byId[teamId]!;
-    return Semantics(
-      button: true,
-      selected: selected,
-      label: teamId,
-      child: GestureDetector(
-        onTap: enabled ? onTap : null,
-        child: Container(
-          width: ProfileTokens.colorSwatchSize,
-          height: ProfileTokens.colorSwatchSize,
-          decoration: BoxDecoration(
-            color: theme.primary,
-            shape: BoxShape.circle,
-            border: selected
-                ? Border.all(
-                    color: ColorTokens.textPrimary,
-                    width: ProfileTokens.colorSwatchSelectedBorderWidth,
-                  )
-                : null,
-          ),
-          child: selected
-              ? Icon(Icons.check_rounded, color: theme.onPrimary)
-              : null,
-        ),
-      ),
-    );
   }
 }

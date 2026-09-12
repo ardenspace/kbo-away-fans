@@ -61,7 +61,6 @@ const double _jamsilLng = 127.0719;
 const NewUserProfile _newProfile = NewUserProfile(
   nickname: '원정러',
   favoriteTeamId: 'lg',
-  profileThemeKey: 'lg',
 );
 
 /// 이 파일의 시험 하나가 걸릴 수 있는 상한.
@@ -138,9 +137,7 @@ const int _scanFrames = 24;
 
 void main() {
   group('연출이 재생된다', () {
-    testWidgets('찍히는 배지의 확대값이 처음·중간·끝에서 서로 다르다', (
-      tester,
-    ) async {
+    testWidgets('찍히는 배지의 확대값이 처음·중간·끝에서 서로 다르다', (tester) async {
       await tester.pumpWidget(
         _hostReveal(result: _result(tierIncreased: false), onDone: () {}),
       );
@@ -161,9 +158,7 @@ void main() {
       await _settle(tester);
     }, timeout: _limit);
 
-    testWidgets('중간값이 시작·끝과 다른 프레임이 실제로 존재한다(스텝 스캔)', (
-      tester,
-    ) async {
+    testWidgets('중간값이 시작·끝과 다른 프레임이 실제로 존재한다(스텝 스캔)', (tester) async {
       // 위 시험은 정확히 절반 지점 하나만 본다 — 구현이 그 한 프레임만 우연히
       // 절반을 흉내 내는 것을 막기 위해 촘촘히 훑는다.
       await tester.pumpWidget(
@@ -187,9 +182,7 @@ void main() {
   });
 
   group('등급이 오르는 도장이면 등급 상승이 이어서 보인다', () {
-    testWidgets('등급이 오르면 찍힘이 끝난 뒤 등급 상승 문구가 이어 뜬다', (
-      tester,
-    ) async {
+    testWidgets('등급이 오르면 찍힘이 끝난 뒤 등급 상승 문구가 이어 뜬다', (tester) async {
       await tester.pumpWidget(
         _hostReveal(
           result: _result(tier: BadgeTier.regular, tierIncreased: true),
@@ -236,9 +229,7 @@ void main() {
       );
     }, timeout: _limit);
 
-    testWidgets('등급이 그대로면 등급 상승 문구가 끝까지 뜨지 않는다', (
-      tester,
-    ) async {
+    testWidgets('등급이 그대로면 등급 상승 문구가 끝까지 뜨지 않는다', (tester) async {
       await tester.pumpWidget(
         _hostReveal(result: _result(tierIncreased: false), onDone: () {}),
       );
@@ -246,11 +237,7 @@ void main() {
       expect(_tierShown(), isFalse);
       for (var i = 0; i < _scanFrames; i++) {
         await tester.pump(_scanStep);
-        expect(
-          _tierShown(),
-          isFalse,
-          reason: '등급이 안 오르면 이어질 문구가 어느 프레임에도 없다',
-        );
+        expect(_tierShown(), isFalse, reason: '등급이 안 오르면 이어질 문구가 어느 프레임에도 없다');
       }
 
       await _settle(tester);
@@ -342,9 +329,7 @@ void main() {
       expect(queued.single.cellId, 'jamsil_lg');
     }, timeout: _limit);
 
-    testWidgets('탭으로 건너뛰면 즉시 닫히고, 큐의 다음 연출이 이어진다', (
-      tester,
-    ) async {
+    testWidgets('탭으로 건너뛰면 즉시 닫히고, 큐의 다음 연출이 이어진다', (tester) async {
       final firstResult = _result(cellId: 'jamsil_lg', tierIncreased: true);
       final secondResult = _result(
         cellId: 'gwangju_kia',
@@ -397,9 +382,7 @@ void main() {
       await _settle(tester);
     }, timeout: _limit);
 
-    testWidgets('연출이 끝나기 전에 트리에서 통째로 들어내도 예외가 없다', (
-      tester,
-    ) async {
+    testWidgets('연출이 끝나기 전에 트리에서 통째로 들어내도 예외가 없다', (tester) async {
       final container = ProviderContainer(
         overrides: [
           teamsProvider.overrideWith(

@@ -67,6 +67,7 @@ class FakeUserDataStore implements UserDataStore {
   ///    [profileWatches] 가 따로 센다.
   ///  - [readStamps]·[readLikes] — 질의가 돌려준 문서 수. 0건인 질의도 하나로
   ///    친다(Firestore 는 결과가 빈 질의에 최소 한 건을 청구한다).
+  ///  - [patchProfile] — legacy 기본값을 보충할 현재 사용자 문서 하나.
   ///  - [writeStamp] — 도장 문서 존재 확인과 사용자 문서 읽기 둘
   ///    (`_alreadyStamped` + `userReference.get()`). 쓰기 경로에도 읽기가
   ///    있다는 사실을 감추지 않는다.
@@ -296,7 +297,19 @@ class FakeUserDataStore implements UserDataStore {
     if (current == null) {
       throw StateError('없는 사용자 문서를 고칠 수 없다: $uid');
     }
-    documents[uid] = {...current, ..._accept(patch.toData(), UserFields.all)};
+    documentReads++;
+    final data = _accept(
+      backfillLegacyProfilePatch(
+        currentData: current,
+        patchData: patch.toData(),
+      ),
+      UserFields.all,
+    );
+    final written = {...current, ...data};
+    // 실 구현의 FieldValue.delete() 와 같은 legacy migration.
+    // 현재 payload 화이트리스트는 넓히지 않는다.
+    written.remove(kLegacyProfileThemeKeyField);
+    documents[uid] = written;
     _emitProfile(uid);
   }
 

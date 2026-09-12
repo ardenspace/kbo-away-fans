@@ -46,7 +46,8 @@ void main() {
       <String, dynamic>{
         UserFields.nickname: '원정러',
         UserFields.favoriteTeamId: 'lg',
-        UserFields.profileThemeKey: 'lg',
+        UserFields.defaultThemeFamily: 'a',
+        UserFields.brightnessPreference: 'auto',
         UserFields.joinedAt: Timestamp.fromDate(DateTime.utc(2026, 3, 1)),
         UserFields.board: board ?? <String, dynamic>{},
       };

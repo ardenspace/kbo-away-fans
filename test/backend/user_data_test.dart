@@ -19,7 +19,8 @@ import 'fake_backend.dart';
 const NewUserProfile _newProfile = NewUserProfile(
   nickname: '원정러',
   favoriteTeamId: 'lotte',
-  profileThemeKey: 'lotte',
+  defaultThemeFamily: DefaultThemeFamily.b,
+  brightnessPreference: BrightnessPreference.dark,
 );
 
 const StampWrite _stamp = StampWrite(
@@ -46,10 +47,7 @@ void main() {
         boardCellIdOf(stadiumId: 'jamsil', homeTeamId: 'doosan'),
         'jamsil_doosan',
       );
-      expect(
-        boardCellIdOf(stadiumId: 'jamsil', homeTeamId: 'lg'),
-        'jamsil_lg',
-      );
+      expect(boardCellIdOf(stadiumId: 'jamsil', homeTeamId: 'lg'), 'jamsil_lg');
     });
 
     test('있을 수 없는 짝은 거부한다', () {
@@ -137,7 +135,6 @@ void main() {
         NewUserProfile(
           nickname: nickname,
           favoriteTeamId: 'lg',
-          profileThemeKey: 'lg',
         ).toData()[UserFields.nickname],
         nickname,
       );
@@ -165,21 +162,48 @@ void main() {
   });
 
   group('업로드 payload 는 계약 필드만 싣는다', () {
-    test('사용자 문서 생성 — 필수 다섯 필드', () {
+    test('사용자 문서 생성 — nullable 팀과 테마 설정을 모두 싣는다', () {
       final data = _newProfile.toData();
 
       expect(data.keys.toSet(), UserFields.requiredFields);
+      expect(data[UserFields.favoriteTeamId], 'lotte');
+      expect(data[UserFields.defaultThemeFamily], 'b');
+      expect(data[UserFields.brightnessPreference], 'dark');
       expect(data[UserFields.joinedAt], isA<ServerTimestamp>());
       expect(data[UserFields.board], isEmpty);
+    });
+
+    test('팀 없음은 null로 저장하고 새 설정 기본값은 A/auto다', () {
+      final data = const NewUserProfile(
+        nickname: '무소속',
+        favoriteTeamId: null,
+      ).toData();
+
+      expect(data[UserFields.favoriteTeamId], isNull);
+      expect(data[UserFields.defaultThemeFamily], 'a');
+      expect(data[UserFields.brightnessPreference], 'auto');
     });
 
     test('사용자 문서 수정 — 준 필드 + updatedAt 뿐', () {
       final data = const UserProfilePatch(favoriteTeamId: 'nc').toData();
 
+      expect(data.keys.toSet(), {
+        UserFields.favoriteTeamId,
+        UserFields.updatedAt,
+      });
+    });
+
+    test('팀 없음 수정과 테마 설정 수정은 미지정 필드와 구분된다', () {
       expect(
-        data.keys.toSet(),
+        const UserProfilePatch(favoriteTeamId: null).toData().keys.toSet(),
         {UserFields.favoriteTeamId, UserFields.updatedAt},
       );
+      final theme = const UserProfilePatch(
+        defaultThemeFamily: DefaultThemeFamily.b,
+        brightnessPreference: BrightnessPreference.light,
+      ).toData();
+      expect(theme[UserFields.defaultThemeFamily], 'b');
+      expect(theme[UserFields.brightnessPreference], 'light');
     });
 
     test('빈 수정은 거부한다 — 의미 없는 쓰기가 나가지 않게', () {
@@ -239,11 +263,7 @@ void main() {
   group('계약 밖 값은 타입이 막는다', () {
     test('로스터 밖 팀·구장 id', () {
       expect(
-        () => NewUserProfile(
-          nickname: '원정러',
-          favoriteTeamId: 'seoul',
-          profileThemeKey: 'lotte',
-        ).toData(),
+        () => NewUserProfile(nickname: '원정러', favoriteTeamId: 'seoul').toData(),
         throwsArgumentError,
       );
       expect(
@@ -258,11 +278,8 @@ void main() {
     });
 
     test('닉네임 길이 1~20 (UTF-16 코드 단위)', () {
-      Map<String, Object?> profileWith(String nickname) => NewUserProfile(
-            nickname: nickname,
-            favoriteTeamId: 'lg',
-            profileThemeKey: 'lg',
-          ).toData();
+      Map<String, Object?> profileWith(String nickname) =>
+          NewUserProfile(nickname: nickname, favoriteTeamId: 'lg').toData();
 
       expect(() => profileWith(''), throwsArgumentError);
       expect(() => profileWith('가' * 21), throwsArgumentError);
@@ -346,6 +363,8 @@ void main() {
       expect(profile!.uid, 'u1');
       expect(profile.nickname, '원정러');
       expect(profile.favoriteTeamId, 'lotte');
+      expect(profile.defaultThemeFamily, DefaultThemeFamily.b);
+      expect(profile.brightnessPreference, BrightnessPreference.dark);
       expect(profile.joinedAt, kFakeServerNow);
       expect(profile.board, isEmpty);
     });
@@ -363,11 +382,7 @@ void main() {
 
       await store.createProfile(
         'u1',
-        const NewUserProfile(
-          nickname: '다른사람',
-          favoriteTeamId: 'kia',
-          profileThemeKey: 'kia',
-        ),
+        const NewUserProfile(nickname: '다른사람', favoriteTeamId: 'kia'),
       );
 
       expect(store.documents['u1'], before);
@@ -385,7 +400,10 @@ void main() {
       await pumpEventQueue();
       await store.createProfile('u1', _newProfile);
       await pumpEventQueue();
-      await store.patchProfile('u1', const UserProfilePatch(favoriteTeamId: 'nc'));
+      await store.patchProfile(
+        'u1',
+        const UserProfilePatch(favoriteTeamId: 'nc'),
+      );
       await pumpEventQueue();
 
       expect(seen, [null, 'lotte', 'nc']);
@@ -394,7 +412,10 @@ void main() {
     test('수정은 준 필드만 바꾸고 나머지는 남긴다', () async {
       await store.createProfile('u1', _newProfile);
 
-      await store.patchProfile('u1', const UserProfilePatch(favoriteTeamId: 'nc'));
+      await store.patchProfile(
+        'u1',
+        const UserProfilePatch(favoriteTeamId: 'nc'),
+      );
 
       final profile = await store.readProfile('u1');
       expect(profile!.favoriteTeamId, 'nc');

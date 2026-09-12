@@ -265,7 +265,8 @@ String _classBody(String source, String name) {
 ///
 /// 줄 수를 그대로 두는 것은 부르는 쪽이 줄 단위로 보기 때문이다: 주석만 있던
 /// 줄은 **빈 줄**로 남는다.
-String _withoutComments(String source) => _stripped(source, blankStrings: false);
+String _withoutComments(String source) =>
+    _stripped(source, blankStrings: false);
 
 /// 주석을 걷어 낸 위에서 **문자열 리터럴까지 공백으로 지운** 사본.
 ///
@@ -296,9 +297,8 @@ String _stripped(String source, {required bool blankStrings}) {
   /// 리터럴의 일부를 적는다 — 지운 사본에서는 **줄바꿈만 남기고** 같은 길이의
   /// 공백이 된다. 줄바꿈을 지우지 않는 것은 부르는 쪽이 줄 번호로 보기
   /// 때문이고, 셸 판이 줄 단위로 훑어 같은 답을 내기 때문이다.
-  void hide(String real) => out.write(
-    blankStrings ? real.replaceAll(RegExp(r'[^\n]'), ' ') : real,
-  );
+  void hide(String real) =>
+      out.write(blankStrings ? real.replaceAll(RegExp(r'[^\n]'), ' ') : real);
 
   void push(String k, {String q = '', bool r = false, int b = 0}) {
     kind.add(k);
@@ -630,14 +630,19 @@ List<({String owner, String compact, String snippet})> _compactedDeclarations(
   var lines = <String>[];
   void flush() {
     if (lines.isEmpty) return;
-    final snippet = lines.map((line) => line.trim()).where((l) => l.isNotEmpty).join(' ');
+    final snippet = lines
+        .map((line) => line.trim())
+        .where((l) => l.isNotEmpty)
+        .join(' ');
     out.add((
       owner: owner,
       compact: lines
           .join('\n')
           .replaceAll(RegExp(r'\s*\.\s*'), '.')
           .replaceAll(RegExp(r'\s+'), ' '),
-      snippet: snippet.length <= 160 ? snippet : '${snippet.substring(0, 160)}…',
+      snippet: snippet.length <= 160
+          ? snippet
+          : '${snippet.substring(0, 160)}…',
     ));
   }
 
@@ -694,7 +699,9 @@ Set<String> _geolocatorPrefixes(Map<String, String> sources) {
     '''^import\\s+['"]package:geolocator/[^'"]*['"]([^;]*);''',
     multiLine: true,
   );
-  final alias = RegExp(r'(?:\bdeferred\b\s+)?\bas\s+([A-Za-z_$][A-Za-z0-9_$]*)');
+  final alias = RegExp(
+    r'(?:\bdeferred\b\s+)?\bas\s+([A-Za-z_$][A-Za-z0-9_$]*)',
+  );
   final prefixes = <String>{};
   for (final entry in sources.entries) {
     for (final match in directive.allMatches(entry.value)) {
@@ -759,11 +766,7 @@ String _sourceDeclaring(Map<String, String> sources, String head) {
     for (final entry in sources.entries)
       if (entry.value.contains(head)) entry.key,
   ];
-  expect(
-    owners,
-    hasLength(1),
-    reason: '`$head` 을 선언하는 파일은 이 폴더에 하나여야 한다',
-  );
+  expect(owners, hasLength(1), reason: '`$head` 을 선언하는 파일은 이 폴더에 하나여야 한다');
   return sources[owners.single]!;
 }
 
@@ -925,25 +928,29 @@ void main() {
       expect(
         kVisitWindowBeforeStart,
         greaterThanOrEqualTo(const Duration(hours: 2)),
-        reason: '상수 주석의 근거가 "게이트 오픈이 보통 경기 2시간 전"이다 — '
+        reason:
+            '상수 주석의 근거가 "게이트 오픈이 보통 경기 2시간 전"이다 — '
             '그보다 짧으면 문을 열고 들어간 사람이 창 밖이 된다',
       );
       expect(
         kVisitWindowAfterStart,
         greaterThanOrEqualTo(const Duration(hours: 3, minutes: 20)),
-        reason: '상수 주석의 근거가 "KBO 경기는 평균 3시간 20분 안팎"이다 — '
+        reason:
+            '상수 주석의 근거가 "KBO 경기는 평균 3시간 20분 안팎"이다 — '
             '그보다 짧으면 경기가 끝나기 전에 창이 닫힌다',
       );
       expect(
         kVisitWindowBeforeStart + kVisitWindowAfterStart,
         lessThan(const Duration(hours: 24)),
-        reason: '창 하나가 하루를 넘으면 이어진 두 날의 창이 겹쳐, 어느 날의 '
+        reason:
+            '창 하나가 하루를 넘으면 이어진 두 날의 창이 겹쳐, 어느 날의 '
             '경기로 도장을 받았는지가 좌표가 아니라 순서로 갈린다',
       );
       expect(
         kStadiumVisitRadiusMeters,
         greaterThanOrEqualTo(150),
-        reason: '상수 주석의 근거가 "구장의 구조물 반경이 110~150m" 다 — '
+        reason:
+            '상수 주석의 근거가 "구장의 구조물 반경이 110~150m" 다 — '
             '그보다 좁으면 구장 안에 서 있는 사람이 반경 밖이 된다',
       );
     });
@@ -1554,10 +1561,11 @@ void main() {
         'StadiumVisitRun',
       );
 
-      expect(_declaredStorage(body), {
-        'judged': 'final bool',
-        'judgedAt': 'final DateTime?',
-      }, reason: '이 타입은 판정 계층의 값을 화면 계층으로 나르는 통로다 — 시각과 참·거짓뿐이다');
+      expect(
+        _declaredStorage(body),
+        {'judged': 'final bool', 'judgedAt': 'final DateTime?'},
+        reason: '이 타입은 판정 계층의 값을 화면 계층으로 나르는 통로다 — 시각과 참·거짓뿐이다',
+      );
     });
 
     test('판정 시각 기록에는 좌표 어휘가 없다 (소스 대조)', () {
@@ -1933,13 +1941,17 @@ void main() {
         'StadiumVisitCandidate',
       );
 
-      expect(_declaredStorage(body), {
-        'gameId': 'final String',
-        'stadiumId': 'final String',
-        'startsAt': 'final DateTime',
-        'lat': 'final double',
-        'lng': 'final double',
-      }, reason: '후보 타입에 팀 id 가 아예 없는 것이 "홈·원정을 구분하지 않는다"의 계약이다');
+      expect(
+        _declaredStorage(body),
+        {
+          'gameId': 'final String',
+          'stadiumId': 'final String',
+          'startsAt': 'final DateTime',
+          'lat': 'final double',
+          'lng': 'final double',
+        },
+        reason: '후보 타입에 팀 id 가 아예 없는 것이 "홈·원정을 구분하지 않는다"의 계약이다',
+      );
     });
 
     test('취소된 경기는 후보가 아니다 — 그날 그 구장에 경기가 없다', () {
@@ -2176,11 +2188,7 @@ void main() {
       addTearDown(store.dispose);
       await store.createProfile(
         _uid,
-        const NewUserProfile(
-          nickname: '원정러',
-          favoriteTeamId: 'lg',
-          profileThemeKey: 'lg',
-        ),
+        const NewUserProfile(nickname: '원정러', favoriteTeamId: 'lg'),
       );
 
       final recorder = _RecordingChecker(fix: _northOf(0));
@@ -2193,8 +2201,12 @@ void main() {
               (ref, point) async => WeatherEffect.none,
             ),
             clockProvider.overrideWithValue(() => duringPregame),
-            stadiumsProvider.overrideWith((ref) async => ContentFresh(stadiums)),
-            scheduleProvider.overrideWith((ref) async => ContentFresh(schedule)),
+            stadiumsProvider.overrideWith(
+              (ref) async => ContentFresh(stadiums),
+            ),
+            scheduleProvider.overrideWith(
+              (ref) async => ContentFresh(schedule),
+            ),
             placesProvider.overrideWith(
               (ref) async => const ContentUnavailable<PlacesDocument>(_fixture),
             ),
@@ -2494,7 +2506,12 @@ void main() {
 // `.wellbegun/decisions.md` 2026-09-05 두 번째 `[S]`).
 
 /// 셸 판(`scripts/hooks/dart-source.sh`)을 임시 자리에서 한 번 돌린 결과.
-({int exitCode, String stderr, Map<String, String> code, Map<String, String> blank})
+({
+  int exitCode,
+  String stderr,
+  Map<String, String> code,
+  Map<String, String> blank,
+})
 _shellMirror(List<({String name, String source})> files) {
   final tmp = Directory.systemTemp.createTempSync('dart_source_mirror_');
   try {

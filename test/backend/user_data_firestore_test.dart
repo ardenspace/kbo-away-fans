@@ -21,11 +21,7 @@ void main() {
   group('올려 보내는 값 (encode)', () {
     test('서버 시각 표시는 SDK 의 서버 시각 센티널이 된다', () {
       final data = encodeBackendValues(
-        const NewUserProfile(
-          nickname: '원정러',
-          favoriteTeamId: 'lg',
-          profileThemeKey: 'lg',
-        ).toData(),
+        const NewUserProfile(nickname: '원정러', favoriteTeamId: 'lg').toData(),
       );
 
       expect(data[UserFields.joinedAt], isA<FieldValue>());
@@ -44,9 +40,7 @@ void main() {
 
     test('중첩된 칸 요약 안까지 옮긴다', () {
       final data = encodeBackendValues({
-        UserFields.board: {
-          'jamsil_lg': BoardCell.forCount(count: 2).toData(),
-        },
+        UserFields.board: {'jamsil_lg': BoardCell.forCount(count: 2).toData()},
       });
 
       final board = data[UserFields.board]! as Map<String, Object?>;
@@ -73,7 +67,8 @@ void main() {
       final raw = <String, dynamic>{
         UserFields.nickname: '원정러',
         UserFields.favoriteTeamId: 'hanwha',
-        UserFields.profileThemeKey: 'hanwha',
+        UserFields.defaultThemeFamily: 'a',
+        UserFields.brightnessPreference: 'auto',
         UserFields.joinedAt: Timestamp.fromDate(joinedAt),
         UserFields.board: <String, dynamic>{
           'daejeon_hanwha': <String, dynamic>{
@@ -90,6 +85,8 @@ void main() {
       );
 
       expect(profile.favoriteTeamId, 'hanwha');
+      expect(profile.defaultThemeFamily, DefaultThemeFamily.a);
+      expect(profile.brightnessPreference, BrightnessPreference.auto);
       expect(profile.joinedAt, joinedAt);
       expect(profile.updatedAt, isNull);
       expect(profile.board['daejeon_hanwha']!.tier, BadgeTier.regular);

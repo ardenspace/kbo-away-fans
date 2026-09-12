@@ -257,11 +257,11 @@ class FirestoreUserDataStore implements UserDataStore {
   /// 처음 로그인한 사람이 바로 그 실행이다(초기 스냅샷 자체가 오지 않는다).
   @override
   Stream<UserProfile?> watchProfile(String uid) => guardBackendStream(
-        awaitServerConfirmation(
-          _userDoc(uid).snapshots(),
-          isConfirmed: tellsProfileExistence,
-        ).map((snapshot) => _profileOf(uid, snapshot)),
-      );
+    awaitServerConfirmation(
+      _userDoc(uid).snapshots(),
+      isConfirmed: tellsProfileExistence,
+    ).map((snapshot) => _profileOf(uid, snapshot)),
+  );
 
   /// 첫 문서를 만든다 — **이미 있으면 아무것도 하지 않고 false 를 돌려준다.**
   ///
@@ -293,24 +293,47 @@ class FirestoreUserDataStore implements UserDataStore {
 
   @override
   Future<void> patchProfile(String uid, UserProfilePatch patch) {
-    final data = encodeBackendValues(patch.toData());
-    return guardBackend(() => _userDoc(uid).update(data));
+    // 계약 위반은 다른 write 타입과 마찬가지로 guard 밖에서 프로그래밍 오류로
+    // 드러낸다. 문서를 읽는 것은 legacy 기본값을 보충하는 데만 쓴다.
+    final patchData = patch.toData();
+    return guardBackend(
+      () => _db.runTransaction<void>((transaction) async {
+        final reference = _userDoc(uid);
+        final snapshot = await transaction.get(reference);
+        final currentData = snapshot.data() ?? const <String, Object?>{};
+        final data = backfillLegacyProfilePatch(
+          currentData: currentData,
+          patchData: patchData,
+        );
+        // pre-cycle-3 문서에는 당시 필수였던 profileThemeKey 가
+        // 남아 있다. 새 필드만 보충하면 update 결과에도 그 키가
+        // 유지되어 현재 hasOnly 규칙이 쓰기 전체를 거부한다.
+        // 규칙을 넓히지 않고, 읽은 문서에 실제로 있을 때만 같은
+        // 트랜잭션에서 그 한 필드를 제거한다.
+        if (currentData.containsKey(kLegacyProfileThemeKeyField)) {
+          data[kLegacyProfileThemeKeyField] = FieldValue.delete();
+        }
+        transaction.update(reference, encodeBackendValues(data));
+      }),
+    );
   }
 
   @override
   Future<List<StampRecord>> readStamps(String uid, {String? cellId}) {
     // 칸 상세는 그 칸의 도장만 최신순으로 읽는다 — 복합 인덱스
     // (stadiumId, homeTeamId, gameDate ↓) 가 firestore.indexes.json 에 있다.
-    Query<Map<String, dynamic>> query =
-        _userDoc(uid).collection(kStampsCollection);
+    Query<Map<String, dynamic>> query = _userDoc(
+      uid,
+    ).collection(kStampsCollection);
     if (cellId != null) {
       query = query
           .where(StampFields.stadiumId, isEqualTo: boardCellStadiumId(cellId))
           .where(StampFields.homeTeamId, isEqualTo: boardCellTeamId(cellId));
     }
     return guardBackend(() async {
-      final snapshot =
-          await query.orderBy(StampFields.gameDate, descending: true).get();
+      final snapshot = await query
+          .orderBy(StampFields.gameDate, descending: true)
+          .get();
       return [
         for (final document in snapshot.docs)
           StampRecord.fromData(
@@ -392,7 +415,10 @@ class FirestoreUserDataStore implements UserDataStore {
 
       final batch = _db.batch();
       batch.set(stampReference, data);
-      batch.update(userReference, encodeBackendValues(stamp.boardPatchData(cell)));
+      batch.update(
+        userReference,
+        encodeBackendValues(stamp.boardPatchData(cell)),
+      );
       // 이 호출이 로컬 캐시를 갱신하는 자리다 — 돌려주는 Future 는 서버 확인.
       final commit = guardBackend(() => batch.commit());
       return StampWriteReceipt(
@@ -444,34 +470,33 @@ class FirestoreUserDataStore implements UserDataStore {
 
   @override
   Future<List<LikeRecord>> readLikes(String uid) => guardBackend(() async {
-        final snapshot = await _userDoc(uid)
-            .collection(kLikesCollection)
-            .orderBy(LikeFields.likedAt, descending: true)
-            .get();
-        return [
-          for (final document in snapshot.docs)
-            LikeRecord.fromData(
-              id: document.id,
-              data: decodeBackendValues(document.data()),
-            ),
-        ];
-      });
+    final snapshot = await _userDoc(uid)
+        .collection(kLikesCollection)
+        .orderBy(LikeFields.likedAt, descending: true)
+        .get();
+    return [
+      for (final document in snapshot.docs)
+        LikeRecord.fromData(
+          id: document.id,
+          data: decodeBackendValues(document.data()),
+        ),
+    ];
+  });
 
   @override
   Future<void> addLike(String uid, LikeWrite like) {
     final data = encodeBackendValues(like.toData());
     return guardBackend(
-      () => _userDoc(uid)
-          .collection(kLikesCollection)
-          .doc(like.documentId)
-          .set(data),
+      () => _userDoc(
+        uid,
+      ).collection(kLikesCollection).doc(like.documentId).set(data),
     );
   }
 
   @override
   Future<void> removeLike(String uid, String placeId) => guardBackend(
-        () => _userDoc(uid).collection(kLikesCollection).doc(placeId).delete(),
-      );
+    () => _userDoc(uid).collection(kLikesCollection).doc(placeId).delete(),
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -487,11 +512,11 @@ Map<String, Object?> encodeBackendValues(Map<String, Object?> data) =>
     data.map((key, value) => MapEntry(key, _encodeValue(value)));
 
 Object? _encodeValue(Object? value) => switch (value) {
-      ServerTimestamp() => FieldValue.serverTimestamp(),
-      ExactTimestamp(:final at) => Timestamp.fromDate(at),
-      Map<String, Object?>() => encodeBackendValues(value),
-      _ => value,
-    };
+  ServerTimestamp() => FieldValue.serverTimestamp(),
+  ExactTimestamp(:final at) => Timestamp.fromDate(at),
+  Map<String, Object?>() => encodeBackendValues(value),
+  _ => value,
+};
 
 /// 읽어 온 문서를 계약이 아는 값으로 옮긴다 — [Timestamp] 는 **UTC**
 /// [DateTime] 으로.
@@ -503,7 +528,7 @@ Map<String, Object?> decodeBackendValues(Map<String, Object?> data) =>
     data.map((key, value) => MapEntry(key, _decodeValue(value)));
 
 Object? _decodeValue(Object? value) => switch (value) {
-      Timestamp() => value.toDate().toUtc(),
-      Map<String, Object?>() => decodeBackendValues(value),
-      _ => value,
-    };
+  Timestamp() => value.toDate().toUtc(),
+  Map<String, Object?>() => decodeBackendValues(value),
+  _ => value,
+};

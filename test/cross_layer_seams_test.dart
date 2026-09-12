@@ -44,8 +44,9 @@ void main() {
 
   group('실물 크롤 산출물 → 앱 파서 → 백엔드 write 타입', () {
     test('과거 창 확장이 실제로 종료 경기를 남겼다 (점수·승패까지)', () {
-      final finished =
-          schedule.games.where((g) => g.status == GameStatus.finished).toList();
+      final finished = schedule.games
+          .where((g) => g.status == GameStatus.finished)
+          .toList();
       expect(
         finished,
         isNotEmpty,
@@ -109,8 +110,7 @@ void main() {
     });
 
     test('teams.json 의 themeKey 가 팀 id 와 같다 (규칙이 두 값을 같은 공간으로 잰다)', () {
-      // firestore.rules 의 validUser 는 profileThemeKey 를 teamIds() 로 잰다.
-      // 두 값 공간이 갈리는 순간 프로필 색이 규칙에서 거부된다.
+      // 콘텐츠의 themeKey 와 팀 id가 갈리면 팀별 테마 조회가 끊긴다.
       for (final team in teams.teams) {
         expect(team.themeKey, team.id);
       }
@@ -143,10 +143,9 @@ void main() {
         dotAll: true,
       ).firstMatch(rules);
       expect(body, isNotNull, reason: 'firestore.rules 에 $name() 이 없다');
-      return RegExp("'([^']+)'")
-          .allMatches(body!.group(1)!)
-          .map((m) => m.group(1)!)
-          .toSet();
+      return RegExp(
+        "'([^']+)'",
+      ).allMatches(body!.group(1)!).map((m) => m.group(1)!).toSet();
     }
 
     test('칸 id 10개 — Dart 상수 · 규칙 · 계약 문서', () {
@@ -181,20 +180,18 @@ void main() {
       final body = tierFor!.group(1)!;
 
       // 임계값 — 규칙이 든 `count >= N` 전부가 토큰의 minStamps 와 같아야 한다.
-      final thresholds = RegExp(r'count\s*>=\s*(\d+)')
-          .allMatches(body)
-          .map((m) => int.parse(m.group(1)!))
-          .toSet();
+      final thresholds = RegExp(
+        r'count\s*>=\s*(\d+)',
+      ).allMatches(body).map((m) => int.parse(m.group(1)!)).toSet();
       expect(thresholds, {
         BadgeTierTokens.regular.minStamps,
         BadgeTierTokens.master.minStamps,
       });
 
       // 등급 이름의 값 공간 — 규칙이 돌려주는 문자열 셋 = BadgeTier 세 이름.
-      final names = RegExp("'([^']+)'")
-          .allMatches(body)
-          .map((m) => m.group(1)!)
-          .toSet();
+      final names = RegExp(
+        "'([^']+)'",
+      ).allMatches(body).map((m) => m.group(1)!).toSet();
       expect(names, BadgeTier.values.map((t) => t.name).toSet());
     });
 
@@ -211,13 +208,14 @@ void main() {
       Set<String> hasOnlyAfter(String anchor) {
         final at = rules.indexOf(anchor);
         expect(at, greaterThanOrEqualTo(0), reason: anchor);
-        final call = RegExp(r'hasOnly\(\[(.*?)\]\)', dotAll: true)
-            .firstMatch(rules.substring(at));
+        final call = RegExp(
+          r'hasOnly\(\[(.*?)\]\)',
+          dotAll: true,
+        ).firstMatch(rules.substring(at));
         expect(call, isNotNull, reason: anchor);
-        return RegExp("'([^']+)'")
-            .allMatches(call!.group(1)!)
-            .map((m) => m.group(1)!)
-            .toSet();
+        return RegExp(
+          "'([^']+)'",
+        ).allMatches(call!.group(1)!).map((m) => m.group(1)!).toSet();
       }
 
       expect(hasOnlyAfter('function validCell('), BoardCellFields.all);
@@ -295,8 +293,10 @@ void main() {
         now: lateNight,
       );
       expect(next, isA<AwayGameToday>());
-      expect(gameDateOf((next as AwayGameToday).game).toIso8601String(),
-          gameDateOf(finished).toIso8601String());
+      expect(
+        gameDateOf((next as AwayGameToday).game).toIso8601String(),
+        gameDateOf(finished).toIso8601String(),
+      );
 
       // 다음 날 00:01 KST 로 넘어가면 더 이상 후보가 아니다.
       final nextDay = DateTime.parse('${finished.date}T15:01:00Z');

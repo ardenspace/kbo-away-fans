@@ -55,7 +55,6 @@ const double _sajikLng = 129.0615;
 const NewUserProfile _newProfile = NewUserProfile(
   nickname: '원정러',
   favoriteTeamId: 'lotte',
-  profileThemeKey: 'lotte',
 );
 
 StampWrite _stampAt({
@@ -95,7 +94,14 @@ Game _game({
 );
 
 Stadium _stadium(String id, double lat, double lng, List<String> homeTeams) =>
-    Stadium(id: id, name: id, city: id, lat: lat, lng: lng, homeTeams: homeTeams);
+    Stadium(
+      id: id,
+      name: id,
+      city: id,
+      lat: lat,
+      lng: lng,
+      homeTeams: homeTeams,
+    );
 
 /// 판정기 대역 — 측위 횟수를 세고, 결과를 시험이 정한다.
 class _RecordingChecker {
@@ -164,11 +170,9 @@ void main() {
 
       expect(await store.readStamps(_uid), hasLength(1));
       expect((await _cellOf(store, _uid, 'jamsil_lg'))!.count, 1);
-      expect(
-        store.stampUploads,
-        ['jamsil_g-jamsil-lg'],
-        reason: '서버로 나간 쓰기도 하나여야 한다',
-      );
+      expect(store.stampUploads, [
+        'jamsil_g-jamsil-lg',
+      ], reason: '서버로 나간 쓰기도 하나여야 한다');
     });
 
     test('같은 칸의 도장이 늘면 개수와 등급이 사다리를 따라 오른다', () async {
@@ -225,11 +229,10 @@ void main() {
         );
         expect(entry.value.tier, BadgeTierTokens.tierFor(actual.length));
       }
-      expect(profile.board.keys, unorderedEquals(<String>[
-        'jamsil_lg',
-        'jamsil_doosan',
-        'sajik_lotte',
-      ]));
+      expect(
+        profile.board.keys,
+        unorderedEquals(<String>['jamsil_lg', 'jamsil_doosan', 'sajik_lotte']),
+      );
     });
 
     test('도장이 없는 칸은 요약에 키 자체가 없다', () async {
@@ -318,9 +321,11 @@ void main() {
       expect(receipt.outcome, StampWriteOutcome.created);
 
       var acked = false;
-      unawaited(receipt.serverConfirmed.then((_) {
-        acked = true;
-      }));
+      unawaited(
+        receipt.serverConfirmed.then((_) {
+          acked = true;
+        }),
+      );
       await pumpEventQueue();
 
       expect(acked, isFalse, reason: '서버에 닿기 전에는 확인이 오지 않는다');
@@ -507,11 +512,7 @@ void main() {
       await container.read(stadiumVisitProvider.notifier).run();
       await container.read(stadiumVisitProvider.notifier).run();
 
-      expect(
-        recorder.fixReads,
-        1,
-        reason: '이미 받은 경기에서 GPS 를 다시 켜지 않는다',
-      );
+      expect(recorder.fixReads, 1, reason: '이미 받은 경기에서 GPS 를 다시 켜지 않는다');
       expect(await store.readStamps(_uid), hasLength(1));
       expect(store.stampWrites, 1, reason: '쓰기 자체도 다시 시도하지 않는다');
     });
@@ -652,11 +653,7 @@ void main() {
       await container.read(stadiumVisitProvider.notifier).run();
       await container.read(stadiumVisitProvider.notifier).run();
 
-      expect(
-        recorder.fixReads,
-        2,
-        reason: '2차전의 도장이 아직 남아 있으므로 판정을 막지 않는다',
-      );
+      expect(recorder.fixReads, 2, reason: '2차전의 도장이 아직 남아 있으므로 판정을 막지 않는다');
     });
 
     test('1차전의 창이 닫히면 2차전의 도장이 그 칸에 얹힌다 (더블헤더)', () async {
@@ -771,11 +768,7 @@ void main() {
           );
       await nextDay.read(stadiumVisitProvider.notifier).run();
 
-      expect(
-        recorder.fixReads,
-        2,
-        reason: '창이 닫힌 도장은 다음 판정을 막지 않는다',
-      );
+      expect(recorder.fixReads, 2, reason: '창이 닫힌 도장은 다음 판정을 막지 않는다');
     });
 
     test('경기가 없는 날에도 판정은 돌아 이유가 남는다', () async {
@@ -843,11 +836,7 @@ void main() {
 
       await container.read(stadiumVisitProvider.notifier).run();
 
-      expect(
-        recorder.fixReads,
-        2,
-        reason: '서버 확인을 기다리는 동안에도 남은 경기의 판정은 돈다',
-      );
+      expect(recorder.fixReads, 2, reason: '서버 확인을 기다리는 동안에도 남은 경기의 판정은 돈다');
     });
 
     test('서버가 뒤늦게 거부한 도장은 세션 사본에서 지워진다', () async {
@@ -867,11 +856,9 @@ void main() {
       );
 
       await container.read(stadiumVisitProvider.notifier).run();
-      expect(
-        container.read(stampAwardProvider),
-        {'jamsil_g-jamsil'},
-        reason: '로컬에 확정된 도장은 그 자리에서 기억한다',
-      );
+      expect(container.read(stampAwardProvider), {
+        'jamsil_g-jamsil',
+      }, reason: '로컬에 확정된 도장은 그 자리에서 기억한다');
 
       store.rejectPendingWrites(const BackendUnknownError(code: 'denied'));
       await pumpEventQueue();

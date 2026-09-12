@@ -51,12 +51,12 @@ void main() {
   Widget gate(AuthService auth) {
     return ProviderScope(
       overrides: [
-    // 홈 상단 위치 자리(5.2)가 판정이 없는 실행에서 권한을 한 번 묻는다 —
-    // 대역이 없으면 실 플랫폼 채널이 물려 위젯 트리 해제 뒤까지 타이머가
-    // 남는다(`lib/features/home/current_location.dart` docstring 참조).
-    locationPermissionGatewayProvider.overrideWithValue(
-      FakeLocationPermissionGateway(),
-    ),
+        // 홈 상단 위치 자리(5.2)가 판정이 없는 실행에서 권한을 한 번 묻는다 —
+        // 대역이 없으면 실 플랫폼 채널이 물려 위젯 트리 해제 뒤까지 타이머가
+        // 남는다(`lib/features/home/current_location.dart` docstring 참조).
+        locationPermissionGatewayProvider.overrideWithValue(
+          FakeLocationPermissionGateway(),
+        ),
         authServiceProvider.overrideWithValue(auth),
         userDataStoreProvider.overrideWithValue(store),
         teamsProvider.overrideWith(
@@ -85,11 +85,7 @@ void main() {
     // 이 계정은 이미 온보딩을 마쳤다 — 문서가 서버에 미리 있다.
     await store.createProfile(
       _signedInUser.uid,
-      const NewUserProfile(
-        nickname: '원정러',
-        favoriteTeamId: 'lg',
-        profileThemeKey: 'lg',
-      ),
+      const NewUserProfile(nickname: '원정러', favoriteTeamId: 'lg'),
     );
     final auth = FakeAuthService(signedIn: _signedInUser);
     addTearDown(auth.dispose);
@@ -125,6 +121,10 @@ void main() {
       reason: '세션을 세우지 못했다면 이 안내가 뜬 채 로그인 화면에 머무른다',
     );
     expect(find.byType(SignInScreen), findsNothing);
-    expect(find.byType(HomeScreen), findsOneWidget, reason: '재로그인은 홈까지 들어가야 한다');
+    expect(
+      find.byType(HomeScreen),
+      findsOneWidget,
+      reason: '재로그인은 홈까지 들어가야 한다',
+    );
   });
 }
