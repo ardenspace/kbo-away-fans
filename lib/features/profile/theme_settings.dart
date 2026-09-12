@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -164,18 +162,15 @@ final appVisualThemeProvider = Provider<AppVisualTheme>((ref) {
 
 /// 수동 선택 또는 KST 시각 정책으로 해석한 실제 밝기.
 ///
-/// 자동 모드에서는 다음 07:00/19:00 경계에 provider를 다시 계산해 앱을 켜 둔
-/// 채로도 밝기가 바뀐다. [clockProvider]를 재사용해 경계 테스트는 고정 시각을
-/// 주입할 수 있다.
+/// 시간 경계에서의 재계산 예약은 이 provider가 아니라 앱 생명주기를 소유한
+/// `KboAwayFansApp`이 맡는다. 그래서 구독자가 없는 provider가 긴 타이머를 남기지
+/// 않는다. [clockProvider]를 재사용해 경계 테스트는 고정 시각을 주입할 수 있다.
 final resolvedThemeBrightnessProvider = Provider<Brightness>((ref) {
   final mode = ref.watch(themeSettingsProvider).brightnessMode;
   if (mode == ThemeMode.light) return Brightness.light;
   if (mode == ThemeMode.dark) return Brightness.dark;
 
   final now = ref.watch(clockProvider)();
-  final untilBoundary = durationUntilNextThemeBoundary(now);
-  final timer = Timer(untilBoundary, ref.invalidateSelf);
-  ref.onDispose(timer.cancel);
   return automaticThemeBrightness(now);
 });
 

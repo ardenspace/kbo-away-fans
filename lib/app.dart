@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -5,6 +7,7 @@ import 'backend/auth.dart';
 import 'content/content_providers.dart';
 import 'design/tokens.dart';
 import 'features/auth/sign_in_screen.dart';
+import 'features/home/next_away_game.dart' show clockProvider;
 import 'features/onboarding/location_consent.dart';
 import 'features/profile/theme_settings.dart';
 import 'features/splash/splash_screen.dart';
@@ -28,32 +31,66 @@ class KboAwayFansApp extends ConsumerStatefulWidget {
 
 class _KboAwayFansAppState extends ConsumerState<KboAwayFansApp>
     with WidgetsBindingObserver {
+  Timer? _themeBoundaryTimer;
+  AppLifecycleState? _lifecycleState;
+
   @override
   void initState() {
     super.initState();
+    _lifecycleState = WidgetsBinding.instance.lifecycleState;
     WidgetsBinding.instance.addObserver(this);
   }
 
   @override
   void dispose() {
+    _themeBoundaryTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    _lifecycleState = state;
     if (state == AppLifecycleState.resumed) {
       invalidateContent(ref);
+      ref.invalidate(resolvedThemeBrightnessProvider);
+    } else {
+      _themeBoundaryTimer?.cancel();
+      _themeBoundaryTimer = null;
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final visualTheme = ref.watch(appVisualThemeProvider);
+    _scheduleThemeBoundaryRefresh();
     return MaterialApp(
       title: 'KBO 원정러',
       theme: visualTheme.toThemeData(),
       home: const SplashGate(),
+    );
+  }
+
+  /// 자동 밝기를 다음 KST 07:00/19:00 경계에서 다시 계산한다.
+  ///
+  /// 타이머를 앱 State가 소유해야 dispose와 비활성 전환에서 즉시 취소된다.
+  /// provider가 소유하면 구독이 끝난 뒤에도 ProviderScope 정리까지 살아 있어
+  /// 화면이 사라진 실행에 긴 타이머가 남는다.
+  void _scheduleThemeBoundaryRefresh() {
+    _themeBoundaryTimer?.cancel();
+    _themeBoundaryTimer = null;
+    final lifecycle = _lifecycleState;
+    if (lifecycle != null && lifecycle != AppLifecycleState.resumed) return;
+    if (ref.read(themeSettingsProvider).brightnessMode != ThemeMode.system) {
+      return;
+    }
+
+    _themeBoundaryTimer = Timer(
+      durationUntilNextThemeBoundary(ref.read(clockProvider)()),
+      () {
+        if (!mounted) return;
+        ref.invalidate(resolvedThemeBrightnessProvider);
+      },
     );
   }
 }
