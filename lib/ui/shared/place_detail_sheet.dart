@@ -89,9 +89,11 @@ class PlaceDetailSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     final address = this.address;
     final description = this.description;
     final onLikeChanged = this.onLikeChanged;
+    final actionStyle = TextButton.styleFrom(foregroundColor: colors.onSurface);
 
     return Padding(
       padding: const EdgeInsets.all(SpaceTokens.xl),
@@ -130,11 +132,23 @@ class PlaceDetailSheet extends StatelessWidget {
           const SizedBox(height: SpaceTokens.lg),
           Row(
             children: [
-              TextButton(onPressed: onOpenMap, child: const Text('지도에서 보기')),
+              TextButton(
+                onPressed: onOpenMap,
+                style: actionStyle,
+                child: const Text('지도에서 보기'),
+              ),
               const SizedBox(width: SpaceTokens.sm),
-              TextButton(onPressed: onDirections, child: const Text('길안내')),
+              TextButton(
+                onPressed: onDirections,
+                style: actionStyle,
+                child: const Text('길안내'),
+              ),
               const SizedBox(width: SpaceTokens.sm),
-              TextButton(onPressed: onShare, child: const Text('공유')),
+              TextButton(
+                onPressed: onShare,
+                style: actionStyle,
+                child: const Text('공유'),
+              ),
             ],
           ),
         ],

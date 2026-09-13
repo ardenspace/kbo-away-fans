@@ -8,10 +8,7 @@ void main() {
     await tester.pumpWidget(
       const MaterialApp(
         home: Scaffold(
-          body: PlaceDetailSheet(
-            name: '사직 돼지국밥',
-            categoryLabel: '맛집',
-          ),
+          body: PlaceDetailSheet(name: '사직 돼지국밥', categoryLabel: '맛집'),
         ),
       ),
     );
@@ -79,5 +76,30 @@ void main() {
 
     final sheet = tester.widget<BottomSheet>(find.byType(BottomSheet));
     expect(sheet.backgroundColor, visual.surface);
+  });
+
+  testWidgets('어두운 팀 테마에서도 활성 액션은 surface 위 text 역할색을 쓴다', (tester) async {
+    final visual = AppVisualTheme.resolve(
+      favoriteTeamId: 'nc',
+      defaultFamily: AppThemeFamily.a,
+      brightness: Brightness.dark,
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: visual.toThemeData(),
+        home: Scaffold(
+          body: PlaceDetailSheet(
+            name: '창원 카페',
+            categoryLabel: '카페',
+            onOpenMap: () {},
+          ),
+        ),
+      ),
+    );
+
+    final button = tester.widget<TextButton>(
+      find.widgetWithText(TextButton, '지도에서 보기'),
+    );
+    expect(button.style!.foregroundColor!.resolve({}), visual.textPrimary);
   });
 }

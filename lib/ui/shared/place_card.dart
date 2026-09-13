@@ -89,20 +89,26 @@ class PlaceCard extends StatelessWidget {
                   ),
                   if (source != null) ...[
                     const SizedBox(width: SpaceTokens.sm),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: SpaceTokens.sm,
-                        vertical: SpaceTokens.xs,
-                      ),
-                      decoration: BoxDecoration(
-                        color: colors.surfaceContainerHighest,
-                        borderRadius: BorderRadius.circular(RadiusTokens.pill),
-                      ),
-                      child: Text(
-                        source,
-                        style: TextTokens.onSurfaceMuted(
-                          context,
-                          TextTokens.caption,
+                    Flexible(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: SpaceTokens.sm,
+                          vertical: SpaceTokens.xs,
+                        ),
+                        decoration: BoxDecoration(
+                          color: colors.surfaceContainerHighest,
+                          borderRadius: BorderRadius.circular(
+                            RadiusTokens.pill,
+                          ),
+                        ),
+                        child: Text(
+                          source,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextTokens.onSurfaceMuted(
+                            context,
+                            TextTokens.caption,
+                          ),
                         ),
                       ),
                     ),
