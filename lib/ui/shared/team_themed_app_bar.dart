@@ -1,16 +1,12 @@
 import 'package:flutter/material.dart';
 
+import '../../design/app_theme.dart';
 import '../../design/tokens.dart';
-import 'team_theme_scope.dart';
 
-/// 팀 테마에서 배경·전경색을 꺼내 오는 앱바.
+/// 앱 루트의 전역 시각 테마에서 배경·전경색을 꺼내 오는 앱바.
 ///
-/// 색을 고르는 규칙(팀이 있으면 대표색 몸통 + `onPrimary` 전경, 없으면 팔레트
-/// 기본색)이 화면마다 복제되어 있던 것을 한 자리로 모은 것이다. 복제되어
-/// 있으면 팀 색이 바뀌는 자리를 하나 빠뜨려도 눈에 띄지 않는다.
-///
-/// [TeamThemeScope] 를 `maybeOf` 로 읽으므로 스코프 밖(로그인·설정처럼 팀
-/// 맥락이 없는 화면)에서도 그대로 쓸 수 있다.
+/// 목적지 팀 스코프 안에서도 앱 컨트롤은 [AppVisualTheme] 역할색을 유지한다.
+/// 목적지·상대팀 색은 배지처럼 경기·구장 맥락을 설명하는 보조 요소가 맡는다.
 class TeamThemedAppBar extends StatelessWidget implements PreferredSizeWidget {
   const TeamThemedAppBar({
     super.key,
@@ -34,13 +30,13 @@ class TeamThemedAppBar extends StatelessWidget implements PreferredSizeWidget {
   @override
   Widget build(BuildContext context) {
     final material = Theme.of(context);
-    final theme = TeamThemeScope.maybeOf(context);
+    final visual = material.extension<AppVisualTheme>();
     final background =
-        theme?.primary ??
+        visual?.background ??
         material.appBarTheme.backgroundColor ??
         material.colorScheme.surface;
     final foreground =
-        theme?.onPrimary ??
+        visual?.textPrimary ??
         material.appBarTheme.foregroundColor ??
         material.colorScheme.onSurface;
 

@@ -33,8 +33,9 @@ import 'scratch_pick.dart';
 /// - 필터 결과 0건이면 명시적 빈 상태 문구를 띄운다.
 /// - 목록 마지막 항목은 [ScratchCard]: 긁으면 현재 필터 풀에서
 ///   [pickScratchPlace] 로 뽑은 랜덤 장소가 드러난다. 풀이 비면 카드도 없다.
-/// - [themeKey] 가 있으면 화면 전체를 그 팀 테마([TeamThemeScope])로 감싼다
-///   (홈에서 진입 시 그 경기 홈팀 테마를 이어받는 근거).
+/// - [themeKey] 가 있으면 목적지 팀의 경기·구장 보조 맥락을
+///   [TeamThemeScope]로 공급한다. [CategoryChip]과 [TeamThemedAppBar]는
+///   스코프 안에서도 앱 루트 `AppVisualTheme` 역할색을 유지한다.
 /// - [initialIndoorOnly] 가 true 면 실내 필터가 켜진 채로 열린다
 ///   (우천 취소 플랜B 유도, step 4.2).
 /// - 카드·상세 시트의 좋아요 버튼(step 3.2)은 [likedPlaceIdsProvider] 하나로
@@ -55,7 +56,7 @@ class StadiumPlacesScreen extends ConsumerStatefulWidget {
   /// 대상 구장 id (common.defs stadiumId).
   final String stadiumId;
 
-  /// 화면에 적용할 팀 테마 키 (null 이면 기본 토큰).
+  /// 경기·구장 보조 맥락에 적용할 목적지 팀 테마 키.
   final String? themeKey;
 
   /// 실내 필터를 켠 채로 진입할지 (우천 플랜B 유도 경로, step 4.2).
@@ -114,7 +115,7 @@ class _StadiumPlacesScreenState extends ConsumerState<StadiumPlacesScreen> {
     if (themeKey == null) return _scaffold(stadium, body);
     return TeamThemeScope.forTeam(
       teamId: themeKey,
-      // 앱바가 스코프 안쪽 context 로 테마를 읽도록 Builder 를 끼운다.
+      // Scaffold 하위의 경기·구장 보조 요소가 목적지 스코프 context를 받는다.
       child: Builder(builder: (_) => _scaffold(stadium, body)),
     );
   }

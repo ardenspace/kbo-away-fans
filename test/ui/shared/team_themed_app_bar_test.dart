@@ -1,5 +1,5 @@
-/// TeamThemedAppBar 위젯 테스트 — 팀 맥락이 있으면 팀 색을, 없으면 팔레트
-/// 기본색을 쓰는 앱바. 색을 고르는 자리가 화면마다 복제되지 않게 하는 것이 목적.
+/// TeamThemedAppBar 위젯 테스트 — 목적지 팀 맥락과 무관하게 앱 루트의
+/// AppVisualTheme 역할색을 쓰는 앱바.
 library;
 
 import 'package:flutter/material.dart';
@@ -11,7 +11,7 @@ import 'package:kbo_away_fans/ui/shared/team_themed_app_bar.dart';
 
 final visual = AppVisualTheme.resolve(
   favoriteTeamId: null,
-  defaultFamily: AppThemeFamily.b,
+  defaultFamily: AppThemeFamily.a,
   brightness: Brightness.dark,
 );
 
@@ -34,10 +34,11 @@ void main() {
     expect(bar.foregroundColor, visual.textPrimary);
   });
 
-  testWidgets('팀 스코프 안에서는 대표색 몸통 + onPrimary 전경색', (tester) async {
+  testWidgets('팀 스코프 안에서도 AppVisualTheme 역할색을 유지한다', (tester) async {
     const theme = TeamThemes.kia;
     await tester.pumpWidget(
       MaterialApp(
+        theme: visual.toThemeData(),
         home: TeamThemeScope(
           theme: theme,
           child: const Scaffold(appBar: TeamThemedAppBar(title: '광주 원정')),
@@ -46,10 +47,10 @@ void main() {
     );
 
     final bar = renderedBar(tester);
-    expect(bar.backgroundColor, theme.primary);
-    expect(bar.foregroundColor, theme.onPrimary);
+    expect(bar.backgroundColor, visual.background);
+    expect(bar.foregroundColor, visual.textPrimary);
     final title = tester.widget<Text>(find.text('광주 원정'));
-    expect(title.style!.color, theme.onPrimary);
+    expect(title.style!.color, visual.textPrimary);
   });
 
   testWidgets('actions 를 그대로 실어 준다', (tester) async {

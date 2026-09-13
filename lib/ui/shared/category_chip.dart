@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 
 import '../../design/app_theme.dart';
 import '../../design/tokens.dart';
-import 'team_theme_scope.dart';
 
 /// 맛집/방탈출/카페 등 카테고리 필터 칩 (추천 목록 필터).
 ///
-/// 팀 테마 스코프 안이면 선택 색이 팀 대표색을 따른다.
+/// 선택 색은 앱 루트의 [AppVisualTheme] accent를 따른다. 구장 route가 목적지
+/// 팀의 테마 스코프로 감싸져 있어도 앱 컨트롤의 색 소유권은 바뀌지 않는다.
 class CategoryChip extends StatelessWidget {
   const CategoryChip({
     super.key,
@@ -28,11 +28,8 @@ class CategoryChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final material = Theme.of(context);
     final visual = material.extension<AppVisualTheme>();
-    final team = TeamThemeScope.maybeOf(context);
-    final selectedBg =
-        team?.primary ?? visual?.primary ?? material.colorScheme.primary;
-    final selectedFg =
-        team?.onPrimary ?? visual?.onPrimary ?? material.colorScheme.onPrimary;
+    final selectedBg = visual?.primary ?? material.colorScheme.primary;
+    final selectedFg = visual?.onPrimary ?? material.colorScheme.onPrimary;
     final surface = visual?.surface ?? material.colorScheme.surface;
     final outline = visual?.outline ?? material.colorScheme.outline;
     final muted =

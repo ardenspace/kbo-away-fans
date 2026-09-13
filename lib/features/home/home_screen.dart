@@ -27,9 +27,9 @@ import 'stadium_browse.dart';
 
 /// 홈 화면 (step 2.3) — 다음 원정 경기 D-day 기본 얼굴.
 ///
-/// - 앱 골격(앱바 등)은 응원 팀 테마([TeamThemeScope.forTeam]) 아래 렌더.
-/// - D-day 헤더·원정 미리보기 영역은 **그 경기 홈팀** 테마의 중첩 스코프
-///   아래 렌더 — 잠실처럼 홈팀이 2팀인 구장의 테마 전환 근거.
+/// - 앱 골격(앱바 등)은 앱 루트 [AppVisualTheme] 역할색으로 렌더.
+/// - D-day 헤더·원정 미리보기의 경기 보조 요소에는 **그 경기 홈팀** 색을
+///   [TeamThemeScope]로 공급한다 — 잠실처럼 홈팀이 2팀인 구장의 맥락 근거.
 /// - schedule 문서를 못 얻으면 안내 + 재시도, 남은 일정이 없으면
 ///   명시적 빈 상태([DdayHeader.empty])를 띄운다.
 /// - 오늘 원정 경기가 취소(우천 포함)된 날은 플랜B 배너가 얼굴 위에 떠서
@@ -609,7 +609,7 @@ class _HomeScaffold extends StatelessWidget {
                 style: TextTokens.onSurface(context, TextTokens.sectionTitle),
               ),
             ),
-            // 추천 목록(step 3.1) 진입점 — 그 경기 홈팀 테마를 이어받는다.
+            // 추천 목록 진입점 — 그 경기 홈팀을 경기·구장 보조 맥락으로 넘긴다.
             TextButton(
               onPressed: () {
                 final teamsDoc = teams;

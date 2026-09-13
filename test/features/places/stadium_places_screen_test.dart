@@ -40,6 +40,7 @@ import 'package:kbo_away_fans/ui/shared/place_card.dart';
 import 'package:kbo_away_fans/ui/shared/place_detail_sheet.dart';
 import 'package:kbo_away_fans/ui/shared/scratch_card.dart';
 import 'package:kbo_away_fans/ui/shared/stadium_map_view.dart';
+import 'package:kbo_away_fans/ui/shared/team_theme_scope.dart';
 import 'package:kbo_away_fans/ui/shared/weather_backdrop.dart';
 import 'package:kbo_away_fans/weather/weather.dart';
 
@@ -337,14 +338,26 @@ void main() {
     expect(analytics.events, hasLength(2));
   });
 
-  testWidgets('themeKey 전달 시 앱바가 그 팀 primary 로 렌더된다', (tester) async {
-    await tester.pumpWidget(screen(themeKey: 'lotte'));
+  testWidgets('themeKey는 보조 맥락에 남고 앱바는 AppVisualTheme 역할을 유지한다', (
+    tester,
+  ) async {
+    final visual = AppVisualTheme.resolve(
+      favoriteTeamId: null,
+      defaultFamily: AppThemeFamily.a,
+      brightness: Brightness.dark,
+    );
+    await tester.pumpWidget(
+      screen(themeKey: 'lotte', theme: visual.toThemeData()),
+    );
     await tester.pumpAndSettle();
 
-    final theme = TeamThemes.byId['lotte']!;
     final appBar = tester.widget<AppBar>(find.byType(AppBar));
-    expect(appBar.backgroundColor, theme.primary);
-    expect(appBar.foregroundColor, theme.onPrimary);
+    expect(appBar.backgroundColor, visual.background);
+    expect(appBar.foregroundColor, visual.textPrimary);
+    expect(
+      TeamThemeScope.maybeOf(tester.element(find.byType(CategoryChip).first)),
+      same(TeamThemes.lotte),
+    );
   });
 
   testWidgets('themeKey 가 없으면 AppVisualTheme 앱바 역할로 렌더된다', (tester) async {
