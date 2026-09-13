@@ -11,7 +11,7 @@ cycle: 3
 |---|---|---|
 | 1 | cycle 3 foundations + enforcement + legacy nickname/team patch compatibility | 1.1–1.5 |
 | 2 | 팀 없음과 테마 설정의 저장·선택 journey | 2.1–2.2 |
-| 3 | 전역 테마의 앱 본체 전면 적용 | 3.1–3.2 |
+| 3 | 전역 테마의 앱 본체 전면 적용과 공용 accent 소유권 고정 | 3.1–3.3 |
 | 4 | 실시간 원정 홈 상태 시각화 | 4.1–4.2 |
 | 5 | 통합·접근성·회귀 검증 | 5.1 |
 
@@ -89,6 +89,14 @@ cycle: 3
 5. **Verification tier:** basic
 6. **Discretion scope:** 단일 화면 장식과 카피.
 
+### Step 3.3: 공용 컴포넌트의 전역 accent 소유권
+1. **Goal:** 실제 추천→구장 route에서 공용 선택 칩과 AppBar의 accent를 앱 루트 `AppVisualTheme`이 소유하게 하고 목적지 `TeamThemeScope`는 경기·구장 맥락의 보조 요소로 제한한다.
+2. **Acceptance criteria:** `CategoryChip`과 `TeamThemedAppBar`가 목적지 팀색보다 전역 `AppVisualTheme` accent를 우선하며, 팀 없음 A/dark의 선택 칩과 AppBar도 전역 테마를 따르고, 살아 있는 route에서 응원팀을 NC→삼성으로 바꾸면 즉시 새 전역 테마를 따른다. 목적지·상대팀 색은 `TeamBadge` 등 경기·구장 맥락 보조 요소에 남는다.
+3. **Boundary tests:** `flutter test test/cycle3_phase3_r5_global_accent_probe_test.dart` → 0; 이전 Phase 3 probe 전체 → 0.
+4. **Registries to read:** `lib/ui/shared/REGISTRY.md`, `.wellbegun/spec.md` Shared components.
+5. **Verification tier:** fresh
+6. **Discretion scope:** 공용 컴포넌트가 `AppVisualTheme`을 읽는 내부 helper 구조와 목적지 보조색을 유지할 구체적 맥락 요소.
+
 ### Step 4.1: 원정 상태 모델
 1. **Goal:** 시간·경기·위치·취소 신호를 하나의 JourneyPhase로 판정한다.
 2. **Acceptance criteria:** 우선순위와 경계가 순수 테스트로 고정되고 결측은 idle로 저하한다.
@@ -122,4 +130,5 @@ cycle: 3
 | 1.3 | fresh | L shared component API |
 | 2.1 | fresh | L optional-team profile journey |
 | 3.1 | fresh | L root/nested navigation seam |
+| 3.3 | fresh | L shared accent ownership |
 | 5.1 | fresh | cross-layer release gate |
