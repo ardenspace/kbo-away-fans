@@ -360,9 +360,22 @@ class SelectedTeamNotifier extends Notifier<AsyncValue<String?>> {
   /// 기다리면 뒤엣것은 문서가 생겼다는 사실을 알고 수정 경로로 이어 간다.
   Future<void> _queue = Future<void>.value();
 
+  // 설정 등 다른 필드의 스냅샷은 저장 중인 최신 팀 선택을 덮지 않는다.
+  // null도 정상 선택이므로 선택 자체의 유무와 팀 id를 구분한다.
+  ({Object token, String? uid, String? teamId})? _pendingSelection;
+
   @override
   AsyncValue<String?> build() {
+    final ownerUid = ref.watch(authStateProvider).value?.uid;
     final profile = ref.watch(userProfileProvider);
+    final pending = _pendingSelection;
+    if (pending != null) {
+      if (pending.uid == ownerUid) {
+        _hasProfile = true;
+        return AsyncData(pending.teamId);
+      }
+      _pendingSelection = null;
+    }
     if (profile case AsyncData(:final value)) {
       _hasProfile = value != null;
       final teamId = value?.favoriteTeamId;
@@ -460,6 +473,8 @@ class SelectedTeamNotifier extends Notifier<AsyncValue<String?>> {
     // 되돌릴 자리 — 아직 아무것도 바뀌지 않은 지금의 화면이다.
     final rollback = state;
     final rollbackHasProfile = _hasProfile;
+    final selection = (token: Object(), uid: owner?.uid, teamId: teamId);
+    _pendingSelection = selection;
     _hasProfile = true;
     state = AsyncData(teamId);
     final task = _queue.then(
@@ -476,8 +491,16 @@ class SelectedTeamNotifier extends Notifier<AsyncValue<String?>> {
     try {
       await task;
     } on Object {
-      _rollbackFailedSelection(teamId, rollback, rollbackHasProfile);
+      if (_pendingSelection?.token == selection.token &&
+          ref.read(authStateProvider).value?.uid == owner?.uid) {
+        _rollbackFailedSelection(teamId, rollback, rollbackHasProfile);
+      }
       rethrow;
+    } finally {
+      // 앞선 쓰기의 완료/실패는 줄에 선 더 최신 선택의 보호를 풀지 않는다.
+      if (_pendingSelection?.token == selection.token) {
+        _pendingSelection = null;
+      }
     }
   }
 
