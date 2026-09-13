@@ -249,9 +249,9 @@ class _HomeScaffold extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = TeamThemeScope.maybeOf(context);
-    final barBg = theme?.primary ?? ColorTokens.surface;
-    final barFg = theme?.onPrimary ?? ColorTokens.textPrimary;
+    final visual = Theme.of(context).extension<AppVisualTheme>();
+    final barBg = visual?.background ?? ColorTokens.background;
+    final barFg = visual?.textPrimary ?? ColorTokens.textPrimary;
 
     return Scaffold(
       appBar: AppBar(

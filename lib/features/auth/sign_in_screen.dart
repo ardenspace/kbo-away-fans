@@ -119,7 +119,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
     final notice = _failure ?? widget.notice;
     final reduceMotion = MediaQuery.disableAnimationsOf(context);
     return Scaffold(
-      backgroundColor: ColorTokens.splashBackground,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
