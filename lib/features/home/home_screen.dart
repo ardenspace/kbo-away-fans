@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -40,14 +42,23 @@ import 'stadium_browse.dart';
 ///   놀거리 추천(실내 필터 켠 추천 목록)으로 유도한다 (step 4.2).
 /// - 하단에는 "구장 골라 구경하기"([StadiumPicker]) 섹션이 상시 떠서
 ///   경기 없는 날에도 아무 구장의 테마·추천을 구경할 수 있다 (step 4.3).
-class HomeScreen extends ConsumerWidget {
+class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key, required this.teamId});
 
   /// 선택된 응원 팀 id (common.defs teamId).
   final String teamId;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends ConsumerState<HomeScreen> {
+  Timer? _journeyBoundaryTimer;
+  DateTime? _armedJourneyBoundary;
+
+  @override
+  Widget build(BuildContext context) {
+    final teamId = widget.teamId;
     final teamsDoc = contentDataOf(ref.watch(teamsProvider));
     final stadiumsDoc = contentDataOf(ref.watch(stadiumsProvider));
     final placesDoc = contentDataOf(ref.watch(placesProvider));
@@ -58,6 +69,7 @@ class HomeScreen extends ConsumerWidget {
     final next = scheduleDoc == null
         ? null
         : findNextAwayGame(schedule: scheduleDoc, teamId: teamId, now: now);
+    _armJourneyBoundary(next, now);
 
     // 오늘 원정 경기가 취소(우천 포함)됐으면 플랜B 모드 (step 4.2).
     final canceledToday = scheduleDoc == null
@@ -154,10 +166,65 @@ class HomeScreen extends ConsumerWidget {
     if (team == null) return scaffold;
     return TeamThemeScope.forTeam(teamId: team.themeKey, child: scaffold);
   }
+
+  /// 같은 홈이 열린 채 경기 시작·표시 종료 시각을 넘을 때 다시 판정한다.
+  ///
+  /// [clockProvider]의 현재 값을 기준으로 가장 가까운 미래 경계 하나만
+  /// 예약한다. provider 갱신으로 먼저 다시 빌드되면 기존 예약을 재사용하거나
+  /// 새 경계로 교체하며, dispose에서 반드시 취소한다.
+  void _armJourneyBoundary(NextAwayGame? next, DateTime now) {
+    final game = switch (next) {
+      AwayGameToday(:final game) || AwayGameUpcoming(:final game) => game,
+      _ => null,
+    };
+    if (game == null || game.status != GameStatus.scheduled) {
+      _cancelJourneyBoundary();
+      return;
+    }
+
+    final startsAt = gameStartsAt(game);
+    final endsAt = startsAt.add(_journeyGameWindow);
+    final boundary = now.isBefore(startsAt)
+        ? startsAt
+        : now.isBefore(endsAt)
+        ? endsAt
+        : null;
+    if (boundary == null) {
+      _cancelJourneyBoundary();
+      return;
+    }
+    if (_armedJourneyBoundary == boundary &&
+        (_journeyBoundaryTimer?.isActive ?? false)) {
+      return;
+    }
+
+    _journeyBoundaryTimer?.cancel();
+    _armedJourneyBoundary = boundary;
+    _journeyBoundaryTimer = Timer(boundary.difference(now), () {
+      if (!mounted) return;
+      _armedJourneyBoundary = null;
+      setState(() {});
+    });
+  }
+
+  void _cancelJourneyBoundary() {
+    _journeyBoundaryTimer?.cancel();
+    _journeyBoundaryTimer = null;
+    _armedJourneyBoundary = null;
+  }
+
+  @override
+  void dispose() {
+    _cancelJourneyBoundary();
+    super.dispose();
+  }
 }
 
 /// 미리보기에 보이는 장소 개수 상한 (discretion).
 const int _previewPlaceCount = 3;
+
+/// 실시간 얼굴 아래 가로 미리보기 한 줄의 높이.
+const double _activePreviewHeight = SpaceTokens.xxl * 4;
 
 /// 일정에 종료 시각이 없는 동안 홈에서 쓰는 경기 진행 표시 창.
 const Duration _journeyGameWindow = Duration(hours: 4);
@@ -566,8 +633,7 @@ class _HomeScaffold extends StatelessWidget {
   /// 취소를 먼저 고른 뒤 다음 원정 상태에 맞는 홈 얼굴을 만든다.
   Widget _face(BuildContext context) {
     final cancelled = canceledToday;
-    if (cancelled != null) return _cancelledFace(context, cancelled);
-    return switch (next) {
+    final regularFace = switch (next) {
       null => _scheduleFallback(context),
       NoUpcomingAwayGame() => const DdayHeader.empty(),
       AwayGameToday(:final game) => _gameFace(context, game, dDay: 0),
@@ -577,6 +643,11 @@ class _HomeScaffold extends StatelessWidget {
         dDay: dDay,
       ),
     };
+    if (cancelled == null) return regularFace;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [_cancelledFace(context, cancelled), regularFace],
+    );
   }
 
   /// schedule 문서를 못 얻은 상태 — 로드 중이거나 실패 + 재시도.
@@ -623,13 +694,11 @@ class _HomeScaffold extends StatelessWidget {
           matchLabel: _matchLabel(game, stadium),
           opponentShortName: _opponentShortName(game),
         ),
-        // 실시간 얼굴에서는 상태를 먼저 읽고 첫 추천으로 바로 이어진다.
-        // 미래 티켓은 기존 미리보기 수를 그대로 유지한다.
         ..._preview(
           context,
           game,
           stadium,
-          limit: phase == JourneyPhase.preGame ? _previewPlaceCount : 1,
+          horizontal: phase != JourneyPhase.preGame,
         ),
       ],
     );
@@ -683,8 +752,14 @@ class _HomeScaffold extends StatelessWidget {
   JourneyPhase _journeyPhase(Game game) {
     final startsAt = gameStartsAt(game);
     final isFinished = game.status == GameStatus.finished;
+    final visitFresh =
+        visitJudgedAt == null ||
+        currentLocationIsFresh(judgedAt: visitJudgedAt, now: now);
     final nearby =
-        stadiumVisit?.isVisit == true && stadiumVisit?.gameId == game.id;
+        !isFinished &&
+        stadiumVisit?.isVisit == true &&
+        stadiumVisit?.gameId == game.id &&
+        visitFresh;
     final isToday = gameDateOf(game) == kstDateOf(now);
     return resolveJourneyPhase(
       JourneyPhaseSignals(
@@ -733,11 +808,11 @@ class _HomeScaffold extends StatelessWidget {
     BuildContext context,
     Game game,
     Stadium? stadium, {
-    int limit = _previewPlaceCount,
+    bool horizontal = false,
   }) {
     final previewPlaces =
         (places?.forStadium(game.stadiumId) ?? const <Place>[])
-            .take(limit)
+            .take(_previewPlaceCount)
             .toList();
 
     return [
@@ -778,6 +853,35 @@ class _HomeScaffold extends StatelessWidget {
           child: Text(
             '이 구장 주변 추천 장소를 준비하고 있어요.',
             style: TextTokens.onSurfaceMuted(context, TextTokens.bodyMuted),
+          ),
+        )
+      else if (horizontal)
+        SizedBox(
+          height: _activePreviewHeight,
+          child: LayoutBuilder(
+            builder: (context, constraints) => SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.only(left: SpaceTokens.lg),
+              child: Row(
+                children: [
+                  for (final place in previewPlaces)
+                    SizedBox(
+                      width: constraints.maxWidth - SpaceTokens.xxl,
+                      child: Padding(
+                        padding: const EdgeInsets.only(
+                          right: SpaceTokens.md,
+                          bottom: SpaceTokens.md,
+                        ),
+                        child: PlaceCard(
+                          name: place.name,
+                          categoryLabel: categoryLabelOf(place.category),
+                          shoutoutSource: place.shoutout,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
           ),
         )
       else
