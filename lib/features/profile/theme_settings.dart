@@ -115,6 +115,10 @@ final themeSettingsProvider =
 
 class ThemeSettingsNotifier extends Notifier<ThemeSettings> {
   Future<void> _queue = Future<void>.value();
+  final Map<String, ({int revision, AppThemeFamily value})> _completedFamily =
+      {};
+  final Map<String, ({int revision, ThemeMode value})> _completedBrightness =
+      {};
   String? _ownerUid;
   AppThemeFamily? _pendingFamily;
   ThemeMode? _pendingBrightnessMode;
@@ -187,6 +191,10 @@ class ThemeSettingsNotifier extends Notifier<ThemeSettings> {
         defaultThemeFamily: DefaultThemeFamily.values.byName(family.name),
       ),
       onCompleted: () {
+        final completed = _completedFamily[profile.uid];
+        if (completed == null || completed.revision < revision) {
+          _completedFamily[profile.uid] = (revision: revision, value: family);
+        }
         _completedFamilyRevision = revision;
         if (_pendingFamilyRevision != revision) return;
         final stored = ref.read(userProfileProvider).value;
@@ -204,6 +212,15 @@ class ThemeSettingsNotifier extends Notifier<ThemeSettings> {
         state = state.copyWith(family: previous);
       },
       cacheSettings: state.copyWith(family: family),
+      reconcilePatch: () {
+        final latest = _completedFamily[profile.uid];
+        if (latest == null || latest.revision <= revision) return null;
+        return UserProfilePatch(
+          defaultThemeFamily: DefaultThemeFamily.values.byName(
+            latest.value.name,
+          ),
+        );
+      },
     );
   }
 
@@ -222,6 +239,10 @@ class ThemeSettingsNotifier extends Notifier<ThemeSettings> {
         brightnessPreference: _brightnessPreferenceOf(mode),
       ),
       onCompleted: () {
+        final completed = _completedBrightness[profile.uid];
+        if (completed == null || completed.revision < revision) {
+          _completedBrightness[profile.uid] = (revision: revision, value: mode);
+        }
         _completedBrightnessRevision = revision;
         if (_pendingBrightnessRevision != revision) return;
         final stored = ref.read(userProfileProvider).value;
@@ -239,6 +260,13 @@ class ThemeSettingsNotifier extends Notifier<ThemeSettings> {
         state = state.copyWith(brightnessMode: previous);
       },
       cacheSettings: state.copyWith(brightnessMode: mode),
+      reconcilePatch: () {
+        final latest = _completedBrightness[profile.uid];
+        if (latest == null || latest.revision <= revision) return null;
+        return UserProfilePatch(
+          brightnessPreference: _brightnessPreferenceOf(latest.value),
+        );
+      },
     );
   }
 
@@ -257,6 +285,7 @@ class ThemeSettingsNotifier extends Notifier<ThemeSettings> {
     required VoidCallback onCompleted,
     required VoidCallback rollback,
     required ThemeSettings cacheSettings,
+    required UserProfilePatch? Function() reconcilePatch,
   }) async {
     Future<void> write() async {
       if (ref.read(authStateProvider).value?.uid != profile.uid) return;
@@ -267,6 +296,13 @@ class ThemeSettingsNotifier extends Notifier<ThemeSettings> {
     _queue = task;
     try {
       await task;
+      final reconciliation = reconcilePatch();
+      if (reconciliation != null) {
+        await ref
+            .read(userDataStoreProvider)
+            .patchProfile(profile.uid, reconciliation);
+        return;
+      }
       if (_ownerUid == profile.uid) {
         onCompleted();
         await _writeThemeCache(profile.uid, cacheSettings);
