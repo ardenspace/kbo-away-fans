@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'backend/auth.dart';
 import 'content/content_providers.dart';
+import 'design/app_theme.dart';
 import 'design/tokens.dart';
 import 'features/auth/sign_in_screen.dart';
 import 'features/home/next_away_game.dart' show clockProvider;
@@ -66,7 +67,25 @@ class _KboAwayFansAppState extends ConsumerState<KboAwayFansApp>
 
   @override
   Widget build(BuildContext context) {
-    final visualTheme = ref.watch(appVisualThemeProvider);
+    final cachedEntry = _profileThemeEnabled
+        ? null
+        : ref.watch(cachedThemeSettingsProvider).value;
+    // 스플래시 중에는 프로필 기반 provider를 구독하지 않는다. 서버 확인 유예는
+    // 실제로 RootGate가 프로필 분기를 시작하는 시점부터 온전히 쓸 수 있어야 한다.
+    // 계정 귀속 기기 캐시는 여기서 바로 반영해 스플래시 뒤 첫 루트가 기본색을
+    // 잠깐 그렸다가 바뀌지 않게 한다.
+    final cachedSettings = cachedEntry?.settings;
+    final visualTheme = _profileThemeEnabled
+        ? ref.watch(appVisualThemeProvider)
+        : AppVisualTheme.resolve(
+            favoriteTeamId: null,
+            defaultFamily: cachedSettings?.family ?? AppThemeFamily.a,
+            brightness: switch (cachedSettings?.brightnessMode) {
+              ThemeMode.light => Brightness.light,
+              ThemeMode.dark => Brightness.dark,
+              _ => automaticThemeBrightness(ref.watch(clockProvider)()),
+            },
+          );
     _scheduleThemeBoundaryRefresh();
     return MaterialApp(
       title: 'KBO 원정러',

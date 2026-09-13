@@ -73,21 +73,24 @@ final themeSettingsStoreProvider = Provider<ThemeSettingsStore>(
 );
 
 final cachedThemeSettingsProvider =
-    AsyncNotifierProvider<CachedThemeSettings, ThemeSettings?>(
-      CachedThemeSettings.new,
-      retry: (retryCount, error) => null,
-    );
+    AsyncNotifierProvider<
+      CachedThemeSettings,
+      ({String uid, ThemeSettings settings})?
+    >(CachedThemeSettings.new, retry: (retryCount, error) => null);
 
-class CachedThemeSettings extends AsyncNotifier<ThemeSettings?> {
+class CachedThemeSettings
+    extends AsyncNotifier<({String uid, ThemeSettings settings})?> {
   ({String uid, ThemeSettings settings})? _written;
 
   @override
-  Future<ThemeSettings?> build() async {
+  Future<({String uid, ThemeSettings settings})?> build() async {
     final user = ref.watch(authStateProvider).value;
     if (user == null) return null;
     final stored = await ref.watch(themeSettingsStoreProvider).read(user.uid);
     final written = _written;
-    return written?.uid == user.uid ? written!.settings : stored;
+    if (ref.read(authStateProvider).value?.uid != user.uid) return null;
+    if (written?.uid == user.uid) return written;
+    return stored == null ? null : (uid: user.uid, settings: stored);
   }
 
   Future<void> write(String uid, ThemeSettings settings) async {
@@ -95,7 +98,8 @@ class CachedThemeSettings extends AsyncNotifier<ThemeSettings?> {
     if (_written == entry) return;
     await ref.read(themeSettingsStoreProvider).write(uid, settings);
     _written = entry;
-    state = AsyncData(settings);
+    if (ref.read(authStateProvider).value?.uid != uid) return;
+    state = AsyncData(entry);
   }
 }
 
@@ -125,7 +129,10 @@ class ThemeSettingsNotifier extends Notifier<ThemeSettings> {
   ThemeSettings build() {
     final ownerUid = ref.watch(authStateProvider).value?.uid;
     final profile = ref.watch(userProfileProvider).value;
-    final cached = ref.watch(cachedThemeSettingsProvider).value;
+    final cachedEntry = ref.watch(cachedThemeSettingsProvider).value;
+    final cached = cachedEntry != null && cachedEntry.uid == ownerUid
+        ? cachedEntry.settings
+        : null;
 
     if (_ownerUid != ownerUid) {
       _ownerUid = ownerUid;

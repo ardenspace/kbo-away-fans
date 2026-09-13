@@ -7,7 +7,6 @@ import '../../backend/auth.dart';
 import '../../backend/user_data.dart';
 import '../../design/tokens.dart';
 import '../../ui/shared/content_fallback.dart';
-import '../../ui/shared/team_theme_scope.dart';
 import '../../ui/shared/team_themed_app_bar.dart';
 import '../../ui/shared/theme_settings_sheet.dart';
 import 'theme_settings.dart';
@@ -181,10 +180,7 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody> {
         ),
       ),
     );
-    final teamId = profile.favoriteTeamId;
-    return teamId == null
-        ? scaffold
-        : TeamThemeScope.forTeam(teamId: teamId, child: scaffold);
+    return scaffold;
   }
 
   Future<void> _openThemeSettings() {
