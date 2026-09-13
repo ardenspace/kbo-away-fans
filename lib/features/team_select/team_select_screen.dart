@@ -108,7 +108,10 @@ class TeamSelectScreen extends ConsumerWidget {
           ? AppBar(
               backgroundColor: Theme.of(context).scaffoldBackgroundColor,
               foregroundColor: Theme.of(context).colorScheme.onSurface,
-              title: Text('응원 팀 바꾸기', style: _titleStyle),
+              title: Text(
+                '응원 팀 바꾸기',
+                style: TextTokens.onSurface(context, TextTokens.heading),
+              ),
             )
           : null,
       body: SafeArea(
@@ -132,8 +135,6 @@ class TeamSelectScreen extends ConsumerWidget {
       ),
     );
   }
-
-  static const TextStyle _titleStyle = TextTokens.heading;
 }
 
 /// 10팀 목록 — 전 팀이 한 번에 위젯 트리에 올라간다(스크롤 가능).
@@ -161,10 +162,16 @@ class _TeamList extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (!isChange) ...[
-            const Text('어느 팀을 응원하세요?', style: TextTokens.display),
+            Text(
+              '어느 팀을 응원하세요?',
+              style: TextTokens.onSurface(context, TextTokens.display),
+            ),
             const SizedBox(height: SpaceTokens.sm),
           ],
-          const Text('선택한 팀의 컬러로 앱이 물들어요.', style: TextTokens.bodyMuted),
+          Text(
+            '선택한 팀의 컬러로 앱이 물들어요.',
+            style: TextTokens.onSurfaceMuted(context, TextTokens.bodyMuted),
+          ),
           const SizedBox(height: SpaceTokens.xl),
           for (final team in teams)
             Padding(
@@ -252,11 +259,17 @@ class _LoadFailure extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Text('팀 목록을 불러오지 못했어요.', style: TextTokens.bodyStrong),
+          Text(
+            '팀 목록을 불러오지 못했어요.',
+            style: TextTokens.onSurface(context, TextTokens.bodyStrong),
+          ),
           const SizedBox(height: SpaceTokens.md),
           TextButton(
             onPressed: onRetry,
-            child: const Text('다시 시도', style: TextTokens.label),
+            child: Text(
+              '다시 시도',
+              style: TextTokens.inheritColor(TextTokens.label),
+            ),
           ),
         ],
       ),

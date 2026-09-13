@@ -113,6 +113,12 @@ class AppVisualTheme extends ThemeExtension<AppVisualTheme> {
 
   /// 이 최종 역할 값과 정확히 같은 색을 쓰는 Material 테마를 만든다.
   ThemeData toThemeData() {
+    final navigationSelected = _navigationAccent(
+      surface: surface,
+      primary: primary,
+      secondary: secondary,
+      fallback: textPrimary,
+    );
     final colorScheme =
         ColorScheme.fromSeed(
           seedColor: primary,
@@ -156,9 +162,11 @@ class AppVisualTheme extends ThemeExtension<AppVisualTheme> {
       ),
       bottomNavigationBarTheme: base.bottomNavigationBarTheme.copyWith(
         backgroundColor: surface,
-        selectedItemColor: primary,
+        selectedItemColor: navigationSelected,
         unselectedItemColor: textSecondary,
-        selectedLabelStyle: TextTokens.caption.copyWith(color: primary),
+        selectedLabelStyle: TextTokens.caption.copyWith(
+          color: navigationSelected,
+        ),
         unselectedLabelStyle: TextTokens.caption.copyWith(color: textSecondary),
       ),
       bottomSheetTheme: base.bottomSheetTheme.copyWith(
@@ -199,6 +207,18 @@ class AppVisualTheme extends ThemeExtension<AppVisualTheme> {
       danger: danger,
     );
   }
+}
+
+/// 하단 탐색 강조색은 팀색을 우선하되 실제 surface에서 읽히는 역할만 쓴다.
+Color _navigationAccent({
+  required Color surface,
+  required Color primary,
+  required Color secondary,
+  required Color fallback,
+}) {
+  if (_contrastRatio(primary, surface) >= 3) return primary;
+  if (_contrastRatio(secondary, surface) >= 3) return secondary;
+  return fallback;
 }
 
 Color _onColor(Color background) {

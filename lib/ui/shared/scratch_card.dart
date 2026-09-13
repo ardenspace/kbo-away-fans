@@ -204,9 +204,8 @@ class _ScratchCardState extends State<ScratchCard> {
                         child: Text(
                           '오늘 뭐하지? 긁어 보기',
                           textAlign: TextAlign.center,
-                          style: TextTokens.onSurfaceMuted(
-                            context,
-                            TextTokens.sectionTitleMuted,
+                          style: TextTokens.sectionTitleMuted.copyWith(
+                            color: colors.onSecondary,
                           ),
                         ),
                       ),

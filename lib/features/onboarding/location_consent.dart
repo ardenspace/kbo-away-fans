@@ -177,16 +177,16 @@ class LocationConsentScreen extends StatelessWidget {
                 color: Theme.of(context).colorScheme.onSurface,
               ),
               const SizedBox(height: SpaceTokens.lg),
-              const Text(
+              Text(
                 '위치 권한이 필요해요',
-                style: TextTokens.display,
+                style: TextTokens.onSurface(context, TextTokens.display),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: SpaceTokens.md),
-              const Text(
+              Text(
                 '구장에 도착하면 자동으로 도장을 찍어 드리고,\n'
                 '홈 화면에 지금 계신 곳을 보여드릴 때만 위치를 써요.',
-                style: TextTokens.bodyMuted,
+                style: TextTokens.onSurfaceMuted(context, TextTokens.bodyMuted),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: SpaceTokens.xl),

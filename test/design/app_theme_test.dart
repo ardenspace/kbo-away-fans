@@ -135,6 +135,42 @@ void main() {
     expect(material.extension<AppVisualTheme>(), same(visual));
   });
 
+  test('하단 탐색 선택색은 모든 팀·기본 계열과 밝기에서 surface와 구별된다', () {
+    final themes = <AppVisualTheme>[
+      for (final brightness in Brightness.values) ...[
+        for (final family in AppThemeFamily.values)
+          AppVisualTheme.resolve(
+            favoriteTeamId: null,
+            defaultFamily: family,
+            brightness: brightness,
+          ),
+        for (final teamId in TeamThemes.byId.keys)
+          AppVisualTheme.resolve(
+            favoriteTeamId: teamId,
+            defaultFamily: AppThemeFamily.a,
+            brightness: brightness,
+          ),
+      ],
+    ];
+
+    for (final visual in themes) {
+      final navigation = visual.toThemeData().bottomNavigationBarTheme;
+      final selected = navigation.selectedItemColor!;
+      expect(_contrastRatio(selected, visual.surface), greaterThanOrEqualTo(3));
+      expect(selected, isNot(navigation.unselectedItemColor));
+    }
+
+    final ktDark = AppVisualTheme.resolve(
+      favoriteTeamId: 'kt',
+      defaultFamily: AppThemeFamily.a,
+      brightness: Brightness.dark,
+    );
+    expect(
+      ktDark.toThemeData().bottomNavigationBarTheme.selectedItemColor,
+      ktDark.secondary,
+    );
+  });
+
   test('테마 보간 중에도 시맨틱 색은 변하지 않는다', () {
     final from = AppVisualTheme.resolve(
       favoriteTeamId: null,
@@ -153,4 +189,11 @@ void main() {
     expect(middle.warning, ColorTokens.warning);
     expect(middle.danger, ColorTokens.danger);
   });
+}
+
+double _contrastRatio(Color a, Color b) {
+  final lighter = a.computeLuminance() >= b.computeLuminance() ? a : b;
+  final darker = identical(lighter, a) ? b : a;
+  return (lighter.computeLuminance() + 0.05) /
+      (darker.computeLuminance() + 0.05);
 }
