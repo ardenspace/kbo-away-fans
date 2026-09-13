@@ -346,29 +346,102 @@ class _HomeScaffold extends StatelessWidget {
   Widget _cancelledFace(BuildContext context, Game game) {
     final rain = game.status == GameStatus.rainCanceled;
     final city = stadiums?.byId(game.stadiumId)?.city;
-    final visual = Theme.of(context).extension<AppVisualTheme>()!;
-    final content = Padding(
+    final material = Theme.of(context);
+    final visual = material.extension<AppVisualTheme>();
+    final content = visual == null
+        ? _materialCancelledFace(context, game, rain: rain, city: city)
+        : Padding(
+            padding: const EdgeInsets.fromLTRB(
+              SpaceTokens.lg,
+              SpaceTokens.lg,
+              SpaceTokens.lg,
+              SpaceTokens.sm,
+            ),
+            child: JourneyTicket(
+              cancelled: true,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  JourneyStatusVisual(
+                    status: JourneyStatus.cancelled,
+                    title: rain ? '오늘 경기가 우천으로 취소됐어요' : '오늘 경기가 취소됐어요',
+                    detail: '아쉽지만 ${city ?? '근처'} 실내 놀거리로 플랜B 어때요?',
+                  ),
+                  const SizedBox(height: SpaceTokens.md),
+                  FilledButton(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: visual.danger,
+                      foregroundColor: material.colorScheme.onError,
+                    ),
+                    onPressed: () => _openPlanB(context, game),
+                    child: const Text('실내 놀거리 보러 가기'),
+                  ),
+                ],
+              ),
+            ),
+          );
+
+    final teamsDoc = teams;
+    if (teamsDoc == null) return content;
+    return TeamThemeScope.forTeam(
+      teamId: themeKeyForGame(game, teamsDoc),
+      child: content,
+    );
+  }
+
+  /// 오래된 plain `MaterialApp` 하니스의 취소 얼굴.
+  ///
+  /// 실제 앱은 루트 [AppVisualTheme] 경로를 타며, 이 갈래는 화면이 자체
+  /// 전역 테마를 만들지 않은 채 Material의 의미 역할색으로 안전하게 저하한다.
+  Widget _materialCancelledFace(
+    BuildContext context,
+    Game game, {
+    required bool rain,
+    required String? city,
+  }) {
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
       padding: const EdgeInsets.fromLTRB(
         SpaceTokens.lg,
         SpaceTokens.lg,
         SpaceTokens.lg,
         SpaceTokens.sm,
       ),
-      child: JourneyTicket(
-        cancelled: true,
+      child: Container(
+        padding: const EdgeInsets.all(SpaceTokens.lg),
+        decoration: BoxDecoration(
+          color: scheme.surface,
+          borderRadius: BorderRadius.circular(RadiusTokens.lg),
+          border: Border.all(color: scheme.error),
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            JourneyStatusVisual(
-              status: JourneyStatus.cancelled,
-              title: rain ? '오늘 경기가 우천으로 취소됐어요' : '오늘 경기가 취소됐어요',
-              detail: '아쉽지만 ${city ?? '근처'} 실내 놀거리로 플랜B 어때요?',
+            Row(
+              children: [
+                Icon(
+                  rain ? Icons.umbrella_rounded : Icons.event_busy_rounded,
+                  color: scheme.error,
+                ),
+                const SizedBox(width: SpaceTokens.sm),
+                Expanded(
+                  child: Text(
+                    rain ? '오늘 경기가 우천으로 취소됐어요' : '오늘 경기가 취소됐어요',
+                    style: TextTokens.onSurface(context, TextTokens.heading),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: SpaceTokens.sm),
+            Text(
+              '아쉽지만 ${city ?? '근처'} 실내 놀거리로 플랜B 어때요?',
+              style: TextTokens.onSurfaceMuted(context, TextTokens.bodyMuted),
             ),
             const SizedBox(height: SpaceTokens.md),
             FilledButton(
               style: FilledButton.styleFrom(
-                backgroundColor: visual.danger,
-                foregroundColor: Theme.of(context).colorScheme.onError,
+                backgroundColor: scheme.error,
+                foregroundColor: scheme.onError,
               ),
               onPressed: () => _openPlanB(context, game),
               child: const Text('실내 놀거리 보러 가기'),
@@ -376,13 +449,6 @@ class _HomeScaffold extends StatelessWidget {
           ],
         ),
       ),
-    );
-
-    final teamsDoc = teams;
-    if (teamsDoc == null) return content;
-    return TeamThemeScope.forTeam(
-      teamId: themeKeyForGame(game, teamsDoc),
-      child: content,
     );
   }
 
@@ -567,35 +633,39 @@ class _HomeScaffold extends StatelessWidget {
         ),
       ],
     );
-    final content = switch (phase) {
-      JourneyPhase.preGame => Padding(
-        padding: const EdgeInsets.only(
-          left: SpaceTokens.lg,
-          right: SpaceTokens.lg,
-          top: SpaceTokens.lg,
-        ),
-        child: JourneyTicket(child: information),
-      ),
-      JourneyPhase.moving ||
-      JourneyPhase.nearby ||
-      JourneyPhase.live ||
-      JourneyPhase.postGame => Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              SpaceTokens.lg,
-              SpaceTokens.lg,
-              SpaceTokens.lg,
-              SpaceTokens.sm,
+    final hasVisualTheme =
+        Theme.of(context).extension<AppVisualTheme>() != null;
+    final content = !hasVisualTheme
+        ? information
+        : switch (phase) {
+            JourneyPhase.preGame => Padding(
+              padding: const EdgeInsets.only(
+                left: SpaceTokens.lg,
+                right: SpaceTokens.lg,
+                top: SpaceTokens.lg,
+              ),
+              child: JourneyTicket(child: information),
             ),
-            child: JourneyStatusVisual(status: _statusFor(phase)),
-          ),
-          information,
-        ],
-      ),
-      JourneyPhase.cancelled || JourneyPhase.idle => information,
-    };
+            JourneyPhase.moving ||
+            JourneyPhase.nearby ||
+            JourneyPhase.live ||
+            JourneyPhase.postGame => Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    SpaceTokens.lg,
+                    SpaceTokens.lg,
+                    SpaceTokens.lg,
+                    SpaceTokens.sm,
+                  ),
+                  child: JourneyStatusVisual(status: _statusFor(phase)),
+                ),
+                information,
+              ],
+            ),
+            JourneyPhase.cancelled || JourneyPhase.idle => information,
+          };
 
     final teamsDoc = teams;
     if (teamsDoc == null) return content;
@@ -620,9 +690,7 @@ class _HomeScaffold extends StatelessWidget {
       JourneyPhaseSignals(
         now: now,
         gameStartsAt: startsAt,
-        gameEndsAt: isFinished
-            ? startsAt
-            : startsAt.add(_journeyGameWindow),
+        gameEndsAt: isFinished ? startsAt : startsAt.add(_journeyGameWindow),
         cancelled:
             game.status == GameStatus.canceled ||
             game.status == GameStatus.rainCanceled,
