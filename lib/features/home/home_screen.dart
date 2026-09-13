@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../content/content_providers.dart';
-import '../../content/kst.dart' show gameStartsAt;
+import '../../content/kst.dart' show gameStartsAt, kstOffset;
 import '../../content/models.dart';
 import '../../design/app_theme.dart';
 import '../../design/tokens.dart';
@@ -69,7 +69,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final next = scheduleDoc == null
         ? null
         : findNextAwayGame(schedule: scheduleDoc, teamId: teamId, now: now);
-    _armJourneyBoundary(next, now);
 
     // 오늘 원정 경기가 취소(우천 포함)됐으면 플랜B 모드 (step 4.2).
     final canceledToday = scheduleDoc == null
@@ -124,6 +123,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     // (2) 손에 든 판정이 **언제** 난 것인가 — 구장 이름을 쓸지를 정하는 나이의
     // 기준점이고, 건너뛴 실행을 지나도 그대로 이어진다.
     final judgedAt = lastVisitRun?.judgedAt;
+    _armJourneyBoundary(
+      next,
+      now,
+      stadiumVisit: stadiumVisit,
+      visitJudgedAt: judgedAt,
+    );
 
     // 판정이 권한을 대신 말해 주지 못하는 갈래에서만 권한을 다시 묻는다
     // (`noGameToday`, 콘텐츠를 못 얻어 판정이 아예 없는 실행, 그리고 마지막
@@ -167,31 +172,58 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     return TeamThemeScope.forTeam(teamId: team.themeKey, child: scaffold);
   }
 
-  /// 같은 홈이 열린 채 경기 시작·표시 종료 시각을 넘을 때 다시 판정한다.
+  /// 같은 홈이 열린 채 날짜·경기·위치 경계를 넘을 때 다시 판정한다.
   ///
   /// [clockProvider]의 현재 값을 기준으로 가장 가까운 미래 경계 하나만
   /// 예약한다. provider 갱신으로 먼저 다시 빌드되면 기존 예약을 재사용하거나
   /// 새 경계로 교체하며, dispose에서 반드시 취소한다.
-  void _armJourneyBoundary(NextAwayGame? next, DateTime now) {
-    final game = switch (next) {
-      AwayGameToday(:final game) || AwayGameUpcoming(:final game) => game,
-      _ => null,
-    };
-    if (game == null || game.status != GameStatus.scheduled) {
+  void _armJourneyBoundary(
+    NextAwayGame? next,
+    DateTime now, {
+    required StadiumVisitResult? stadiumVisit,
+    required DateTime? visitJudgedAt,
+  }) {
+    if (next == null) {
       _cancelJourneyBoundary();
       return;
     }
 
-    final startsAt = gameStartsAt(game);
-    final endsAt = startsAt.add(_journeyGameWindow);
-    final boundary = now.isBefore(startsAt)
-        ? startsAt
-        : now.isBefore(endsAt)
-        ? endsAt
-        : null;
-    if (boundary == null) {
-      _cancelJourneyBoundary();
-      return;
+    final game = switch (next) {
+      AwayGameToday(:final game) || AwayGameUpcoming(:final game) => game,
+      _ => null,
+    };
+
+    // `kstDateOf`는 KST 달력 날짜를 UTC 자정 모양으로 돌려준다. 하루를 더한
+    // 뒤 KST 오프셋을 빼면 다음 KST 자정의 절대 시각이 된다.
+    var boundary = kstDateOf(now)
+        .add(const Duration(days: 1))
+        .subtract(kstOffset);
+    void consider(DateTime candidate) {
+      // 이미 지난 경계를 다시 예약하면 build → zero timer → build 루프가 된다.
+      if (!candidate.isAfter(now)) return;
+      if (candidate.isBefore(boundary)) {
+        boundary = candidate;
+      }
+    }
+
+    if (game != null && game.status == GameStatus.scheduled) {
+      final startsAt = gameStartsAt(game);
+      consider(startsAt);
+      consider(startsAt.add(_journeyGameWindow));
+
+      if (stadiumVisit?.isVisit == true &&
+          stadiumVisit?.gameId == game.id &&
+          visitJudgedAt != null &&
+          currentLocationIsFresh(judgedAt: visitJudgedAt, now: now)) {
+        // freshness는 상한과 같은 순간까지 참(`<=`)이므로 그 다음 최소
+        // 순간에 깨운다. 정확히 상한에 다시 지은 프레임도 zero timer를 만들지
+        // 않는다.
+        consider(
+          visitJudgedAt
+              .add(kCurrentLocationFreshness)
+              .add(const Duration(microseconds: 1)),
+        );
+      }
     }
     if (_armedJourneyBoundary == boundary &&
         (_journeyBoundaryTimer?.isActive ?? false)) {
