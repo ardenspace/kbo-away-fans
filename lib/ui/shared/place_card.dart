@@ -60,7 +60,15 @@ class PlaceCard extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  Expanded(child: Text(name, style: TextTokens.sectionTitle)),
+                  Expanded(
+                    child: Text(
+                      name,
+                      style: TextTokens.onSurface(
+                        context,
+                        TextTokens.sectionTitle,
+                      ),
+                    ),
+                  ),
                   if (onLikeChanged != null)
                     LikeButton(
                       liked: liked,
@@ -72,7 +80,13 @@ class PlaceCard extends StatelessWidget {
               const SizedBox(height: SpaceTokens.sm),
               Row(
                 children: [
-                  Text(categoryLabel, style: TextTokens.supporting),
+                  Text(
+                    categoryLabel,
+                    style: TextTokens.onSurfaceMuted(
+                      context,
+                      TextTokens.supporting,
+                    ),
+                  ),
                   if (source != null) ...[
                     const SizedBox(width: SpaceTokens.sm),
                     Container(
@@ -84,7 +98,13 @@ class PlaceCard extends StatelessWidget {
                         color: colors.surfaceContainerHighest,
                         borderRadius: BorderRadius.circular(RadiusTokens.pill),
                       ),
-                      child: Text(source, style: TextTokens.caption),
+                      child: Text(
+                        source,
+                        style: TextTokens.onSurfaceMuted(
+                          context,
+                          TextTokens.caption,
+                        ),
+                      ),
                     ),
                   ],
                 ],

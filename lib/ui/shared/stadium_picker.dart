@@ -31,7 +31,10 @@ class StadiumPicker extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        const Text('구장 골라 구경하기', style: TextTokens.heading),
+        Text(
+          '구장 골라 구경하기',
+          style: TextTokens.onSurface(context, TextTokens.heading),
+        ),
         const SizedBox(height: SpaceTokens.md),
         Wrap(
           spacing: SpaceTokens.sm,
@@ -50,7 +53,10 @@ class StadiumPicker extends StatelessWidget {
                     border: Border.all(color: colors.outline),
                     borderRadius: BorderRadius.circular(RadiusTokens.pill),
                   ),
-                  child: Text(stadium.label, style: TextTokens.label),
+                  child: Text(
+                    stadium.label,
+                    style: TextTokens.onSurface(context, TextTokens.label),
+                  ),
                 ),
               ),
           ],

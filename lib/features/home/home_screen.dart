@@ -375,7 +375,7 @@ class _HomeScaffold extends StatelessWidget {
                   Expanded(
                     child: Text(
                       rain ? '오늘 경기가 우천으로 취소됐어요' : '오늘 경기가 취소됐어요',
-                      style: TextTokens.heading,
+                      style: TextTokens.onSurface(context, TextTokens.heading),
                     ),
                   ),
                 ],
@@ -383,7 +383,7 @@ class _HomeScaffold extends StatelessWidget {
               const SizedBox(height: SpaceTokens.sm),
               Text(
                 '아쉽지만 ${city ?? '근처'} 실내 놀거리로 플랜B 어때요?',
-                style: TextTokens.bodyMuted,
+                style: TextTokens.onSurfaceMuted(context, TextTokens.bodyMuted),
               ),
               const SizedBox(height: SpaceTokens.md),
               FilledButton(
@@ -429,7 +429,10 @@ class _HomeScaffold extends StatelessWidget {
           SpaceTokens.lg,
           SpaceTokens.sm,
         ),
-        child: Text('최근 5경기', style: TextTokens.sectionTitle),
+        child: Text(
+          '최근 5경기',
+          style: TextTokens.onSurface(context, TextTokens.sectionTitle),
+        ),
       ),
       if (games.isEmpty)
         const EmptyStateNotice(
@@ -508,7 +511,7 @@ class _HomeScaffold extends StatelessWidget {
   /// 기본 얼굴 — 다음 원정 상태에 따른 4갈래.
   Widget _face(BuildContext context) {
     return switch (next) {
-      null => _scheduleFallback(),
+      null => _scheduleFallback(context),
       NoUpcomingAwayGame() => const DdayHeader.empty(),
       AwayGameToday(:final game) => _gameFace(context, game, dDay: 0),
       AwayGameUpcoming(:final game, :final dDay) => _gameFace(
@@ -520,7 +523,7 @@ class _HomeScaffold extends StatelessWidget {
   }
 
   /// schedule 문서를 못 얻은 상태 — 로드 중이거나 실패 + 재시도.
-  Widget _scheduleFallback() {
+  Widget _scheduleFallback(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.all(SpaceTokens.lg),
       child: scheduleLoading
@@ -528,11 +531,17 @@ class _HomeScaffold extends StatelessWidget {
           : Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('경기 일정을 불러오지 못했어요', style: TextTokens.title),
+                Text(
+                  '경기 일정을 불러오지 못했어요',
+                  style: TextTokens.onSurface(context, TextTokens.title),
+                ),
                 const SizedBox(height: SpaceTokens.sm),
-                const Text(
+                Text(
                   '네트워크를 확인하고 다시 시도해 주세요.',
-                  style: TextTokens.bodyMuted,
+                  style: TextTokens.onSurfaceMuted(
+                    context,
+                    TextTokens.bodyMuted,
+                  ),
                 ),
                 const SizedBox(height: SpaceTokens.md),
                 FilledButton(
@@ -597,7 +606,7 @@ class _HomeScaffold extends StatelessWidget {
             Expanded(
               child: Text(
                 '${stadium?.city ?? ''} 원정 미리보기'.trim(),
-                style: TextTokens.sectionTitle,
+                style: TextTokens.onSurface(context, TextTokens.sectionTitle),
               ),
             ),
             // 추천 목록(step 3.1) 진입점 — 그 경기 홈팀 테마를 이어받는다.
@@ -622,9 +631,12 @@ class _HomeScaffold extends StatelessWidget {
       ),
       const SizedBox(height: SpaceTokens.sm),
       if (previewPlaces.isEmpty)
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: SpaceTokens.lg),
-          child: Text('이 구장 주변 추천 장소를 준비하고 있어요.', style: TextTokens.bodyMuted),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: SpaceTokens.lg),
+          child: Text(
+            '이 구장 주변 추천 장소를 준비하고 있어요.',
+            style: TextTokens.onSurfaceMuted(context, TextTokens.bodyMuted),
+          ),
         )
       else
         for (final place in previewPlaces)
@@ -689,7 +701,10 @@ class _RecentGameRow extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Text(dateLabel, style: TextTokens.caption),
+          Text(
+            dateLabel,
+            style: TextTokens.onSurfaceMuted(context, TextTokens.caption),
+          ),
           const SizedBox(width: SpaceTokens.sm),
           Expanded(
             child: Column(
@@ -697,13 +712,19 @@ class _RecentGameRow extends StatelessWidget {
               children: [
                 Text(
                   '${isHome ? '홈' : '원정'} · $opponentName',
-                  style: TextTokens.bodyStrong,
+                  style: TextTokens.onSurface(context, TextTokens.bodyStrong),
                 ),
-                Text(stadiumName, style: TextTokens.caption),
+                Text(
+                  stadiumName,
+                  style: TextTokens.onSurfaceMuted(context, TextTokens.caption),
+                ),
               ],
             ),
           ),
-          Text('$myScore : $opponentScore', style: TextTokens.bodyStrong),
+          Text(
+            '$myScore : $opponentScore',
+            style: TextTokens.onSurface(context, TextTokens.bodyStrong),
+          ),
           const SizedBox(width: SpaceTokens.sm),
           Text(
             outcomeLabel(outcome),

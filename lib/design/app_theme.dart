@@ -131,6 +131,7 @@ class AppVisualTheme extends ThemeExtension<AppVisualTheme> {
           surfaceContainerHigh: surface,
           surfaceContainerHighest: surface,
           onSurface: textPrimary,
+          onSurfaceVariant: textSecondary,
           error: danger,
           onError: _onColor(danger),
           outline: outline,

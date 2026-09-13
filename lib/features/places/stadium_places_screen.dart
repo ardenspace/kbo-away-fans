@@ -136,9 +136,15 @@ class _StadiumPlacesScreenState extends ConsumerState<StadiumPlacesScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('추천 장소를 불러오지 못했어요', style: TextTokens.title),
+          Text(
+            '추천 장소를 불러오지 못했어요',
+            style: TextTokens.onSurface(context, TextTokens.title),
+          ),
           const SizedBox(height: SpaceTokens.sm),
-          const Text('네트워크를 확인하고 다시 시도해 주세요.', style: TextTokens.bodyMuted),
+          Text(
+            '네트워크를 확인하고 다시 시도해 주세요.',
+            style: TextTokens.onSurfaceMuted(context, TextTokens.bodyMuted),
+          ),
           const SizedBox(height: SpaceTokens.md),
           FilledButton(
             onPressed: () => invalidateContent(ref),

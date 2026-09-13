@@ -76,9 +76,15 @@ class BoardCellDetail extends ConsumerWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(stadiumName, style: TextTokens.title),
+            Text(
+              stadiumName,
+              style: TextTokens.onSurface(context, TextTokens.title),
+            ),
             const SizedBox(height: SpaceTokens.xs),
-            Text(_subtitle(teamName), style: TextTokens.supporting),
+            Text(
+              _subtitle(teamName),
+              style: TextTokens.onSurfaceMuted(context, TextTokens.supporting),
+            ),
             const SizedBox(height: SpaceTokens.md),
             Flexible(child: _stamps(context, ref)),
           ],
@@ -128,7 +134,10 @@ class BoardCellDetail extends ConsumerWidget {
               children: [
                 Icon(Icons.verified_rounded, color: muted),
                 const SizedBox(width: SpaceTokens.sm),
-                Text(stamp.gameDate, style: TextTokens.body),
+                Text(
+                  stamp.gameDate,
+                  style: TextTokens.onSurface(context, TextTokens.body),
+                ),
               ],
             ),
           ),

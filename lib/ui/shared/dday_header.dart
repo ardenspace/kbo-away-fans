@@ -57,7 +57,10 @@ class DdayHeader extends StatelessWidget {
         : 'D-$remaining';
     final subtitle = matchLabel ?? '이번 시즌 원정 일정을 다 소화했어요. 다음 시즌에 만나요!';
 
-    const subtitleStyle = TextTokens.bodyMuted;
+    final subtitleStyle = TextTokens.onSurfaceMuted(
+      context,
+      TextTokens.bodyMuted,
+    );
     final subtitleText = Text(subtitle, style: subtitleStyle);
 
     final opponent = opponentShortName;

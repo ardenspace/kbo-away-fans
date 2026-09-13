@@ -144,14 +144,14 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody> {
           children: [
             _nicknameSection(profile),
             const SizedBox(height: SpaceTokens.xl),
-            const Text(
+            Text(
               ProfileTabScreen.emailSectionTitle,
-              style: TextTokens.label,
+              style: TextTokens.onSurface(context, TextTokens.label),
             ),
             const SizedBox(height: SpaceTokens.xs),
             Text(
               user?.email ?? ProfileTabScreen.noEmailProviderLabel,
-              style: TextTokens.bodyMuted,
+              style: TextTokens.onSurfaceMuted(context, TextTokens.bodyMuted),
             ),
             const SizedBox(height: SpaceTokens.xxl),
             const Divider(),
@@ -247,7 +247,7 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody> {
             child: Text(
               profile.nickname,
               key: const ValueKey('profile-nickname-text'),
-              style: TextTokens.title,
+              style: TextTokens.onSurface(context, TextTokens.title),
             ),
           ),
           IconButton(
@@ -272,7 +272,7 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody> {
           key: const ValueKey('profile-nickname-field'),
           controller: _nicknameController,
           autofocus: true,
-          style: TextTokens.body,
+          style: TextTokens.onSurface(context, TextTokens.body),
           decoration: InputDecoration(errorText: _nicknameFieldError),
         ),
         const SizedBox(height: SpaceTokens.sm),

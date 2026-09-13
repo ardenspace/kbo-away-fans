@@ -101,7 +101,12 @@ class PlaceDetailSheet extends StatelessWidget {
         children: [
           Row(
             children: [
-              Expanded(child: Text(name, style: TextTokens.title)),
+              Expanded(
+                child: Text(
+                  name,
+                  style: TextTokens.onSurface(context, TextTokens.title),
+                ),
+              ),
               if (onLikeChanged != null)
                 LikeButton(
                   liked: liked,
@@ -113,11 +118,14 @@ class PlaceDetailSheet extends StatelessWidget {
           const SizedBox(height: SpaceTokens.xs),
           Text(
             address == null ? categoryLabel : '$categoryLabel · $address',
-            style: TextTokens.supporting,
+            style: TextTokens.onSurfaceMuted(context, TextTokens.supporting),
           ),
           if (description != null) ...[
             const SizedBox(height: SpaceTokens.sm),
-            Text(description, style: TextTokens.body),
+            Text(
+              description,
+              style: TextTokens.onSurface(context, TextTokens.body),
+            ),
           ],
           const SizedBox(height: SpaceTokens.lg),
           Row(

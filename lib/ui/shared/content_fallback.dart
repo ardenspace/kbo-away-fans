@@ -51,9 +51,12 @@ class ContentFallback extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: TextTokens.title),
+          Text(title, style: TextTokens.onSurface(context, TextTokens.title)),
           const SizedBox(height: SpaceTokens.sm),
-          Text(message, style: TextTokens.bodyMuted),
+          Text(
+            message,
+            style: TextTokens.onSurfaceMuted(context, TextTokens.bodyMuted),
+          ),
           if (onRetry != null) ...[
             const SizedBox(height: SpaceTokens.md),
             FilledButton(

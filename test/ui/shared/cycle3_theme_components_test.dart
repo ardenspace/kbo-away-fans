@@ -58,6 +58,47 @@ void main() {
     );
   });
 
+  testWidgets('TextTokens 표면 글자는 AppVisualTheme의 현재 전경 역할을 쓴다', (tester) async {
+    final dark = AppVisualTheme.resolve(
+      favoriteTeamId: null,
+      defaultFamily: AppThemeFamily.b,
+      brightness: Brightness.dark,
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: dark.toThemeData(),
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: Column(
+              children: [
+                Text(
+                  '기본 전경',
+                  style: TextTokens.onSurface(context, TextTokens.title),
+                ),
+                Text(
+                  '보조 전경',
+                  style: TextTokens.onSurfaceMuted(
+                    context,
+                    TextTokens.bodyMuted,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(
+      tester.widget<Text>(find.text('기본 전경')).style!.color,
+      dark.textPrimary,
+    );
+    expect(
+      tester.widget<Text>(find.text('보조 전경')).style!.color,
+      dark.textSecondary,
+    );
+  });
+
   testWidgets('JourneyTicket 끝점은 70/30 혼합이고 취소는 danger가 우선한다', (tester) async {
     await tester.pumpWidget(host(const JourneyTicket(child: Text('game'))));
     var decoration =

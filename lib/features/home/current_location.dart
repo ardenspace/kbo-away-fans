@@ -415,7 +415,7 @@ class _CurrentLocationRowState extends ConsumerState<CurrentLocationRow> {
               stadiums: widget.stadiums,
               fresh: fresh,
             ),
-            style: TextTokens.bodyMuted,
+            style: TextTokens.onSurfaceMuted(context, TextTokens.bodyMuted),
           ),
         ],
       ),

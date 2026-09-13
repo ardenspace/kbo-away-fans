@@ -115,7 +115,7 @@ class _ScratchCardState extends State<ScratchCard> {
       ),
       child: Stack(
         children: [
-          _revealedContent(),
+          _revealedContent(context),
           Positioned.fill(child: _cover()),
         ],
       ),
@@ -124,7 +124,7 @@ class _ScratchCardState extends State<ScratchCard> {
 
   /// 커버 밑에 깔리는 실제 내용 — 공개 전에는 빈 문구로 자리만 잡는다
   /// (커버가 불투명해 보이지 않고, find.text 로도 잡히지 않는다).
-  Widget _revealedContent() {
+  Widget _revealedContent(BuildContext context) {
     final sublabel = widget.hiddenSublabel;
     return SizedBox(
       width: double.infinity,
@@ -136,14 +136,17 @@ class _ScratchCardState extends State<ScratchCard> {
             Text(
               _revealed ? widget.hiddenLabel : '',
               textAlign: TextAlign.center,
-              style: TextTokens.sectionTitle,
+              style: TextTokens.onSurface(context, TextTokens.sectionTitle),
             ),
             if (sublabel != null) ...[
               const SizedBox(height: SpaceTokens.xs),
               Text(
                 _revealed ? sublabel : '',
                 textAlign: TextAlign.center,
-                style: TextTokens.supporting,
+                style: TextTokens.onSurfaceMuted(
+                  context,
+                  TextTokens.supporting,
+                ),
               ),
             ],
             if (_revealed && widget.onRescratch != null) ...[
@@ -201,7 +204,10 @@ class _ScratchCardState extends State<ScratchCard> {
                         child: Text(
                           '오늘 뭐하지? 긁어 보기',
                           textAlign: TextAlign.center,
-                          style: TextTokens.sectionTitleMuted,
+                          style: TextTokens.onSurfaceMuted(
+                            context,
+                            TextTokens.sectionTitleMuted,
+                          ),
                         ),
                       ),
                     ),

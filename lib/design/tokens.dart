@@ -203,6 +203,14 @@ abstract final class TypeTokens {
 /// | `onTeamLabel` | label | extraBold | textInverse |
 /// | `onTeamLabelCompact` | caption | extraBold | textInverse |
 abstract final class TextTokens {
+  /// 현재 앱 테마의 기본 표면 전경색을 조합 스타일에 적용한다.
+  static TextStyle onSurface(BuildContext context, TextStyle style) =>
+      style.copyWith(color: Theme.of(context).colorScheme.onSurface);
+
+  /// 현재 앱 테마의 보조 표면 전경색을 조합 스타일에 적용한다.
+  static TextStyle onSurfaceMuted(BuildContext context, TextStyle style) =>
+      style.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant);
+
   /// 화면 하나를 여는 가장 큰 글자 (온보딩 첫 문장, D-day 숫자).
   static const TextStyle display = TextStyle(
     fontFamily: TypeTokens.fontFamily,

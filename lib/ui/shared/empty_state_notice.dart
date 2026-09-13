@@ -25,9 +25,15 @@ class EmptyStateNotice extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: TextTokens.sectionTitle),
+          Text(
+            title,
+            style: TextTokens.onSurface(context, TextTokens.sectionTitle),
+          ),
           const SizedBox(height: SpaceTokens.sm),
-          Text(message, style: TextTokens.bodyMuted),
+          Text(
+            message,
+            style: TextTokens.onSurfaceMuted(context, TextTokens.bodyMuted),
+          ),
         ],
       ),
     );

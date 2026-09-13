@@ -140,7 +140,7 @@ class LikesTabScreen extends ConsumerWidget {
             padding: const EdgeInsets.symmetric(vertical: SpaceTokens.sm),
             child: Text(
               categoryLabelOf(entry.key),
-              style: TextTokens.sectionTitle,
+              style: TextTokens.onSurface(context, TextTokens.sectionTitle),
             ),
           ),
           for (final place in entry.value) ...[
