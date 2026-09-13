@@ -24,9 +24,10 @@ class WeatherBackdrop extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final baseBackground = Theme.of(context).scaffoldBackgroundColor;
     final background = raining
-        ? Color.alphaBlend(ColorTokens.rainOverlay, ColorTokens.background)
-        : ColorTokens.background;
+        ? Color.alphaBlend(ColorTokens.rainOverlay, baseBackground)
+        : baseBackground;
 
     return AnimatedContainer(
       duration: MotionTokens.weatherShift,

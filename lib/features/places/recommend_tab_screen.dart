@@ -33,7 +33,6 @@ class RecommendTabScreen extends ConsumerWidget {
     final now = ref.watch(clockProvider)();
 
     return Scaffold(
-      backgroundColor: ColorTokens.background,
       appBar: AppBar(title: const Text('추천')),
       body: stadiumsDoc == null
           ? ContentFallback(

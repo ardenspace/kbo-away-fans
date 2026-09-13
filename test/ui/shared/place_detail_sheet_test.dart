@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kbo_away_fans/design/app_theme.dart';
 import 'package:kbo_away_fans/ui/shared/place_detail_sheet.dart';
 
 void main() {
@@ -47,5 +48,36 @@ void main() {
     await tester.tap(find.text('길안내'));
     await tester.tap(find.text('공유'));
     expect(tapped, ['map', 'directions', 'share']);
+  });
+
+  testWidgets('모달 시트 표면은 선택한 AppVisualTheme을 따른다', (tester) async {
+    final visual = AppVisualTheme.resolve(
+      favoriteTeamId: null,
+      defaultFamily: AppThemeFamily.b,
+      brightness: Brightness.dark,
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: visual.toThemeData(),
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: TextButton(
+              onPressed: () => PlaceDetailSheet.show(
+                context,
+                name: '야간 원정',
+                categoryLabel: '카페',
+              ),
+              child: const Text('열기'),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('열기'));
+    await tester.pumpAndSettle();
+
+    final sheet = tester.widget<BottomSheet>(find.byType(BottomSheet));
+    expect(sheet.backgroundColor, visual.surface);
   });
 }

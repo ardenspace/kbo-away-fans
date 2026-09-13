@@ -18,6 +18,7 @@ import '../../ui/shared/place_detail_sheet.dart';
 import '../../ui/shared/place_like_wiring.dart';
 import '../../ui/shared/scratch_card.dart';
 import '../../ui/shared/team_theme_scope.dart';
+import '../../ui/shared/team_themed_app_bar.dart';
 import '../../ui/shared/weather_backdrop.dart';
 import '../../weather/weather.dart';
 import 'place_filter.dart';
@@ -110,33 +111,20 @@ class _StadiumPlacesScreenState extends ConsumerState<StadiumPlacesScreen> {
     );
 
     final themeKey = widget.themeKey;
-    if (themeKey == null) return _scaffold(context, stadium, body);
+    if (themeKey == null) return _scaffold(stadium, body);
     return TeamThemeScope.forTeam(
       teamId: themeKey,
       // 앱바가 스코프 안쪽 context 로 테마를 읽도록 Builder 를 끼운다.
-      child: Builder(builder: (context) => _scaffold(context, stadium, body)),
+      child: Builder(builder: (_) => _scaffold(stadium, body)),
     );
   }
 
-  Widget _scaffold(BuildContext context, Stadium? stadium, Widget body) {
+  Widget _scaffold(Stadium? stadium, Widget body) {
     return Scaffold(
-      backgroundColor: ColorTokens.background,
-      appBar: _appBar(context, stadium),
-      body: body,
-    );
-  }
-
-  PreferredSizeWidget _appBar(BuildContext context, Stadium? stadium) {
-    final theme = TeamThemeScope.maybeOf(context);
-    final barBg = theme?.primary ?? ColorTokens.surface;
-    final barFg = theme?.onPrimary ?? ColorTokens.textPrimary;
-    return AppBar(
-      backgroundColor: barBg,
-      foregroundColor: barFg,
-      title: Text(
-        '${stadium?.name ?? widget.stadiumId} 주변 추천',
-        style: TextTokens.appBarTitle.copyWith(color: barFg),
+      appBar: TeamThemedAppBar(
+        title: '${stadium?.name ?? widget.stadiumId} 주변 추천',
       ),
+      body: body,
     );
   }
 

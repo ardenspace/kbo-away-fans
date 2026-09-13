@@ -26,6 +26,7 @@ class StadiumPicker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
@@ -45,8 +46,8 @@ class StadiumPicker extends StatelessWidget {
                     vertical: SpaceTokens.sm,
                   ),
                   decoration: BoxDecoration(
-                    color: ColorTokens.surface,
-                    border: Border.all(color: ColorTokens.outline),
+                    color: colors.surface,
+                    border: Border.all(color: colors.outline),
                     borderRadius: BorderRadius.circular(RadiusTokens.pill),
                   ),
                   child: Text(stadium.label, style: TextTokens.label),

@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../../design/app_theme.dart';
 import '../../design/team_themes.dart';
 import '../../design/tokens.dart';
 
@@ -52,6 +53,9 @@ class StampBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final material = Theme.of(context);
+    final visual = material.extension<AppVisualTheme>();
+    final colors = material.colorScheme;
     final style = tier == null ? null : BadgeTierTokens.byTier[tier]!;
     final empty = style == null;
 
@@ -66,7 +70,7 @@ class StampBadge extends StatelessWidget {
             : style.bodyColor(theme.primary),
         border: empty
             ? Border.all(
-                color: BadgeTokens.emptyBorderColor,
+                color: colors.outline,
                 width: BadgeTokens.emptyBorderWidth,
               )
             : null,
@@ -78,7 +82,7 @@ class StampBadge extends StatelessWidget {
               textAlign: TextAlign.center,
               style: empty
                   ? TextTokens.onTeamLabel.copyWith(
-                      color: ColorTokens.textSecondary,
+                      color: visual?.textSecondary ?? colors.onSurfaceVariant,
                     )
                   : TextTokens.onTeamLabel.copyWith(color: theme.onPrimary),
             ),

@@ -47,22 +47,18 @@ class SocialSignInButton extends StatelessWidget {
   static Key iconKeyOf(AuthProviderId provider) =>
       ValueKey('social-sign-in-icon-${provider.name}');
 
-  static Color backgroundOf(AuthProviderId provider) => switch (provider) {
-    AuthProviderId.kakao => ColorTokens.kakao,
-    _ => ColorTokens.surface,
-  };
-
-  static Color foregroundOf(AuthProviderId provider) => switch (provider) {
-    AuthProviderId.kakao => ColorTokens.onKakao,
-    _ => ColorTokens.textPrimary,
-  };
-
   /// 진행 중 스피너에 붙는 스크린 리더 문구 — 스피너는 눈으로만 읽힌다.
   static const String busyLabel = '로그인하는 중';
 
   @override
   Widget build(BuildContext context) {
-    final foreground = foregroundOf(provider);
+    final colors = Theme.of(context).colorScheme;
+    final background = provider == AuthProviderId.kakao
+        ? ColorTokens.kakao
+        : colors.surface;
+    final foreground = provider == AuthProviderId.kakao
+        ? ColorTokens.onKakao
+        : colors.onSurface;
     return AnimatedScale(
       scale: busy ? LoginTokens.busyScale : 1,
       duration: MotionTokens.fast,
@@ -73,10 +69,11 @@ class SocialSignInButton extends StatelessWidget {
         child: OutlinedButton(
           onPressed: onPressed,
           style: OutlinedButton.styleFrom(
-            backgroundColor: backgroundOf(provider),
+            backgroundColor: background,
             foregroundColor: foreground,
+            disabledBackgroundColor: background,
             disabledForegroundColor: foreground,
-            side: const BorderSide(color: ColorTokens.outline),
+            side: BorderSide(color: colors.outline),
             padding: EdgeInsets.zero,
             shape: const RoundedRectangleBorder(
               borderRadius: BorderRadius.all(Radius.circular(RadiusTokens.md)),
@@ -111,7 +108,7 @@ class SocialSignInButton extends StatelessWidget {
                 ),
               ),
               CustomPaint(
-                painter: const _PerforationPainter(),
+                painter: _PerforationPainter(colors.outline),
                 child: SizedBox(
                   width: LoginTokens.ticketStubWidth,
                   height: double.infinity,
@@ -242,12 +239,14 @@ class _GoogleMarkPainter extends CustomPainter {
 }
 
 class _PerforationPainter extends CustomPainter {
-  const _PerforationPainter();
+  const _PerforationPainter(this.color);
+
+  final Color color;
 
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = ColorTokens.outline
+      ..color = color
       ..strokeWidth = LoginTokens.perforationWidth;
     for (var y = 0.0; y < size.height; y += LoginTokens.perforationDash * 2) {
       canvas.drawLine(
@@ -262,5 +261,6 @@ class _PerforationPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_PerforationPainter oldDelegate) => false;
+  bool shouldRepaint(_PerforationPainter oldDelegate) =>
+      oldDelegate.color != color;
 }

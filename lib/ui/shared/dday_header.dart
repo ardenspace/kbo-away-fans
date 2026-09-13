@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../design/app_theme.dart';
 import '../../design/tokens.dart';
 import 'team_badge.dart';
 import 'team_theme_scope.dart';
@@ -42,7 +43,11 @@ class DdayHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final team = TeamThemeScope.maybeOf(context);
-    final accent = team?.primary ?? ColorTokens.textPrimary;
+    final material = Theme.of(context);
+    final accent =
+        team?.primary ??
+        material.extension<AppVisualTheme>()?.primary ??
+        material.colorScheme.primary;
     final remaining = dDay;
 
     final title = remaining == null

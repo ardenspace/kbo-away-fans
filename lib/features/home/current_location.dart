@@ -90,6 +90,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../content/models.dart';
+import '../../design/app_theme.dart';
 import '../../design/tokens.dart';
 import '../../location/location.dart' show LocationPermissionStatus;
 import '../../location/visit_check.dart'
@@ -385,6 +386,10 @@ class _CurrentLocationRowState extends ConsumerState<CurrentLocationRow> {
 
   @override
   Widget build(BuildContext context) {
+    final material = Theme.of(context);
+    final muted =
+        material.extension<AppVisualTheme>()?.textSecondary ??
+        material.colorScheme.onSurfaceVariant;
     final now = ref.watch(clockProvider)();
     // 이 탭이 지금 사람 눈앞에 있는가 — 이 한 줄이 위 2) 의 의존을 만든다.
     final visible = TickerMode.valuesOf(context).enabled;
@@ -402,10 +407,7 @@ class _CurrentLocationRowState extends ConsumerState<CurrentLocationRow> {
       ),
       child: Row(
         children: [
-          const Icon(
-            Icons.location_on_rounded,
-            color: ColorTokens.textSecondary,
-          ),
+          Icon(Icons.location_on_rounded, color: muted),
           const SizedBox(width: SpaceTokens.sm),
           Text(
             currentLocationLabel(

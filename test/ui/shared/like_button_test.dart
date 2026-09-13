@@ -6,10 +6,19 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:kbo_away_fans/design/tokens.dart';
+import 'package:kbo_away_fans/design/app_theme.dart';
 import 'package:kbo_away_fans/ui/shared/like_button.dart';
 
-Widget host(Widget child) => MaterialApp(home: Scaffold(body: child));
+final visual = AppVisualTheme.resolve(
+  favoriteTeamId: null,
+  defaultFamily: AppThemeFamily.b,
+  brightness: Brightness.dark,
+);
+
+Widget host(Widget child) => MaterialApp(
+  theme: visual.toThemeData(),
+  home: Scaffold(body: child),
+);
 
 bool isLiked(WidgetTester tester) =>
     find.byIcon(LikeButton.likedIcon).evaluate().isNotEmpty;
@@ -82,13 +91,13 @@ void main() {
     await tester.pumpAndSettle();
   });
 
-  testWidgets('켜진 상태의 색은 팔레트의 강조색에서 온다', (tester) async {
+  testWidgets('켜진 상태의 색은 AppVisualTheme 의미색에서 온다', (tester) async {
     await tester.pumpWidget(
       host(LikeButton(liked: true, onChanged: (_) async {})),
     );
 
     final icon = tester.widget<Icon>(find.byIcon(LikeButton.likedIcon));
-    expect(icon.color, ColorTokens.danger);
+    expect(icon.color, visual.danger);
   });
 
   testWidgets('바깥에서 상태가 바뀌면 따라간다', (tester) async {

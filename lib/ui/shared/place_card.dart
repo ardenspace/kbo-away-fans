@@ -43,11 +43,12 @@ class PlaceCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     final source = shoutoutSource;
     final onLikeChanged = this.onLikeChanged;
 
     return Material(
-      color: ColorTokens.surface,
+      color: colors.surface,
       borderRadius: BorderRadius.circular(RadiusTokens.lg),
       child: InkWell(
         onTap: onTap,
@@ -80,7 +81,7 @@ class PlaceCard extends StatelessWidget {
                         vertical: SpaceTokens.xs,
                       ),
                       decoration: BoxDecoration(
-                        color: ColorTokens.surfaceDim,
+                        color: colors.surfaceContainerHighest,
                         borderRadius: BorderRadius.circular(RadiusTokens.pill),
                       ),
                       child: Text(source, style: TextTokens.caption),

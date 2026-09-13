@@ -33,9 +33,16 @@ class TeamThemedAppBar extends StatelessWidget implements PreferredSizeWidget {
 
   @override
   Widget build(BuildContext context) {
+    final material = Theme.of(context);
     final theme = TeamThemeScope.maybeOf(context);
-    final background = theme?.primary ?? ColorTokens.surface;
-    final foreground = theme?.onPrimary ?? ColorTokens.textPrimary;
+    final background =
+        theme?.primary ??
+        material.appBarTheme.backgroundColor ??
+        material.colorScheme.surface;
+    final foreground =
+        theme?.onPrimary ??
+        material.appBarTheme.foregroundColor ??
+        material.colorScheme.onSurface;
 
     return AppBar(
       backgroundColor: background,

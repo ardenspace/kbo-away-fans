@@ -30,8 +30,8 @@ import 'package:kbo_away_fans/backend/user_data.dart';
 import 'package:kbo_away_fans/content/content_loader.dart';
 import 'package:kbo_away_fans/content/content_providers.dart';
 import 'package:kbo_away_fans/content/models.dart';
+import 'package:kbo_away_fans/design/app_theme.dart';
 import 'package:kbo_away_fans/design/team_themes.dart';
-import 'package:kbo_away_fans/design/tokens.dart';
 import 'package:kbo_away_fans/features/places/place_map_screen.dart';
 import 'package:kbo_away_fans/features/places/stadium_places_screen.dart';
 import 'package:kbo_away_fans/ui/shared/category_chip.dart';
@@ -115,6 +115,7 @@ void main() {
     bool initialIndoorOnly = false,
     AuthService? auth,
     UserDataStore? backend,
+    ThemeData? theme,
   }) {
     return ProviderScope(
       overrides: [
@@ -134,6 +135,7 @@ void main() {
         if (backend != null) userDataStoreProvider.overrideWithValue(backend),
       ],
       child: MaterialApp(
+        theme: theme,
         home: StadiumPlacesScreen(
           stadiumId: 'jamsil',
           themeKey: themeKey,
@@ -345,13 +347,18 @@ void main() {
     expect(appBar.foregroundColor, theme.onPrimary);
   });
 
-  testWidgets('themeKey 가 없으면 앱바는 기본 토큰(surface)으로 렌더된다', (tester) async {
-    await tester.pumpWidget(screen());
+  testWidgets('themeKey 가 없으면 AppVisualTheme 앱바 역할로 렌더된다', (tester) async {
+    final visual = AppVisualTheme.resolve(
+      favoriteTeamId: null,
+      defaultFamily: AppThemeFamily.b,
+      brightness: Brightness.dark,
+    );
+    await tester.pumpWidget(screen(theme: visual.toThemeData()));
     await tester.pumpAndSettle();
 
     final appBar = tester.widget<AppBar>(find.byType(AppBar));
-    expect(appBar.backgroundColor, ColorTokens.surface);
-    expect(appBar.foregroundColor, ColorTokens.textPrimary);
+    expect(appBar.backgroundColor, visual.background);
+    expect(appBar.foregroundColor, visual.textPrimary);
   });
 
   testWidgets('구장이 비 오는 날이면 추천 목록 배경에 비 레이어가 뜬다', (tester) async {

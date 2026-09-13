@@ -105,12 +105,13 @@ class _ScratchCardState extends State<ScratchCard> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return Container(
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        color: ColorTokens.surface,
+        color: colors.surface,
         borderRadius: BorderRadius.circular(RadiusTokens.lg),
-        border: Border.all(color: ColorTokens.outline),
+        border: Border.all(color: colors.outline),
       ),
       child: Stack(
         children: [
@@ -177,6 +178,7 @@ class _ScratchCardState extends State<ScratchCard> {
           curve: MotionTokens.standard,
           child: LayoutBuilder(
             builder: (context, constraints) {
+              final colors = Theme.of(context).colorScheme;
               _coverSize = constraints.biggest;
               return Stack(
                 fit: StackFit.expand,
@@ -186,6 +188,7 @@ class _ScratchCardState extends State<ScratchCard> {
                       strokes: _strokes,
                       revision: _revision,
                       brushRadius: _brushRadius,
+                      color: colors.secondary,
                     ),
                   ),
                   Center(
@@ -219,17 +222,19 @@ class _ScratchCoverPainter extends CustomPainter {
     required this.strokes,
     required this.revision,
     required this.brushRadius,
+    required this.color,
   });
 
   final List<List<Offset>> strokes;
   final int revision;
   final double brushRadius;
+  final Color color;
 
   @override
   void paint(Canvas canvas, Size size) {
     final bounds = Offset.zero & size;
     canvas.saveLayer(bounds, Paint());
-    canvas.drawRect(bounds, Paint()..color = ColorTokens.surfaceDim);
+    canvas.drawRect(bounds, Paint()..color = color);
 
     final strokeErase = Paint()
       ..blendMode = BlendMode.clear
@@ -257,5 +262,6 @@ class _ScratchCoverPainter extends CustomPainter {
   @override
   bool shouldRepaint(_ScratchCoverPainter oldDelegate) =>
       oldDelegate.revision != revision ||
-      oldDelegate.brushRadius != brushRadius;
+      oldDelegate.brushRadius != brushRadius ||
+      oldDelegate.color != color;
 }

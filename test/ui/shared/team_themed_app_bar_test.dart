@@ -4,26 +4,34 @@ library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kbo_away_fans/design/app_theme.dart';
 import 'package:kbo_away_fans/design/team_themes.dart';
-import 'package:kbo_away_fans/design/tokens.dart';
 import 'package:kbo_away_fans/ui/shared/team_theme_scope.dart';
 import 'package:kbo_away_fans/ui/shared/team_themed_app_bar.dart';
 
-Widget host(PreferredSizeWidget appBar) =>
-    MaterialApp(home: Scaffold(appBar: appBar));
+final visual = AppVisualTheme.resolve(
+  favoriteTeamId: null,
+  defaultFamily: AppThemeFamily.b,
+  brightness: Brightness.dark,
+);
+
+Widget host(PreferredSizeWidget appBar) => MaterialApp(
+  theme: visual.toThemeData(),
+  home: Scaffold(appBar: appBar),
+);
 
 AppBar renderedBar(WidgetTester tester) =>
     tester.widget<AppBar>(find.byType(AppBar));
 
 void main() {
-  testWidgets('팀 스코프 밖에서는 팔레트 기본색으로 렌더한다', (tester) async {
+  testWidgets('팀 스코프 밖에서는 AppVisualTheme 앱바 역할로 렌더한다', (tester) async {
     await tester.pumpWidget(host(const TeamThemedAppBar(title: 'KBO 원정러')));
 
     expect(tester.takeException(), isNull);
     expect(find.text('KBO 원정러'), findsOneWidget);
     final bar = renderedBar(tester);
-    expect(bar.backgroundColor, ColorTokens.surface);
-    expect(bar.foregroundColor, ColorTokens.textPrimary);
+    expect(bar.backgroundColor, visual.background);
+    expect(bar.foregroundColor, visual.textPrimary);
   });
 
   testWidgets('팀 스코프 안에서는 대표색 몸통 + onPrimary 전경색', (tester) async {

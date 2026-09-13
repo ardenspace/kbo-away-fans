@@ -247,6 +247,7 @@ class _NoticeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return Container(
       margin: const EdgeInsets.fromLTRB(
         SpaceTokens.lg,
@@ -256,9 +257,9 @@ class _NoticeCard extends StatelessWidget {
       ),
       padding: const EdgeInsets.all(SpaceTokens.lg),
       decoration: BoxDecoration(
-        color: ColorTokens.surface,
+        color: colors.surface,
         borderRadius: BorderRadius.circular(RadiusTokens.lg),
-        border: Border.all(color: ColorTokens.outline),
+        border: Border.all(color: colors.outline),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

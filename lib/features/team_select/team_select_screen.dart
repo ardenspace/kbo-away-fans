@@ -106,8 +106,8 @@ class TeamSelectScreen extends ConsumerWidget {
     return Scaffold(
       appBar: isChange
           ? AppBar(
-              backgroundColor: ColorTokens.background,
-              foregroundColor: ColorTokens.textPrimary,
+              backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+              foregroundColor: Theme.of(context).colorScheme.onSurface,
               title: Text('응원 팀 바꾸기', style: _titleStyle),
             )
           : null,

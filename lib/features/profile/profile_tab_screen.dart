@@ -127,7 +127,6 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody> {
     final user = ref.watch(authStateProvider).value;
 
     final scaffold = Scaffold(
-      backgroundColor: ColorTokens.background,
       appBar: TeamThemedAppBar(
         title: ProfileTabScreen.title,
         actions: [
@@ -173,7 +172,7 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody> {
                     : Text(
                         ProfileTabScreen.signOutLabel,
                         style: TextTokens.label.copyWith(
-                          color: ColorTokens.danger,
+                          color: Theme.of(context).colorScheme.error,
                         ),
                       ),
               ),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../design/app_theme.dart';
 import '../../design/tokens.dart';
 import 'team_theme_scope.dart';
 
@@ -25,9 +26,17 @@ class CategoryChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final material = Theme.of(context);
+    final visual = material.extension<AppVisualTheme>();
     final team = TeamThemeScope.maybeOf(context);
-    final selectedBg = team?.primary ?? ColorTokens.textPrimary;
-    final selectedFg = team?.onPrimary ?? ColorTokens.textInverse;
+    final selectedBg =
+        team?.primary ?? visual?.primary ?? material.colorScheme.primary;
+    final selectedFg =
+        team?.onPrimary ?? visual?.onPrimary ?? material.colorScheme.onPrimary;
+    final surface = visual?.surface ?? material.colorScheme.surface;
+    final outline = visual?.outline ?? material.colorScheme.outline;
+    final muted =
+        visual?.textSecondary ?? material.colorScheme.onSurfaceVariant;
 
     return GestureDetector(
       onTap: onTap,
@@ -39,16 +48,14 @@ class CategoryChip extends StatelessWidget {
           vertical: SpaceTokens.sm,
         ),
         decoration: BoxDecoration(
-          color: selected ? selectedBg : ColorTokens.surface,
-          border: Border.all(
-            color: selected ? selectedBg : ColorTokens.outline,
-          ),
+          color: selected ? selectedBg : surface,
+          border: Border.all(color: selected ? selectedBg : outline),
           borderRadius: BorderRadius.circular(RadiusTokens.pill),
         ),
         child: Text(
           label,
           style: TextTokens.label.copyWith(
-            color: selected ? selectedFg : ColorTokens.textSecondary,
+            color: selected ? selectedFg : muted,
           ),
         ),
       ),

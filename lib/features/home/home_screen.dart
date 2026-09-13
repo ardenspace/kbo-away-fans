@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../content/content_providers.dart';
 import '../../content/models.dart';
+import '../../design/app_theme.dart';
 import '../../design/tokens.dart';
 import '../../location/location.dart'
     show LocationPermissionStatus, locationPermissionStatusProvider;
@@ -343,6 +344,9 @@ class _HomeScaffold extends StatelessWidget {
 
     final rain = game.status == GameStatus.rainCanceled;
     final city = stadiums?.byId(game.stadiumId)?.city;
+    final material = Theme.of(context);
+    final visual = material.extension<AppVisualTheme>();
+    final warning = visual?.warning ?? ColorTokens.warning;
     return [
       Padding(
         padding: const EdgeInsets.fromLTRB(
@@ -354,9 +358,9 @@ class _HomeScaffold extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.all(SpaceTokens.lg),
           decoration: BoxDecoration(
-            color: ColorTokens.surface,
+            color: visual?.surface ?? material.colorScheme.surface,
             borderRadius: BorderRadius.circular(RadiusTokens.lg),
-            border: Border.all(color: ColorTokens.warning),
+            border: Border.all(color: warning),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -365,7 +369,7 @@ class _HomeScaffold extends StatelessWidget {
                 children: [
                   Icon(
                     rain ? Icons.umbrella_rounded : Icons.event_busy_rounded,
-                    color: ColorTokens.warning,
+                    color: warning,
                   ),
                   const SizedBox(width: SpaceTokens.sm),
                   Expanded(
@@ -662,6 +666,8 @@ class _RecentGameRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final material = Theme.of(context);
+    final visual = material.extension<AppVisualTheme>();
     final isHome = game.homeTeamId == teamId;
     final opponentId = isHome ? game.awayTeamId : game.homeTeamId;
     final opponentName = teams?.byId(opponentId)?.shortName ?? opponentId;
@@ -675,9 +681,11 @@ class _RecentGameRow extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(SpaceTokens.md),
       decoration: BoxDecoration(
-        color: ColorTokens.surface,
+        color: visual?.surface ?? material.colorScheme.surface,
         borderRadius: BorderRadius.circular(RadiusTokens.sm),
-        border: Border.all(color: ColorTokens.outline),
+        border: Border.all(
+          color: visual?.outline ?? material.colorScheme.outline,
+        ),
       ),
       child: Row(
         children: [
@@ -700,7 +708,10 @@ class _RecentGameRow extends StatelessWidget {
           Text(
             outcomeLabel(outcome),
             style: TextTokens.bodyStrong.copyWith(
-              color: _outcomeColor(outcome),
+              color: outcome == TeamGameOutcome.draw
+                  ? visual?.textSecondary ??
+                        material.colorScheme.onSurfaceVariant
+                  : _outcomeColor(outcome),
             ),
           ),
         ],

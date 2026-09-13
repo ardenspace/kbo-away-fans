@@ -164,7 +164,6 @@ class LocationConsentScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: ColorTokens.background,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(SpaceTokens.xl),
@@ -172,10 +171,10 @@ class LocationConsentScreen extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Icon(
+              Icon(
                 Icons.location_on_rounded,
                 size: 64,
-                color: ColorTokens.textPrimary,
+                color: Theme.of(context).colorScheme.onSurface,
               ),
               const SizedBox(height: SpaceTokens.lg),
               const Text(

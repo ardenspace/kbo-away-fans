@@ -50,7 +50,6 @@ class BadgesTabScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
-      backgroundColor: ColorTokens.background,
       appBar: AppBar(title: const Text('배지')),
       body: _body(context, ref),
     );

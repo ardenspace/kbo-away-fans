@@ -78,7 +78,6 @@ class LikesTabScreen extends ConsumerWidget {
     final placesDoc = contentDataOf(placesAsync);
 
     return Scaffold(
-      backgroundColor: ColorTokens.background,
       appBar: AppBar(title: const Text('좋아요')),
       body: _body(context, ref, likedAsync, placesAsync, placesDoc),
     );

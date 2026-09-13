@@ -80,7 +80,7 @@ class StadiumMapView extends StatelessWidget {
   Widget build(BuildContext context) {
     return ClipRRect(
       borderRadius: BorderRadius.circular(RadiusTokens.md),
-      child: _sdkReady ? _map() : _placeholder(),
+      child: _sdkReady ? _map() : _placeholder(context),
     );
   }
 
@@ -130,9 +130,9 @@ class StadiumMapView extends StatelessWidget {
 
   /// SDK 미초기화(키 없음) 폴백 — 마커 라벨을 텍스트로 나열해
   /// 위젯 테스트가 "구장·장소 마커"를 트리에서 관찰할 수 있게 한다.
-  Widget _placeholder() {
+  Widget _placeholder(BuildContext context) {
     return ColoredBox(
-      color: ColorTokens.surfaceDim,
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
       child: Center(
         child: Padding(
           padding: const EdgeInsets.all(SpaceTokens.lg),

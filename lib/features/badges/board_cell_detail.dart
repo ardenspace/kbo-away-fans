@@ -21,6 +21,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../backend/user_data.dart';
 import '../../content/content_providers.dart';
+import '../../design/app_theme.dart';
 import '../../design/tokens.dart';
 import '../../ui/shared/content_fallback.dart';
 import '../../ui/shared/empty_state_notice.dart';
@@ -50,7 +51,6 @@ class BoardCellDetail extends ConsumerWidget {
   }) {
     return showModalBottomSheet<void>(
       context: context,
-      backgroundColor: ColorTokens.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(
           top: Radius.circular(RadiusTokens.xl),
@@ -80,7 +80,7 @@ class BoardCellDetail extends ConsumerWidget {
             const SizedBox(height: SpaceTokens.xs),
             Text(_subtitle(teamName), style: TextTokens.supporting),
             const SizedBox(height: SpaceTokens.md),
-            Flexible(child: _stamps(ref)),
+            Flexible(child: _stamps(context, ref)),
           ],
         ),
       ),
@@ -95,7 +95,11 @@ class BoardCellDetail extends ConsumerWidget {
     return '$teamName · ${tier.label} · 도장 ${cell.count}개';
   }
 
-  Widget _stamps(WidgetRef ref) {
+  Widget _stamps(BuildContext context, WidgetRef ref) {
+    final material = Theme.of(context);
+    final muted =
+        material.extension<AppVisualTheme>()?.textSecondary ??
+        material.colorScheme.onSurfaceVariant;
     // 빈 칸 — 요약이 이미 답했으므로 질의하지 않는다 (클래스 문서 참조).
     if (cell == null) {
       return const EmptyStateNotice(title: emptyTitle, message: emptyMessage);
@@ -122,10 +126,7 @@ class BoardCellDetail extends ConsumerWidget {
             padding: const EdgeInsets.symmetric(vertical: SpaceTokens.xs),
             child: Row(
               children: [
-                const Icon(
-                  Icons.verified_rounded,
-                  color: ColorTokens.textSecondary,
-                ),
+                Icon(Icons.verified_rounded, color: muted),
                 const SizedBox(width: SpaceTokens.sm),
                 Text(stamp.gameDate, style: TextTokens.body),
               ],

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../design/tokens.dart';
+import '../../design/app_theme.dart';
 
 /// 좋아요 토글 — 누르는 즉시 반영하고, 쓰기가 실패하면 되돌린다.
 ///
@@ -77,12 +77,16 @@ class _LikeButtonState extends State<LikeButton> {
 
   @override
   Widget build(BuildContext context) {
+    final material = Theme.of(context);
+    final visual = material.extension<AppVisualTheme>();
     return IconButton(
       onPressed: _toggle,
       tooltip: widget.semanticLabel,
       icon: Icon(
         _liked ? LikeButton.likedIcon : LikeButton.unlikedIcon,
-        color: _liked ? ColorTokens.danger : ColorTokens.textSecondary,
+        color: _liked
+            ? visual?.danger ?? material.colorScheme.error
+            : visual?.textSecondary ?? material.colorScheme.onSurfaceVariant,
       ),
     );
   }

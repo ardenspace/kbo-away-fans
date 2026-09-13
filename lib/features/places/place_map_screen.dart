@@ -5,6 +5,7 @@ import '../../design/tokens.dart';
 import '../../ui/shared/map_links.dart';
 import '../../ui/shared/stadium_map_view.dart';
 import '../../ui/shared/team_theme_scope.dart';
+import '../../ui/shared/team_themed_app_bar.dart';
 
 /// 장소 지도 화면 — PlaceDetailSheet '지도에서 보기'로 진입한다.
 ///
@@ -64,8 +65,7 @@ class PlaceMapScreen extends StatelessWidget {
         : (place.lng + stadium.lng) / 2;
 
     return Scaffold(
-      backgroundColor: ColorTokens.background,
-      appBar: _appBar(context),
+      appBar: TeamThemedAppBar(title: place.name),
       body: Padding(
         padding: const EdgeInsets.all(SpaceTokens.lg),
         child: Column(
@@ -89,20 +89,6 @@ class PlaceMapScreen extends StatelessWidget {
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  PreferredSizeWidget _appBar(BuildContext context) {
-    final theme = TeamThemeScope.maybeOf(context);
-    final barBg = theme?.primary ?? ColorTokens.surface;
-    final barFg = theme?.onPrimary ?? ColorTokens.textPrimary;
-    return AppBar(
-      backgroundColor: barBg,
-      foregroundColor: barFg,
-      title: Text(
-        place.name,
-        style: TextTokens.appBarTitle.copyWith(color: barFg),
       ),
     );
   }
