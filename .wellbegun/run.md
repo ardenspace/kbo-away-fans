@@ -12,8 +12,8 @@ cycle: 3
 - [x] 2.1 verified (fresh, high-tier) — commit `ccd7162`; boundary tests 56 pass; full Flutter regression 971 pass, 1 skip; probes: 1 written (`test/features/team_select/cycle3_no_team_fresh_probe_test.dart`, 4 pass), 0 committed and retained; findings: rendered B-family restoration belongs to Step 3.1 global-theme seam
 - [x] 2.2 verified (basic, mid-tier) — commits `85e19f5`, `47f74f5`, `0f17206`, `eb10743`; boundary tests 3 pass; targeted analyze exit 0; integration-owned fixes: automatic-brightness timer lifecycle, post-splash profile subscription, revision-gated optimistic settings; no per-step fresh verifier by S/M policy
 - [x] phase 2 integration accepted at round cap by user — round 1: Step 2.2 pending-family choice cleared by unrelated team-clear snapshot, allowing older B to override latest A → fixed in `eb10743`; round 2: slow optimistic LG selection overwritten to null by a B-setting profile snapshot → Step 2.1 fixed in `b9bcc55` + onboarding convergence regression fixed in `0393860`; conductor boundary/probes: 78 pass; full Flutter before round 3: 982 pass, 1 skip; round 3 REJECT accepted open: account A's old in-flight light write can overwrite A's later successful dark write after A→B→A because the settings queue resets on owner change (owner Step 2.2, deferred); verifier boundary 59 pass, targeted analyze clean, full Flutter with new probe 984 pass, 1 skip, 1 fail; probes: 3 written (`cycle3_phase2_fresh_r1_probe_test.dart`, `cycle3_phase2_fresh_journey_probe_test.dart`, `cycle3_phase2_round3_independent_probe_test.dart`), 0 committed and retained
-- [>] 3.1 implementing — high-tier
-- [ ] 3.2
+- [x] 3.1 verified (fresh, high-tier) — commit `741df13`; boundary tests 9 pass; full Flutter 985 pass, 1 skip, 1 known accepted-deferred Phase 2 probe failure; verifier round 1 ACCEPT; probes: 1 written (`test/cycle3_step3_1_independent_probe_test.dart`), 0 committed and retained; outside-contract fixed palette in `PlaceDetailSheet` attached to Step 3.2
+- [>] 3.2 implementing — mid-tier
 - [ ] phase 3 integration
 - [ ] 4.1
 - [ ] 4.2
