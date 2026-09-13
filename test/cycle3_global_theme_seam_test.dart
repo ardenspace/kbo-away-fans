@@ -165,14 +165,16 @@ void main() {
       final icons = tester
           .elementList(find.descendant(of: bar, matching: find.byType(Icon)))
           .toList();
-      expect(IconTheme.of(icons.first).color, visual.primary);
+      final selectedNavigation =
+          rootTheme.bottomNavigationBarTheme.selectedItemColor!;
+      expect(IconTheme.of(icons.first).color, selectedNavigation);
       for (final icon in icons.skip(1)) {
         expect(IconTheme.of(icon).color, visual.textSecondary);
       }
       final labels = tester
           .elementList(find.descendant(of: bar, matching: find.byType(Text)))
           .toList();
-      expect(DefaultTextStyle.of(labels.first).style.color, visual.primary);
+      expect(DefaultTextStyle.of(labels.first).style.color, selectedNavigation);
       for (final label in labels.skip(1)) {
         expect(DefaultTextStyle.of(label).style.color, visual.textSecondary);
       }
