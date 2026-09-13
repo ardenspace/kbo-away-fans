@@ -228,15 +228,16 @@ class AppVisualTheme extends ThemeExtension<AppVisualTheme> {
   }
 }
 
-/// 하단 탐색 강조색은 팀색을 우선하되 실제 surface에서 읽히는 역할만 쓴다.
+/// 하단 탐색 강조색은 팀색을 우선하되 12px 선택 문구가 surface에서
+/// AA 일반 텍스트 대비를 만족하는 역할만 쓴다.
 Color _navigationAccent({
   required Color surface,
   required Color primary,
   required Color secondary,
   required Color fallback,
 }) {
-  if (_contrastRatio(primary, surface) >= 3) return primary;
-  if (_contrastRatio(secondary, surface) >= 3) return secondary;
+  if (_contrastRatio(primary, surface) >= 4.5) return primary;
+  if (_contrastRatio(secondary, surface) >= 4.5) return secondary;
   return fallback;
 }
 

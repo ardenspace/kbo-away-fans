@@ -135,7 +135,7 @@ void main() {
     expect(material.extension<AppVisualTheme>(), same(visual));
   });
 
-  test('하단 탐색 선택색은 모든 팀·기본 계열과 밝기에서 surface와 구별된다', () {
+  test('하단 탐색 선택색은 모든 팀·기본 계열과 밝기에서 12px AA 대비를 만족한다', () {
     final themes = <AppVisualTheme>[
       for (final brightness in Brightness.values) ...[
         for (final family in AppThemeFamily.values)
@@ -156,7 +156,10 @@ void main() {
     for (final visual in themes) {
       final navigation = visual.toThemeData().bottomNavigationBarTheme;
       final selected = navigation.selectedItemColor!;
-      expect(_contrastRatio(selected, visual.surface), greaterThanOrEqualTo(3));
+      expect(
+        _contrastRatio(selected, visual.surface),
+        greaterThanOrEqualTo(4.5),
+      );
       expect(selected, isNot(navigation.unselectedItemColor));
     }
 
@@ -167,7 +170,7 @@ void main() {
     );
     expect(
       ktDark.toThemeData().bottomNavigationBarTheme.selectedItemColor,
-      ktDark.secondary,
+      ktDark.textPrimary,
     );
   });
 

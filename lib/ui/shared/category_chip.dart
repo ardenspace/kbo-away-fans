@@ -29,7 +29,10 @@ class CategoryChip extends StatelessWidget {
     final material = Theme.of(context);
     final visual = material.extension<AppVisualTheme>();
     final selectedBg = visual?.primary ?? material.colorScheme.primary;
-    final selectedFg = visual?.onPrimary ?? material.colorScheme.onPrimary;
+    final selectedFg = _readableSelectedForeground(
+      background: selectedBg,
+      preferred: visual?.onPrimary ?? material.colorScheme.onPrimary,
+    );
     final surface = visual?.surface ?? material.colorScheme.surface;
     final outline = visual?.outline ?? material.colorScheme.outline;
     final muted =
@@ -58,4 +61,22 @@ class CategoryChip extends StatelessWidget {
       ),
     );
   }
+}
+
+Color _readableSelectedForeground({
+  required Color background,
+  required Color preferred,
+}) {
+  if (_contrastRatio(preferred, background) >= 4.5) return preferred;
+  return _contrastRatio(NeutralTokens.lightInk, background) >=
+          _contrastRatio(NeutralTokens.darkInk, background)
+      ? NeutralTokens.lightInk
+      : NeutralTokens.darkInk;
+}
+
+double _contrastRatio(Color a, Color b) {
+  final lighter = a.computeLuminance() >= b.computeLuminance() ? a : b;
+  final darker = identical(lighter, a) ? b : a;
+  return (lighter.computeLuminance() + 0.05) /
+      (darker.computeLuminance() + 0.05);
 }
