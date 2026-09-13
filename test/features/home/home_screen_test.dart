@@ -14,6 +14,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kbo_away_fans/content/content_loader.dart';
 import 'package:kbo_away_fans/content/content_providers.dart';
 import 'package:kbo_away_fans/content/models.dart';
+import 'package:kbo_away_fans/design/app_theme.dart';
 import 'package:kbo_away_fans/design/team_themes.dart';
 import 'package:kbo_away_fans/design/tokens.dart';
 import 'package:kbo_away_fans/features/badges/stadium_visit.dart';
@@ -190,7 +191,14 @@ void main() {
               ),
         ),
       ],
-      child: MaterialApp(home: HomeScreen(teamId: teamId)),
+      child: MaterialApp(
+        theme: AppVisualTheme.resolve(
+          favoriteTeamId: teamId,
+          defaultFamily: AppThemeFamily.a,
+          brightness: Brightness.light,
+        ).toThemeData(),
+        home: HomeScreen(teamId: teamId),
+      ),
     );
   }
 

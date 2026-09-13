@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../content/content_providers.dart';
+import '../../content/kst.dart' show gameStartsAt;
 import '../../content/models.dart';
 import '../../design/app_theme.dart';
 import '../../design/tokens.dart';
@@ -11,6 +12,8 @@ import '../../location/visit_check.dart' show StadiumVisitResult;
 import '../../ui/shared/category_labels.dart';
 import '../../ui/shared/dday_header.dart';
 import '../../ui/shared/empty_state_notice.dart';
+import '../../ui/shared/journey_status_visual.dart';
+import '../../ui/shared/journey_ticket.dart';
 import '../../ui/shared/place_card.dart';
 import '../../ui/shared/stadium_picker.dart';
 import '../../ui/shared/team_theme_scope.dart';
@@ -21,6 +24,7 @@ import '../badges/stadium_visit.dart'
 import '../places/stadium_places_screen.dart';
 import '../team_select/team_select_screen.dart';
 import 'current_location.dart';
+import 'journey_phase.dart';
 import 'next_away_game.dart';
 import 'recent_games.dart';
 import 'stadium_browse.dart';
@@ -32,8 +36,8 @@ import 'stadium_browse.dart';
 ///   [TeamThemeScope]로 공급한다 — 잠실처럼 홈팀이 2팀인 구장의 맥락 근거.
 /// - schedule 문서를 못 얻으면 안내 + 재시도, 남은 일정이 없으면
 ///   명시적 빈 상태([DdayHeader.empty])를 띄운다.
-/// - 오늘 원정 경기가 취소(우천 포함)된 날은 플랜B 배너가 얼굴 위에 떠서
-///   실내 놀거리 추천(실내 필터 켠 추천 목록)으로 유도한다 (step 4.2).
+/// - 오늘 원정 경기가 취소(우천 포함)된 날은 danger 취소 얼굴이 실내
+///   놀거리 추천(실내 필터 켠 추천 목록)으로 유도한다 (step 4.2).
 /// - 하단에는 "구장 골라 구경하기"([StadiumPicker]) 섹션이 상시 떠서
 ///   경기 없는 날에도 아무 구장의 테마·추천을 구경할 수 있다 (step 4.3).
 class HomeScreen extends ConsumerWidget {
@@ -154,6 +158,9 @@ class HomeScreen extends ConsumerWidget {
 
 /// 미리보기에 보이는 장소 개수 상한 (discretion).
 const int _previewPlaceCount = 3;
+
+/// 일정에 종료 시각이 없는 동안 홈에서 쓰는 경기 진행 표시 창.
+const Duration _journeyGameWindow = Duration(hours: 4);
 
 /// 요일 표기 — 이 화면에서 날짜를 쓰는 자리가 둘이라 배열도 한 자리에 둔다.
 const List<String> _weekdayLabels = ['월', '화', '수', '목', '금', '토', '일'];
@@ -282,7 +289,6 @@ class _HomeScaffold extends StatelessWidget {
           padding: const EdgeInsets.only(bottom: SpaceTokens.xxl),
           children: [
             ..._currentLocation(context),
-            ..._planB(context),
             _face(context),
             ..._recentGames(context),
             ..._explore(context),
@@ -336,65 +342,48 @@ class _HomeScaffold extends StatelessWidget {
     ];
   }
 
-  /// 플랜B 배너 (step 4.2) — 오늘 원정 경기가 취소된 날만 렌더된다.
-  /// 정상(scheduled) 경기에서는 빈 목록이라 홈에 아무 변화가 없다.
-  List<Widget> _planB(BuildContext context) {
-    final game = canceledToday;
-    if (game == null) return const [];
-
+  /// 취소 얼굴 — 경기·구장 팀색보다 danger 역할색을 먼저 쓴다.
+  Widget _cancelledFace(BuildContext context, Game game) {
     final rain = game.status == GameStatus.rainCanceled;
     final city = stadiums?.byId(game.stadiumId)?.city;
-    final material = Theme.of(context);
-    final visual = material.extension<AppVisualTheme>();
-    final warning = visual?.warning ?? ColorTokens.warning;
-    return [
-      Padding(
-        padding: const EdgeInsets.fromLTRB(
-          SpaceTokens.lg,
-          SpaceTokens.lg,
-          SpaceTokens.lg,
-          SpaceTokens.sm,
-        ),
-        child: Container(
-          padding: const EdgeInsets.all(SpaceTokens.lg),
-          decoration: BoxDecoration(
-            color: visual?.surface ?? material.colorScheme.surface,
-            borderRadius: BorderRadius.circular(RadiusTokens.lg),
-            border: Border.all(color: warning),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Icon(
-                    rain ? Icons.umbrella_rounded : Icons.event_busy_rounded,
-                    color: warning,
-                  ),
-                  const SizedBox(width: SpaceTokens.sm),
-                  Expanded(
-                    child: Text(
-                      rain ? '오늘 경기가 우천으로 취소됐어요' : '오늘 경기가 취소됐어요',
-                      style: TextTokens.onSurface(context, TextTokens.heading),
-                    ),
-                  ),
-                ],
+    final visual = Theme.of(context).extension<AppVisualTheme>()!;
+    final content = Padding(
+      padding: const EdgeInsets.fromLTRB(
+        SpaceTokens.lg,
+        SpaceTokens.lg,
+        SpaceTokens.lg,
+        SpaceTokens.sm,
+      ),
+      child: JourneyTicket(
+        cancelled: true,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            JourneyStatusVisual(
+              status: JourneyStatus.cancelled,
+              title: rain ? '오늘 경기가 우천으로 취소됐어요' : '오늘 경기가 취소됐어요',
+              detail: '아쉽지만 ${city ?? '근처'} 실내 놀거리로 플랜B 어때요?',
+            ),
+            const SizedBox(height: SpaceTokens.md),
+            FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: visual.danger,
+                foregroundColor: Theme.of(context).colorScheme.onError,
               ),
-              const SizedBox(height: SpaceTokens.sm),
-              Text(
-                '아쉽지만 ${city ?? '근처'} 실내 놀거리로 플랜B 어때요?',
-                style: TextTokens.onSurfaceMuted(context, TextTokens.bodyMuted),
-              ),
-              const SizedBox(height: SpaceTokens.md),
-              FilledButton(
-                onPressed: () => _openPlanB(context, game),
-                child: const Text('실내 놀거리 보러 가기'),
-              ),
-            ],
-          ),
+              onPressed: () => _openPlanB(context, game),
+              child: const Text('실내 놀거리 보러 가기'),
+            ),
+          ],
         ),
       ),
-    ];
+    );
+
+    final teamsDoc = teams;
+    if (teamsDoc == null) return content;
+    return TeamThemeScope.forTeam(
+      teamId: themeKeyForGame(game, teamsDoc),
+      child: content,
+    );
   }
 
   /// 플랜B 진입 — 취소된 경기 구장의 추천 목록을 실내 필터 켠 채로 연다.
@@ -508,8 +497,10 @@ class _HomeScaffold extends StatelessWidget {
     );
   }
 
-  /// 기본 얼굴 — 다음 원정 상태에 따른 4갈래.
+  /// 취소를 먼저 고른 뒤 다음 원정 상태에 맞는 홈 얼굴을 만든다.
   Widget _face(BuildContext context) {
+    final cancelled = canceledToday;
+    if (cancelled != null) return _cancelledFace(context, cancelled);
     return switch (next) {
       null => _scheduleFallback(context),
       NoUpcomingAwayGame() => const DdayHeader.empty(),
@@ -557,7 +548,8 @@ class _HomeScaffold extends StatelessWidget {
   /// 그 경기 **홈팀** 테마의 중첩 스코프로 감싼다.
   Widget _gameFace(BuildContext context, Game game, {required int dDay}) {
     final stadium = stadiums?.byId(game.stadiumId);
-    final content = Column(
+    final phase = _journeyPhase(game);
+    final information = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         DdayHeader(
@@ -565,9 +557,45 @@ class _HomeScaffold extends StatelessWidget {
           matchLabel: _matchLabel(game, stadium),
           opponentShortName: _opponentShortName(game),
         ),
-        ..._preview(context, game, stadium),
+        // 실시간 얼굴에서는 상태를 먼저 읽고 첫 추천으로 바로 이어진다.
+        // 미래 티켓은 기존 미리보기 수를 그대로 유지한다.
+        ..._preview(
+          context,
+          game,
+          stadium,
+          limit: phase == JourneyPhase.preGame ? _previewPlaceCount : 1,
+        ),
       ],
     );
+    final content = switch (phase) {
+      JourneyPhase.preGame => Padding(
+        padding: const EdgeInsets.only(
+          left: SpaceTokens.lg,
+          right: SpaceTokens.lg,
+          top: SpaceTokens.lg,
+        ),
+        child: JourneyTicket(child: information),
+      ),
+      JourneyPhase.moving ||
+      JourneyPhase.nearby ||
+      JourneyPhase.live ||
+      JourneyPhase.postGame => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              SpaceTokens.lg,
+              SpaceTokens.lg,
+              SpaceTokens.lg,
+              SpaceTokens.sm,
+            ),
+            child: JourneyStatusVisual(status: _statusFor(phase)),
+          ),
+          information,
+        ],
+      ),
+      JourneyPhase.cancelled || JourneyPhase.idle => information,
+    };
 
     final teamsDoc = teams;
     if (teamsDoc == null) return content;
@@ -576,6 +604,47 @@ class _HomeScaffold extends StatelessWidget {
       child: content,
     );
   }
+
+  /// 일정·위치 신호를 Step 4.1의 순수 판정기에 전달한다.
+  ///
+  /// schedule에는 종료 예정 시각이 없으므로 예정 경기는 시작 후 4시간을
+  /// 홈의 표시 창으로 쓴다. `finished`는 콘텐츠 상태가 확정 신호이므로 시작
+  /// 시각 이후 곧바로 경기 후 얼굴이 된다.
+  JourneyPhase _journeyPhase(Game game) {
+    final startsAt = gameStartsAt(game);
+    final isFinished = game.status == GameStatus.finished;
+    final nearby =
+        stadiumVisit?.isVisit == true && stadiumVisit?.gameId == game.id;
+    final isToday = gameDateOf(game) == kstDateOf(now);
+    return resolveJourneyPhase(
+      JourneyPhaseSignals(
+        now: now,
+        gameStartsAt: startsAt,
+        gameEndsAt: isFinished
+            ? startsAt
+            : startsAt.add(_journeyGameWindow),
+        cancelled:
+            game.status == GameStatus.canceled ||
+            game.status == GameStatus.rainCanceled,
+        nearby: nearby,
+        moving:
+            game.status == GameStatus.scheduled &&
+            isToday &&
+            now.isBefore(startsAt) &&
+            !nearby,
+      ),
+    );
+  }
+
+  JourneyStatus _statusFor(JourneyPhase phase) => switch (phase) {
+    JourneyPhase.moving => JourneyStatus.moving,
+    JourneyPhase.nearby => JourneyStatus.nearby,
+    JourneyPhase.live => JourneyStatus.live,
+    JourneyPhase.postGame => JourneyStatus.postgame,
+    JourneyPhase.cancelled => JourneyStatus.cancelled,
+    JourneyPhase.preGame ||
+    JourneyPhase.idle => throw StateError('${phase.name}에는 여정 상태 비주얼이 없다'),
+  };
 
   /// 경기 정보 한 줄 (예: '8/30 (토) 사직야구장 · 18:30').
   ///
@@ -592,10 +661,15 @@ class _HomeScaffold extends StatelessWidget {
       teams?.byId(game.homeTeamId)?.shortName;
 
   /// 다음 원정 미리보기 — 목적지 구장의 추천 장소 몇 곳 + 추천 목록 진입.
-  List<Widget> _preview(BuildContext context, Game game, Stadium? stadium) {
+  List<Widget> _preview(
+    BuildContext context,
+    Game game,
+    Stadium? stadium, {
+    int limit = _previewPlaceCount,
+  }) {
     final previewPlaces =
         (places?.forStadium(game.stadiumId) ?? const <Place>[])
-            .take(_previewPlaceCount)
+            .take(limit)
             .toList();
 
     return [
