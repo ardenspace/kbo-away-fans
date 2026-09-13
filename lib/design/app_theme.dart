@@ -111,6 +111,25 @@ class AppVisualTheme extends ThemeExtension<AppVisualTheme> {
   final Color warning;
   final Color danger;
 
+  /// 전역 배경의 큰 글자·아이콘에 쓰는 강조색 (최소 대비 3:1).
+  ///
+  /// 맑음·비 배경 모두에서 읽힐 때까지 primary를 textPrimary 쪽으로 조금씩
+  /// 옮긴다. 팀 대표색 자체와 시맨틱 상태색은 바꾸지 않는다.
+  Color get backgroundAccent {
+    final rainBackground = Color.alphaBlend(
+      ColorTokens.rainOverlay,
+      background,
+    );
+    for (var step = 0; step <= 20; step++) {
+      final candidate = Color.lerp(primary, textPrimary, step / 20)!;
+      if (_contrastRatio(candidate, background) >= 3 &&
+          _contrastRatio(candidate, rainBackground) >= 3) {
+        return candidate;
+      }
+    }
+    return textPrimary;
+  }
+
   /// 이 최종 역할 값과 정확히 같은 색을 쓰는 Material 테마를 만든다.
   ThemeData toThemeData() {
     final navigationSelected = _navigationAccent(

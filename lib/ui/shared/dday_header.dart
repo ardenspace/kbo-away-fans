@@ -44,10 +44,10 @@ class DdayHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final team = TeamThemeScope.maybeOf(context);
     final material = Theme.of(context);
-    final accent =
-        team?.primary ??
-        material.extension<AppVisualTheme>()?.primary ??
-        material.colorScheme.primary;
+    final visual = material.extension<AppVisualTheme>();
+    // 헤더는 전역 배경 위에 놓인다. 상대팀 색은 배지에 남기고, 제목은
+    // 맑음·비 배경 모두에서 읽히는 전역 강조 역할을 고른다.
+    final accent = visual?.backgroundAccent ?? material.colorScheme.primary;
     final remaining = dDay;
 
     final title = remaining == null
