@@ -14,7 +14,7 @@ if (file("google-services.json").exists()) {
 
 android {
     namespace = "com.ardenspace.kbo_away_fans"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 37
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
