@@ -153,6 +153,13 @@ class AppVisualTheme extends ThemeExtension<AppVisualTheme> {
         foregroundColor: textPrimary,
         surfaceTintColor: Colors.transparent,
       ),
+      bottomNavigationBarTheme: base.bottomNavigationBarTheme.copyWith(
+        backgroundColor: surface,
+        selectedItemColor: primary,
+        unselectedItemColor: textSecondary,
+        selectedLabelStyle: TextTokens.caption.copyWith(color: primary),
+        unselectedLabelStyle: TextTokens.caption.copyWith(color: textSecondary),
+      ),
       bottomSheetTheme: base.bottomSheetTheme.copyWith(
         backgroundColor: surface,
         surfaceTintColor: Colors.transparent,

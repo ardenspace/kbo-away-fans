@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../design/tokens.dart';
-
 /// 하단 탭 하나 — 이름·아이콘과 그 탭의 뿌리 화면.
 @immutable
 class MainTab {
@@ -36,6 +34,10 @@ class MainTab {
 /// 시스템 뒤로가기는 [NavigatorPopHandler] 가 **보고 있는 탭의** 스택부터
 /// 되돌린다 (`enabled` 로 활성 탭만 켜 둔다 — 꺼진 탭의 스택이 대신 pop 되면
 /// 보이지 않는 곳에서 화면이 사라진다).
+///
+/// 표면과 하단 항목 스타일은 앱 루트 ThemeData에서 받는다. 탭별 Navigator
+/// 위에 별도 Theme를 캡처하지 않아, 비활성 탭과 이미 열린 route도 같은
+/// 전역 테마 전환을 물려받는다.
 class MainTabScaffold extends StatefulWidget {
   const MainTabScaffold({
     super.key,
@@ -111,7 +113,6 @@ class _MainTabScaffoldState extends State<MainTabScaffold> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: ColorTokens.background,
       body: IndexedStack(
         index: _index,
         children: [
@@ -123,11 +124,6 @@ class _MainTabScaffoldState extends State<MainTabScaffold> {
         onTap: _select,
         // 다섯 탭이 전부 이름을 달고 서야 무엇이 있는지 한눈에 읽힌다.
         type: BottomNavigationBarType.fixed,
-        backgroundColor: ColorTokens.surface,
-        selectedItemColor: ColorTokens.textPrimary,
-        unselectedItemColor: ColorTokens.textSecondary,
-        selectedLabelStyle: TextTokens.caption,
-        unselectedLabelStyle: TextTokens.caption,
         items: [
           for (final tab in widget.tabs)
             BottomNavigationBarItem(
