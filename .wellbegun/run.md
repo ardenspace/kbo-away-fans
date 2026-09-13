@@ -17,8 +17,8 @@ cycle: 3
 - [x] 3.3 verified (fresh, high-tier) — commit `c75d1f7`; conductor boundary: round-5 probe 2 pass, previous Phase 3 probes 16 pass, shared boundaries 5 pass, analyze/hooks clean; full Flutter 1009 pass, 1 skip, 1 known accepted-deferred Phase 2 probe failure; verifier round 1 ACCEPT, independent focused set 37 pass; probes: 1 written (`test/cycle3_step3_3_fresh_verifier_probe_test.dart`, 2 tests), 0 committed and retained; outside-contract stale destination-scope comments narrowed in the same commit; findings: none open
 - [x] phase 3 integration verified (fresh, high-tier) — rounds 1–5 before Step 3.3 split produced fixes `fa11636`, `a9b1e13`, `f1194bd`, `9bfa91e`, then destination-scope ownership was split to Step 3.3; new post-3.3 verifier round 1 ACCEPT; root/tab boundary 9 pass, Phase 3 probes 20 pass, feature/shared 589 pass with 1 known accepted-deferred Phase 2 failure, hooks pass; probes: 1 written (`test/cycle3_phase3_final_integration_probe_test.dart`), 0 committed and retained; outside-contract NC/dark detail-sheet CTA contrast 2.0165:1 attached to Step 5.1 accessibility verification; findings: none open for Phase 3
 - [x] 4.1 verified (basic, mid-tier) — commit `0da93d6`; boundary tests 10 pass; targeted analyze/diff-check pass; M decision recorded: live interval `[start,end)`, incomplete or reversed timeline does not create a time phase; no separate verifier by S/M policy
-- [>] 4.2 implementing — mid-tier
-- [ ] phase 4 integration
+- [x] 4.2 verified (basic, mid-tier) — commit `c6063fa`; boundary tests 44 pass; targeted analyze/pre-commit/diff-check pass; M decisions recorded: scheduled-game live window is four hours and live-state place preview retains the first card; existing home user hunks preserved and left uncommitted; no separate verifier by S/M policy
+- [>] phase 4 integration verifying (fresh, high-tier)
 - [ ] 5.1
 - [ ] whole-run review
 
