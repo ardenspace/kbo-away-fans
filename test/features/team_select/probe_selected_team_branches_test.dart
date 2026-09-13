@@ -49,12 +49,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../backend/fake_backend.dart';
 
 Map<String, Object?> _serverDocument(String teamId) => <String, Object?>{
-      UserFields.nickname: '먼저있던닉',
-      UserFields.favoriteTeamId: teamId,
-      UserFields.profileThemeKey: teamId,
-      UserFields.joinedAt: DateTime.utc(2026, 3, 1),
-      UserFields.board: const <String, Object?>{},
-    };
+  UserFields.nickname: '먼저있던닉',
+  UserFields.favoriteTeamId: teamId,
+  UserFields.joinedAt: DateTime.utc(2026, 3, 1),
+  UserFields.board: const <String, Object?>{},
+};
 
 void main() {
   const uid = 'kakao:1234567890';
@@ -98,11 +97,7 @@ void main() {
     await pumpEventQueue();
 
     final state = container.read(selectedTeamIdProvider);
-    expect(
-      state.isLoading,
-      isFalse,
-      reason: '로딩으로 남으면 게이트가 끝나지 않는 대기 화면을 그린다',
-    );
+    expect(state.isLoading, isFalse, reason: '로딩으로 남으면 게이트가 끝나지 않는 대기 화면을 그린다');
     expect(state.hasValue, isTrue);
     expect(state.value, isNull, reason: '아는 값이 하나도 없으므로 온보딩이 맞다');
   });
@@ -123,13 +118,16 @@ void main() {
     await pumpEventQueue();
     expect(container.read(selectedTeamIdProvider).value, isNull);
 
-    final pending = container.read(selectedTeamIdProvider.notifier).select('kt');
+    final pending = container
+        .read(selectedTeamIdProvider.notifier)
+        .select('kt');
     await pumpEventQueue();
 
     expect(
       container.read(selectedTeamIdProvider).value,
       'kt',
-      reason: '서버가 답하기 전에도 화면은 고른 팀이어야 한다 — '
+      reason:
+          '서버가 답하기 전에도 화면은 고른 팀이어야 한다 — '
           '아니면 통신이 느린 자리에서 선택이 먹히지 않은 것처럼 보인다',
     );
     expect(slow.gate.isCompleted, isFalse, reason: '서버 쓰기는 아직 끝나지 않았다');
@@ -175,7 +173,11 @@ void main() {
     await pumpEventQueue();
     store.emitProfileError(const BackendNetworkError(code: 'unavailable'));
     await pumpEventQueue();
-    expect(container.read(selectedTeamIdProvider).value, isNull, reason: '온보딩이다');
+    expect(
+      container.read(selectedTeamIdProvider).value,
+      isNull,
+      reason: '온보딩이다',
+    );
 
     final notifier = container.read(selectedTeamIdProvider.notifier);
     final first = notifier.select('kt');
@@ -190,7 +192,6 @@ void main() {
       'lg',
       reason: '줄에 서 있던 두 번째 선택이 원본을 덮었다',
     );
-    expect(store.documents[uid]![UserFields.profileThemeKey], 'lg');
     expect(container.read(selectedTeamIdProvider).value, 'lg');
     expect(await const SelectedTeamStore().read(uid), 'lg');
   });
@@ -217,7 +218,11 @@ void main() {
     await pumpEventQueue();
     gated.emitProfileError(const BackendNetworkError(code: 'unavailable'));
     await pumpEventQueue();
-    expect(container.read(selectedTeamIdProvider).value, isNull, reason: '온보딩이다');
+    expect(
+      container.read(selectedTeamIdProvider).value,
+      isNull,
+      reason: '온보딩이다',
+    );
 
     final notifier = container.read(selectedTeamIdProvider.notifier);
     final first = notifier.select('kt');
@@ -242,7 +247,6 @@ void main() {
       'lg',
       reason: '늦은 스냅샷이 끼어든 실행에서 둘째 선택이 원본을 덮었다',
     );
-    expect(gated.documents[uid]![UserFields.profileThemeKey], 'lg');
     expect(container.read(selectedTeamIdProvider).value, 'lg');
     expect(await const SelectedTeamStore().read(uid), 'lg');
   });
@@ -311,8 +315,11 @@ void main() {
     await expectLater(
       container.read(selectedTeamIdProvider.notifier).select('kt'),
       throwsA(
-        isA<BackendUnknownError>()
-            .having((error) => error.code, 'code', 'profile-missing'),
+        isA<BackendUnknownError>().having(
+          (error) => error.code,
+          'code',
+          'profile-missing',
+        ),
       ),
     );
   });
@@ -337,7 +344,9 @@ void main() {
     gated.emitProfileError(const BackendNetworkError(code: 'unavailable'));
     await pumpEventQueue();
 
-    final pending = container.read(selectedTeamIdProvider.notifier).select('kt');
+    final pending = container
+        .read(selectedTeamIdProvider.notifier)
+        .select('kt');
     await pumpEventQueue();
 
     await auth.signOut();

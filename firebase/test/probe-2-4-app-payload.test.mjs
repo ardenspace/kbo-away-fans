@@ -7,7 +7,7 @@
 //   1) `joinedAt`/`updatedAt` 이 **서버 시각 센티널**이다
 //      (`encodeBackendValues` → `FieldValue.serverTimestamp()`).
 //   2) 첫 문서는 `runTransaction` 안의 `transaction.set` 으로 나간다.
-//   3) 팀 변경은 세 키(`favoriteTeamId`·`profileThemeKey`·`updatedAt`)만 실은
+//   3) 팀 변경은 두 키(`favoriteTeamId`·`updatedAt`)만 실은
 //      `updateDoc` 이다.
 // 셋 중 하나라도 규칙과 어긋나면 실기기에서만 보이는 실패가 된다.
 
@@ -45,7 +45,8 @@ function newUserProfilePayload(teamId = 'hanwha', nickname = '원정러1234') {
   return {
     nickname,
     favoriteTeamId: teamId,
-    profileThemeKey: teamId,
+    defaultThemeFamily: 'a',
+    brightnessPreference: 'auto',
     joinedAt: serverTimestamp(),
     board: {},
   };
@@ -55,7 +56,6 @@ function newUserProfilePayload(teamId = 'hanwha', nickname = '원정러1234') {
 function patchPayload(teamId) {
   return {
     favoriteTeamId: teamId,
-    profileThemeKey: teamId,
     updatedAt: serverTimestamp(),
   };
 }
@@ -108,7 +108,8 @@ describe('탐침 — 앱의 첫 문서 payload 가 규칙을 통과한다', () =
         t.set(doc(adminDb, paths.user(OWNER_UID)), {
           nickname: '먼저있던닉',
           favoriteTeamId: 'lg',
-          profileThemeKey: 'lg',
+          defaultThemeFamily: 'b',
+          brightnessPreference: 'dark',
           joinedAt: new Date('2026-03-01T00:00:00Z'),
           board: { jamsil_lg: { count: 2, tier: 'first' } },
         });
@@ -134,7 +135,7 @@ describe('탐침 — 앱의 팀 변경 payload 가 규칙을 통과한다', () =
     await createProfile(db, OWNER_UID, newUserProfilePayload('lg'));
   });
 
-  it('세 키만 실은 updateDoc 이 통과하고 가입 시각·판이 남는다', async () => {
+  it('두 키만 실은 updateDoc 이 통과하고 가입 시각·판이 남는다', async () => {
     const db = asUser(env, OWNER_UID);
 
     await assertSucceeds(
@@ -143,7 +144,6 @@ describe('탐침 — 앱의 팀 변경 payload 가 규칙을 통과한다', () =
 
     const after_ = (await getDoc(doc(db, paths.user(OWNER_UID)))).data();
     assert.equal(after_.favoriteTeamId, 'doosan');
-    assert.equal(after_.profileThemeKey, 'doosan');
     assert.ok(after_.joinedAt, '가입 시각이 남아야 한다');
     assert.ok(after_.updatedAt, 'updatedAt 이 서버 시각으로 확정돼야 한다');
   });
@@ -183,5 +183,19 @@ describe('탐침 — 앱의 팀 변경 payload 가 규칙을 통과한다', () =
         updatedAt: serverTimestamp(),
       }),
     );
+  });
+
+  it('팀 없음 null과 A/B·auto/light/dark 허용값을 받는다', async () => {
+    const db = asUser(env, OWNER_UID);
+    const ref = doc(db, paths.user(OWNER_UID));
+
+    await assertSucceeds(updateDoc(ref, {
+      favoriteTeamId: null,
+      defaultThemeFamily: 'b',
+      brightnessPreference: 'dark',
+      updatedAt: serverTimestamp(),
+    }));
+    await assertFails(updateDoc(ref, { defaultThemeFamily: 'c' }));
+    await assertFails(updateDoc(ref, { brightnessPreference: 'system' }));
   });
 });

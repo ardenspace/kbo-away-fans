@@ -203,11 +203,6 @@ void main() {
           seedNickname(uid: uid, displayName: auth.currentUser!.displayName),
         );
         expect(document[UserFields.favoriteTeamId], 'hanwha');
-        expect(
-          document[UserFields.profileThemeKey],
-          'hanwha',
-          reason: '프로필 색은 고른 팀 색으로 함께 선다',
-        );
         expect(document[UserFields.board], isEmpty);
       });
     }
@@ -252,11 +247,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(
-      _homeFinder,
-      findsOneWidget,
-      reason: '팀이 정해진 계정의 두 번째 실행은 곧장 홈이다',
-    );
+    expect(_homeFinder, findsOneWidget, reason: '팀이 정해진 계정의 두 번째 실행은 곧장 홈이다');
     expect(find.byType(TeamSelectScreen), findsNothing);
     expect(
       find.byType(LocationConsentScreen),
@@ -275,9 +266,7 @@ void main() {
     expect(store.profileCreates, 1, reason: '재로그인이 문서를 다시 만들지 않는다');
   });
 
-  testWidgets('같은 기기를 다른 계정이 쓰면 앞사람의 팀도 앞사람의 신호도 넘어오지 않는다', (
-    tester,
-  ) async {
+  testWidgets('같은 기기를 다른 계정이 쓰면 앞사람의 팀도 앞사람의 신호도 넘어오지 않는다', (tester) async {
     SharedPreferences.setMockInitialValues(<String, Object>{});
     final store = FakeUserDataStore();
     addTearDown(store.dispose);
@@ -337,14 +326,16 @@ void main() {
 
     expect(store.profileCreates, 2);
     expect(
-      store.documents[fakeUidOf(AuthProviderId.google)]![
-          UserFields.favoriteTeamId],
+      store.documents[fakeUidOf(
+        AuthProviderId.google,
+      )]![UserFields.favoriteTeamId],
       'hanwha',
       reason: '앞사람의 문서는 그대로다',
     );
     expect(
-      store.documents[fakeUidOf(AuthProviderId.kakao)]![
-          UserFields.favoriteTeamId],
+      store.documents[fakeUidOf(
+        AuthProviderId.kakao,
+      )]![UserFields.favoriteTeamId],
       'lotte',
     );
   });
@@ -421,7 +412,8 @@ void main() {
     expect(
       elapsed + afterPick,
       lessThanOrEqualTo(_journeyBudget),
-      reason: '상한 셋이 겹친 실행의 총 대기 시간 — 하나하나가 견딜 길이여도 '
+      reason:
+          '상한 셋이 겹친 실행의 총 대기 시간 — 하나하나가 견딜 길이여도 '
           '이어 붙이면 아닐 수 있다',
     );
 
@@ -449,7 +441,8 @@ void main() {
     expect(
       entrypoint.kBootInitTimeout,
       lessThanOrEqualTo(const Duration(seconds: 10)),
-      reason: '이 값이 곧 사람이 스플래시 앞에 앉아 있는 최대 시간이다 — 그 화면에는 '
+      reason:
+          '이 값이 곧 사람이 스플래시 앞에 앉아 있는 최대 시간이다 — 그 화면에는 '
           '문구도 되돌아갈 길도 없고, 나갈 길은 앱을 다시 켜는 것뿐이다',
     );
     // 부팅 안에서 App Check 이 자기 상한을 다 무는 실행이 있으므로, 부팅의
@@ -458,7 +451,8 @@ void main() {
     expect(
       entrypoint.kBootInitTimeout,
       greaterThanOrEqualTo(kAppCheckActivationTimeout),
-      reason: '부팅이 App Check 보다 먼저 잘리면 그 상한은 부팅 경로에서 아무 일도 '
+      reason:
+          '부팅이 App Check 보다 먼저 잘리면 그 상한은 부팅 경로에서 아무 일도 '
           '하지 않는다 — 두 상수가 같은 뜻을 말하지 않게 된다',
     );
   });

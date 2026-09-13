@@ -142,11 +142,7 @@ Future<_Harness> _pump(
   final team = teamId ?? _anchor.teamId;
   await store.createProfile(
     _uid,
-    NewUserProfile(
-      nickname: '원정러',
-      favoriteTeamId: team,
-      profileThemeKey: team,
-    ),
+    NewUserProfile(nickname: '원정러', favoriteTeamId: team),
   );
 
   final teams = _content.teams;
@@ -283,7 +279,8 @@ void main() {
       expect(
         _locationRowStands(),
         isFalse,
-        reason: '게이트가 열리면 재판정이 권한을 다시 보고 자리를 접는다 — '
+        reason:
+            '게이트가 열리면 재판정이 권한을 다시 보고 자리를 접는다 — '
             'Q1 의 구멍이 영구적이지 않다는 것을 여기서 잰다',
       );
     },
@@ -315,67 +312,62 @@ void main() {
     timeout: const Timeout(Duration(seconds: 60)),
   );
 
-  test(
-    'Q3) 5.1 의 최근 5경기가 실 일정 문서(schemaVersion 2)와 어긋나지 않는다',
-    () {
-      final schedule = _content.schedule;
-      final teams = _content.teams;
-      expect(readLiveJson('schedule.json')['schemaVersion'], 2);
+  test('Q3) 5.1 의 최근 5경기가 실 일정 문서(schemaVersion 2)와 어긋나지 않는다', () {
+    final schedule = _content.schedule;
+    final teams = _content.teams;
+    expect(readLiveJson('schedule.json')['schemaVersion'], 2);
 
-      for (final team in teams.teams) {
-        final picked = recentGamesFor(schedule: schedule, teamId: team.id);
+    for (final team in teams.teams) {
+      final picked = recentGamesFor(schedule: schedule, teamId: team.id);
+      expect(
+        picked.length,
+        lessThanOrEqualTo(kRecentGamesLimit),
+        reason: '${team.id}: 최대 5개',
+      );
+
+      // 같은 것을 다른 길로 다시 계산해 대조한다.
+      final expected =
+          schedule.games
+              .where(
+                (g) =>
+                    g.status == GameStatus.finished &&
+                    (g.homeTeamId == team.id || g.awayTeamId == team.id),
+              )
+              .toList()
+            ..sort((a, b) {
+              final byDate = b.date.compareTo(a.date);
+              return byDate != 0 ? byDate : b.startTime.compareTo(a.startTime);
+            });
+      expect(
+        picked.map((g) => g.id).toList(),
+        expected.take(kRecentGamesLimit).map((g) => g.id).toList(),
+        reason: '${team.id}: 최신순 다섯',
+      );
+
+      for (final game in picked) {
+        // 점수·승패가 화면에 나갈 수 있는 값인가 (5.1 acceptance 1).
+        expect(game.homeScore, isNotNull, reason: game.id);
+        expect(game.awayScore, isNotNull, reason: game.id);
+        expect(game.result, isNotNull, reason: game.id);
+        final mine = game.homeTeamId == team.id
+            ? game.homeScore!
+            : game.awayScore!;
+        final theirs = game.homeTeamId == team.id
+            ? game.awayScore!
+            : game.homeScore!;
+        final outcome = outcomeFor(game, team.id);
         expect(
-          picked.length,
-          lessThanOrEqualTo(kRecentGamesLimit),
-          reason: '${team.id}: 최대 5개',
+          outcome,
+          mine > theirs
+              ? TeamGameOutcome.win
+              : mine < theirs
+              ? TeamGameOutcome.loss
+              : TeamGameOutcome.draw,
+          reason: '${game.id}: 점수와 승패 표기가 어긋나면 화면이 거짓을 말한다',
         );
-
-        // 같은 것을 다른 길로 다시 계산해 대조한다.
-        final expected =
-            schedule.games
-                .where(
-                  (g) =>
-                      g.status == GameStatus.finished &&
-                      (g.homeTeamId == team.id || g.awayTeamId == team.id),
-                )
-                .toList()
-              ..sort((a, b) {
-                final byDate = b.date.compareTo(a.date);
-                return byDate != 0
-                    ? byDate
-                    : b.startTime.compareTo(a.startTime);
-              });
-        expect(
-          picked.map((g) => g.id).toList(),
-          expected.take(kRecentGamesLimit).map((g) => g.id).toList(),
-          reason: '${team.id}: 최신순 다섯',
-        );
-
-        for (final game in picked) {
-          // 점수·승패가 화면에 나갈 수 있는 값인가 (5.1 acceptance 1).
-          expect(game.homeScore, isNotNull, reason: game.id);
-          expect(game.awayScore, isNotNull, reason: game.id);
-          expect(game.result, isNotNull, reason: game.id);
-          final mine = game.homeTeamId == team.id
-              ? game.homeScore!
-              : game.awayScore!;
-          final theirs = game.homeTeamId == team.id
-              ? game.awayScore!
-              : game.homeScore!;
-          final outcome = outcomeFor(game, team.id);
-          expect(
-            outcome,
-            mine > theirs
-                ? TeamGameOutcome.win
-                : mine < theirs
-                ? TeamGameOutcome.loss
-                : TeamGameOutcome.draw,
-            reason: '${game.id}: 점수와 승패 표기가 어긋나면 화면이 거짓을 말한다',
-          );
-        }
       }
-    },
-  );
+    }
+  });
 
   testWidgets(
     'Q4) 종료된 경기가 하나도 없는 일정에서는 홈 중단에 빈 상태가 뜬다',
@@ -386,11 +378,11 @@ void main() {
           .cast<Map<String, Object?>>()
           .where((g) => g['status'] != 'finished')
           .toList();
-      final schedule = ScheduleDocument.fromJson({
-        ...raw,
-        'games': games,
-      });
-      expect(recentGamesFor(schedule: schedule, teamId: _anchor.teamId), isEmpty);
+      final schedule = ScheduleDocument.fromJson({...raw, 'games': games});
+      expect(
+        recentGamesFor(schedule: schedule, teamId: _anchor.teamId),
+        isEmpty,
+      );
 
       SharedPreferences.setMockInitialValues({});
       final auth = FakeAuthService(
@@ -401,11 +393,7 @@ void main() {
       addTearDown(store.dispose);
       await store.createProfile(
         _uid,
-        NewUserProfile(
-          nickname: '원정러',
-          favoriteTeamId: _anchor.teamId,
-          profileThemeKey: _anchor.teamId,
-        ),
+        NewUserProfile(nickname: '원정러', favoriteTeamId: _anchor.teamId),
       );
       final teams = _content.teams;
       final stadiums = _content.stadiums;
@@ -433,8 +421,7 @@ void main() {
             ),
             stadiumVisitCheckerProvider.overrideWith(
               (ref) => StadiumVisitChecker(
-                readPermission: () async =>
-                    LocationPermissionStatus.denied,
+                readPermission: () async => LocationPermissionStatus.denied,
                 readFix: () async => null,
               ),
             ),

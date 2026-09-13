@@ -358,14 +358,17 @@ class _HomeScaffold extends StatelessWidget {
     final visual = Theme.of(context).extension<AppVisualTheme>();
     final barBg = visual?.background ?? ColorTokens.background;
     final barFg = visual?.textPrimary ?? ColorTokens.textPrimary;
-
     return Scaffold(
       appBar: AppBar(
         backgroundColor: barBg,
         foregroundColor: barFg,
+        surfaceTintColor: barBg,
+        scrolledUnderElevation: 0,
         title: Text(
           'KBO 원정러',
-          style: TextTokens.appBarTitle.copyWith(color: barFg),
+          style: TextTokens.appBarTitle.copyWith(
+            color: barFg,
+          ),
         ),
         actions: [
           // 팀 변경 진입점 (설정) — 같은 선택 화면을 변경 모드로 연다.
@@ -1019,8 +1022,8 @@ class _RecentGameRow extends StatelessWidget {
   }
 
   Color _outcomeColor(TeamGameOutcome outcome) => switch (outcome) {
-        TeamGameOutcome.win => ColorTokens.success,
-        TeamGameOutcome.loss => ColorTokens.danger,
-        TeamGameOutcome.draw => ColorTokens.textSecondary,
-      };
+    TeamGameOutcome.win => ColorTokens.success,
+    TeamGameOutcome.loss => ColorTokens.danger,
+    TeamGameOutcome.draw => ColorTokens.textSecondary,
+  };
 }

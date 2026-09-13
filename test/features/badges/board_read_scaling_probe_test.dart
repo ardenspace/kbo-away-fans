@@ -68,11 +68,7 @@ StampWrite _stamp(String gameId, String date) => StampWrite(
 Future<void> _seed(FakeUserDataStore store, {int stamps = 0}) async {
   await store.createProfile(
     _uid,
-    const NewUserProfile(
-      nickname: '원정러',
-      favoriteTeamId: 'lg',
-      profileThemeKey: 'lg',
-    ),
+    const NewUserProfile(nickname: '원정러', favoriteTeamId: 'lg'),
   );
   for (var i = 0; i < stamps; i++) {
     await store.writeStamp(
@@ -90,12 +86,12 @@ ProviderScope _root(
   Widget child,
 ) => ProviderScope(
   overrides: [
-// 홈 상단 위치 자리(5.2)가 판정이 없는 실행에서 권한을 한 번 묻는다 —
-// 대역이 없으면 실 플랫폼 채널이 물려 위젯 트리 해제 뒤까지 타이머가
-// 남는다(`lib/features/home/current_location.dart` docstring 참조).
-locationPermissionGatewayProvider.overrideWithValue(
-  FakeLocationPermissionGateway(),
-),
+    // 홈 상단 위치 자리(5.2)가 판정이 없는 실행에서 권한을 한 번 묻는다 —
+    // 대역이 없으면 실 플랫폼 채널이 물려 위젯 트리 해제 뒤까지 타이머가
+    // 남는다(`lib/features/home/current_location.dart` docstring 참조).
+    locationPermissionGatewayProvider.overrideWithValue(
+      FakeLocationPermissionGateway(),
+    ),
     authServiceProvider.overrideWithValue(auth),
     userDataStoreProvider.overrideWithValue(store),
     weatherEffectProvider.overrideWith(
@@ -166,12 +162,12 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-      // 홈 상단 위치 자리(5.2)가 판정이 없는 실행에서 권한을 한 번 묻는다 —
-      // 대역이 없으면 실 플랫폼 채널이 물려 위젯 트리 해제 뒤까지 타이머가
-      // 남는다(`lib/features/home/current_location.dart` docstring 참조).
-      locationPermissionGatewayProvider.overrideWithValue(
-        FakeLocationPermissionGateway(),
-      ),
+          // 홈 상단 위치 자리(5.2)가 판정이 없는 실행에서 권한을 한 번 묻는다 —
+          // 대역이 없으면 실 플랫폼 채널이 물려 위젯 트리 해제 뒤까지 타이머가
+          // 남는다(`lib/features/home/current_location.dart` docstring 참조).
+          locationPermissionGatewayProvider.overrideWithValue(
+            FakeLocationPermissionGateway(),
+          ),
           authServiceProvider.overrideWithValue(auth),
           userDataStoreProvider.overrideWithValue(store),
           teamsProvider.overrideWith(
@@ -203,12 +199,12 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-      // 홈 상단 위치 자리(5.2)가 판정이 없는 실행에서 권한을 한 번 묻는다 —
-      // 대역이 없으면 실 플랫폼 채널이 물려 위젯 트리 해제 뒤까지 타이머가
-      // 남는다(`lib/features/home/current_location.dart` docstring 참조).
-      locationPermissionGatewayProvider.overrideWithValue(
-        FakeLocationPermissionGateway(),
-      ),
+          // 홈 상단 위치 자리(5.2)가 판정이 없는 실행에서 권한을 한 번 묻는다 —
+          // 대역이 없으면 실 플랫폼 채널이 물려 위젯 트리 해제 뒤까지 타이머가
+          // 남는다(`lib/features/home/current_location.dart` docstring 참조).
+          locationPermissionGatewayProvider.overrideWithValue(
+            FakeLocationPermissionGateway(),
+          ),
           authServiceProvider.overrideWithValue(auth),
           userDataStoreProvider.overrideWithValue(store),
           teamsProvider.overrideWith(
@@ -244,12 +240,12 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-      // 홈 상단 위치 자리(5.2)가 판정이 없는 실행에서 권한을 한 번 묻는다 —
-      // 대역이 없으면 실 플랫폼 채널이 물려 위젯 트리 해제 뒤까지 타이머가
-      // 남는다(`lib/features/home/current_location.dart` docstring 참조).
-      locationPermissionGatewayProvider.overrideWithValue(
-        FakeLocationPermissionGateway(),
-      ),
+          // 홈 상단 위치 자리(5.2)가 판정이 없는 실행에서 권한을 한 번 묻는다 —
+          // 대역이 없으면 실 플랫폼 채널이 물려 위젯 트리 해제 뒤까지 타이머가
+          // 남는다(`lib/features/home/current_location.dart` docstring 참조).
+          locationPermissionGatewayProvider.overrideWithValue(
+            FakeLocationPermissionGateway(),
+          ),
           authServiceProvider.overrideWithValue(auth),
           userDataStoreProvider.overrideWithValue(store),
           teamsProvider.overrideWith(
@@ -292,12 +288,12 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-      // 홈 상단 위치 자리(5.2)가 판정이 없는 실행에서 권한을 한 번 묻는다 —
-      // 대역이 없으면 실 플랫폼 채널이 물려 위젯 트리 해제 뒤까지 타이머가
-      // 남는다(`lib/features/home/current_location.dart` docstring 참조).
-      locationPermissionGatewayProvider.overrideWithValue(
-        FakeLocationPermissionGateway(),
-      ),
+          // 홈 상단 위치 자리(5.2)가 판정이 없는 실행에서 권한을 한 번 묻는다 —
+          // 대역이 없으면 실 플랫폼 채널이 물려 위젯 트리 해제 뒤까지 타이머가
+          // 남는다(`lib/features/home/current_location.dart` docstring 참조).
+          locationPermissionGatewayProvider.overrideWithValue(
+            FakeLocationPermissionGateway(),
+          ),
           authServiceProvider.overrideWithValue(auth),
           userDataStoreProvider.overrideWithValue(store),
           teamsProvider.overrideWith(

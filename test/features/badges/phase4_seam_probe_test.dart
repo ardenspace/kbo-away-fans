@@ -113,11 +113,7 @@ Future<_Harness> _pump(
   addTearDown(store.dispose);
   await store.createProfile(
     _uid,
-    const NewUserProfile(
-      nickname: '원정러',
-      favoriteTeamId: 'lg',
-      profileThemeKey: 'lg',
-    ),
+    const NewUserProfile(nickname: '원정러', favoriteTeamId: 'lg'),
   );
   seed?.call(store);
   store.offline = offline;
@@ -235,7 +231,11 @@ void main() {
       // 17:30 — 창 안. 포그라운드 복귀가 판정을 다시 돌린다.
       h.clock.now = DateTime.parse('2026-08-25T17:30:00+09:00');
       await _resume(tester);
-      expect(find.byType(StampReveal), findsOneWidget, reason: '도장이 찍히고 연출이 뜬다');
+      expect(
+        find.byType(StampReveal),
+        findsOneWidget,
+        reason: '도장이 찍히고 연출이 뜬다',
+      );
       await tester.tap(find.byType(StampReveal));
       await tester.pumpAndSettle(const Duration(seconds: 5));
 
@@ -255,10 +255,7 @@ void main() {
         findsNothing,
         reason: '오늘 도장을 받은 사람에게 "못 받는 날" 안내가 붙으면 안 된다',
       );
-      expect(
-        find.text(VisitStatusNotice.outsideTimeWindowTitle),
-        findsNothing,
-      );
+      expect(find.text(VisitStatusNotice.outsideTimeWindowTitle), findsNothing);
 
       // 다음 날 아침 — 경기가 없는 날.
       h.clock.now = DateTime.parse('2026-08-26T09:00:00+09:00');
@@ -283,14 +280,22 @@ void main() {
         afterRequest: LocationPermissionStatus.granted,
       );
       await _openBadges(tester);
-      expect(find.text(VisitStatusNotice.permissionMissingTitle), findsOneWidget);
-      expect(find.text(VisitStatusNotice.requestPermissionLabel), findsOneWidget);
+      expect(
+        find.text(VisitStatusNotice.permissionMissingTitle),
+        findsOneWidget,
+      );
+      expect(
+        find.text(VisitStatusNotice.requestPermissionLabel),
+        findsOneWidget,
+      );
 
       await tester.tap(find.text(VisitStatusNotice.requestPermissionLabel));
       await tester.pumpAndSettle(const Duration(seconds: 5));
 
       expect(h.gateway.requestCalls, 1);
-      expect(h.store.stampUploads, ['jamsil_g-jamsil'], reason: '허용 직후 도장이 찍힌다');
+      expect(h.store.stampUploads, [
+        'jamsil_g-jamsil',
+      ], reason: '허용 직후 도장이 찍힌다');
       expect(
         find.byType(StampReveal),
         findsOneWidget,

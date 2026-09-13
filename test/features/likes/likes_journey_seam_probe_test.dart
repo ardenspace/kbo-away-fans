@@ -63,14 +63,12 @@ void main() {
   setUp(() async {
     SharedPreferences.setMockInitialValues({});
     store = FakeUserDataStore();
-    auth = FakeAuthService(signedIn: const AuthUser(uid: _uid, email: 'a@b.c'));
+    auth = FakeAuthService(
+      signedIn: const AuthUser(uid: _uid, email: 'a@b.c'),
+    );
     await store.createProfile(
       _uid,
-      const NewUserProfile(
-        nickname: '원정러',
-        favoriteTeamId: 'lg',
-        profileThemeKey: 'lg',
-      ),
+      const NewUserProfile(nickname: '원정러', favoriteTeamId: 'lg'),
     );
   });
 
@@ -82,12 +80,12 @@ void main() {
   Widget app() {
     return ProviderScope(
       overrides: [
-    // 홈 상단 위치 자리(5.2)가 판정이 없는 실행에서 권한을 한 번 묻는다 —
-    // 대역이 없으면 실 플랫폼 채널이 물려 위젯 트리 해제 뒤까지 타이머가
-    // 남는다(`lib/features/home/current_location.dart` docstring 참조).
-    locationPermissionGatewayProvider.overrideWithValue(
-      FakeLocationPermissionGateway(),
-    ),
+        // 홈 상단 위치 자리(5.2)가 판정이 없는 실행에서 권한을 한 번 묻는다 —
+        // 대역이 없으면 실 플랫폼 채널이 물려 위젯 트리 해제 뒤까지 타이머가
+        // 남는다(`lib/features/home/current_location.dart` docstring 참조).
+        locationPermissionGatewayProvider.overrideWithValue(
+          FakeLocationPermissionGateway(),
+        ),
         authServiceProvider.overrideWithValue(auth),
         userDataStoreProvider.overrideWithValue(store),
         weatherEffectProvider.overrideWith(
@@ -114,9 +112,7 @@ void main() {
     );
   }
 
-  testWidgets('추천 탭에서 누른 좋아요가 좋아요 탭에 뜨고, 돌아오면 추천 스택도 하트도 그대로다', (
-    tester,
-  ) async {
+  testWidgets('추천 탭에서 누른 좋아요가 좋아요 탭에 뜨고, 돌아오면 추천 스택도 하트도 그대로다', (tester) async {
     await tester.pumpWidget(app());
     await tester.pumpAndSettle();
 
@@ -134,7 +130,9 @@ void main() {
     expect(find.byType(StadiumPlacesScreen), findsOneWidget);
 
     final card = find.widgetWithText(PlaceCard, '잠실 국밥집');
-    await tester.tap(find.descendant(of: card, matching: find.byType(LikeButton)));
+    await tester.tap(
+      find.descendant(of: card, matching: find.byType(LikeButton)),
+    );
     await tester.pumpAndSettle();
     expect((await store.readLikes(_uid)).single.placeId, 'jamsil-gukbap');
 

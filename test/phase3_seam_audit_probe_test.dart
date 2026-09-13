@@ -26,7 +26,6 @@ import 'package:kbo_away_fans/content/content_loader.dart';
 import 'package:kbo_away_fans/content/content_providers.dart';
 import 'package:kbo_away_fans/content/models.dart';
 import 'package:kbo_away_fans/features/auth/sign_in_screen.dart';
-import 'package:kbo_away_fans/features/home/home_screen.dart';
 import 'package:kbo_away_fans/features/home/main_tabs_root.dart';
 import 'package:kbo_away_fans/features/likes/likes_tab_screen.dart';
 import 'package:kbo_away_fans/features/places/stadium_places_screen.dart';
@@ -88,12 +87,12 @@ void main() {
   Widget scoped(AuthService auth, UserDataStore store, Widget home) {
     return ProviderScope(
       overrides: [
-    // 홈 상단 위치 자리(5.2)가 판정이 없는 실행에서 권한을 한 번 묻는다 —
-    // 대역이 없으면 실 플랫폼 채널이 물려 위젯 트리 해제 뒤까지 타이머가
-    // 남는다(`lib/features/home/current_location.dart` docstring 참조).
-    locationPermissionGatewayProvider.overrideWithValue(
-      FakeLocationPermissionGateway(),
-    ),
+        // 홈 상단 위치 자리(5.2)가 판정이 없는 실행에서 권한을 한 번 묻는다 —
+        // 대역이 없으면 실 플랫폼 채널이 물려 위젯 트리 해제 뒤까지 타이머가
+        // 남는다(`lib/features/home/current_location.dart` docstring 참조).
+        locationPermissionGatewayProvider.overrideWithValue(
+          FakeLocationPermissionGateway(),
+        ),
         authServiceProvider.overrideWithValue(auth),
         userDataStoreProvider.overrideWithValue(store),
         weatherEffectProvider.overrideWith(
@@ -122,20 +121,14 @@ void main() {
   Widget tabsApp(AuthService auth, UserDataStore store) =>
       scoped(auth, store, const MainTabsRoot());
 
-  testWidgets('계정을 바꿔 로그인하면 앞사람의 좋아요가 뒷사람의 좋아요 탭에 남지 않는다', (
-    tester,
-  ) async {
+  testWidgets('계정을 바꿔 로그인하면 앞사람의 좋아요가 뒷사람의 좋아요 탭에 남지 않는다', (tester) async {
     SharedPreferences.setMockInitialValues({});
     final store = FakeUserDataStore();
     addTearDown(store.dispose);
     for (final uid in [_googleUid, _kakaoUid]) {
       await store.createProfile(
         uid,
-        const NewUserProfile(
-          nickname: '원정러',
-          favoriteTeamId: 'lg',
-          profileThemeKey: 'lg',
-        ),
+        const NewUserProfile(nickname: '원정러', favoriteTeamId: 'lg'),
       );
     }
     // 앞사람(구글)만 좋아요를 하나 갖고 있다.
@@ -185,60 +178,13 @@ void main() {
     expect(find.text(LikesTabScreen.emptyTitle), findsOneWidget);
   });
 
-  testWidgets('프로필 색을 바꿔도 홈 탭의 응원 팀은 그대로다 (색과 팀은 다른 값이다)', (
-    tester,
-  ) async {
+  testWidgets('좋아요 탭에서 마지막 하나를 풀면 빈 상태가 되고 추천 탭의 하트도 꺼진다', (tester) async {
     SharedPreferences.setMockInitialValues({});
     final store = FakeUserDataStore();
     addTearDown(store.dispose);
     await store.createProfile(
       _googleUid,
-      const NewUserProfile(
-        nickname: '원정러',
-        favoriteTeamId: 'lg',
-        profileThemeKey: 'lg',
-      ),
-    );
-    final auth = FakeAuthService(
-      signedIn: AuthUser(uid: _googleUid, email: 'a@b.c'),
-    );
-    addTearDown(auth.dispose);
-
-    await tester.pumpWidget(gateApp(auth, store));
-    await tester.pumpAndSettle();
-    expect(
-      tester.widget<HomeScreen>(find.byType(HomeScreen)).teamId,
-      'lg',
-    );
-
-    await tester.tap(find.text('마이페이지'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('profile-color-doosan')));
-    await tester.pumpAndSettle();
-    expect(store.documents[_googleUid]?[UserFields.profileThemeKey], 'doosan');
-
-    await tester.tap(find.text('홈'));
-    await tester.pumpAndSettle();
-    expect(
-      tester.widget<HomeScreen>(find.byType(HomeScreen)).teamId,
-      'lg',
-      reason: '프로필 색만 바꿨는데 홈 탭의 응원 팀이 따라 바뀌면 안 된다',
-    );
-  });
-
-  testWidgets('좋아요 탭에서 마지막 하나를 풀면 빈 상태가 되고 추천 탭의 하트도 꺼진다', (
-    tester,
-  ) async {
-    SharedPreferences.setMockInitialValues({});
-    final store = FakeUserDataStore();
-    addTearDown(store.dispose);
-    await store.createProfile(
-      _googleUid,
-      const NewUserProfile(
-        nickname: '원정러',
-        favoriteTeamId: 'lg',
-        profileThemeKey: 'lg',
-      ),
+      const NewUserProfile(nickname: '원정러', favoriteTeamId: 'lg'),
     );
     final auth = FakeAuthService(
       signedIn: AuthUser(uid: _googleUid, email: 'a@b.c'),
@@ -299,11 +245,7 @@ void main() {
     addTearDown(store.dispose);
     await store.createProfile(
       _googleUid,
-      const NewUserProfile(
-        nickname: '원정러',
-        favoriteTeamId: 'lg',
-        profileThemeKey: 'lg',
-      ),
+      const NewUserProfile(nickname: '원정러', favoriteTeamId: 'lg'),
     );
     await store.addLike(
       _googleUid,

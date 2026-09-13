@@ -135,11 +135,7 @@ Future<_Harness> _pump(
   addTearDown(store.dispose);
   await store.createProfile(
     _uid,
-    NewUserProfile(
-      nickname: '원정러',
-      favoriteTeamId: _anchor.teamId,
-      profileThemeKey: _anchor.teamId,
-    ),
+    NewUserProfile(nickname: '원정러', favoriteTeamId: _anchor.teamId),
   );
 
   final teams = _content.teams;

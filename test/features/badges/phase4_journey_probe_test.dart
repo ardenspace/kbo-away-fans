@@ -127,11 +127,7 @@ Future<FakeUserDataStore> _pumpApp(
   addTearDown(store.dispose);
   await store.createProfile(
     _uid,
-    const NewUserProfile(
-      nickname: '원정러',
-      favoriteTeamId: 'lg',
-      profileThemeKey: 'lg',
-    ),
+    const NewUserProfile(nickname: '원정러', favoriteTeamId: 'lg'),
   );
   if (seededCount != null) _seedCell(store, count: seededCount);
   store.offline = offline;
@@ -141,8 +137,9 @@ Future<FakeUserDataStore> _pumpApp(
       overrides: [
         authServiceProvider.overrideWithValue(auth),
         userDataStoreProvider.overrideWithValue(store),
-        weatherEffectProvider.overrideWith((ref, point) async =>
-            WeatherEffect.none),
+        weatherEffectProvider.overrideWith(
+          (ref, point) async => WeatherEffect.none,
+        ),
         clockProvider.overrideWithValue(() => _duringPregame),
         stadiumsProvider.overrideWith((ref) async => ContentFresh(_stadiums)),
         scheduleProvider.overrideWith((ref) async => ContentFresh(_schedule)),
@@ -152,7 +149,9 @@ Future<FakeUserDataStore> _pumpApp(
         teamsProvider.overrideWith(
           (ref) async => const ContentUnavailable<TeamsDocument>(_fixture),
         ),
-        stadiumVisitCheckerProvider.overrideWithValue(_atJamsil(fixDelay: fixDelay)),
+        stadiumVisitCheckerProvider.overrideWithValue(
+          _atJamsil(fixDelay: fixDelay),
+        ),
       ],
       child: const MaterialApp(home: MainTabsRoot()),
     ),
@@ -221,59 +220,51 @@ void main() {
     timeout: const Timeout(Duration(seconds: 30)),
   );
 
-  testWidgets(
-    '임계를 넘기는 도장에는 "등급 상승"이 이어 붙는다',
-    (tester) async {
-      // 2개 → 3개는 사다리의 `regular` 임계다.
-      await _pumpApp(tester, seededCount: 2);
+  testWidgets('임계를 넘기는 도장에는 "등급 상승"이 이어 붙는다', (tester) async {
+    // 2개 → 3개는 사다리의 `regular` 임계다.
+    await _pumpApp(tester, seededCount: 2);
 
-      expect(find.byType(StampReveal), findsOneWidget);
-      await tester.pump(MotionTokens.stamp.duration + MotionTokens.base);
+    expect(find.byType(StampReveal), findsOneWidget);
+    await tester.pump(MotionTokens.stamp.duration + MotionTokens.base);
 
-      expect(
-        find.byKey(StampReveal.tierUpKey),
-        findsOneWidget,
-        reason: '3개째 도장은 regular 로 오른다',
-      );
-      // 연출이 나르는 개수도 그 사람의 칸 요약을 따른다 — 등급 상승 여부만
-      // 보면 이전 개수를 0 으로 읽는 변이가 이 갈래에서 그대로 통과한다.
-      expect(
-        tester.widget<StampBadge>(find.byType(StampBadge)).stamps,
-        3,
-        reason: '연출의 배지는 이번 도장을 포함한 새 개수를 든다',
-      );
-    },
-    timeout: const Timeout(Duration(seconds: 30)),
-  );
+    expect(
+      find.byKey(StampReveal.tierUpKey),
+      findsOneWidget,
+      reason: '3개째 도장은 regular 로 오른다',
+    );
+    // 연출이 나르는 개수도 그 사람의 칸 요약을 따른다 — 등급 상승 여부만
+    // 보면 이전 개수를 0 으로 읽는 변이가 이 갈래에서 그대로 통과한다.
+    expect(
+      tester.widget<StampBadge>(find.byType(StampBadge)).stamps,
+      3,
+      reason: '연출의 배지는 이번 도장을 포함한 새 개수를 든다',
+    );
+  }, timeout: const Timeout(Duration(seconds: 30)));
 
-  testWidgets(
-    '연출이 떠 있는 동안 첫 탭은 연출을 닫는 데 쓰인다',
-    (tester) async {
-      // `StampReveal` 이 `SizedBox.expand` + `HitTestBehavior.opaque` 로 하단
-      // 탭 바까지 덮으므로 탭이 옮겨지려면 두 번 눌러야 한다. 4.4 의 재량
-      // 안에서 고른 거동이고(탭 한 번이면 언제든 닫힌다), 문서 셋이 한동안
-      // 이것을 "연출 중에도 탭을 옮길 수 있다"로 적고 있었다 — 그 문장을
-      // 사실에 맞추면서 이 자리를 값으로 못 박는다.
-      await _pumpApp(tester);
-      expect(find.byType(StampReveal), findsOneWidget);
+  testWidgets('연출이 떠 있는 동안 첫 탭은 연출을 닫는 데 쓰인다', (tester) async {
+    // `StampReveal` 이 `SizedBox.expand` + `HitTestBehavior.opaque` 로 하단
+    // 탭 바까지 덮으므로 탭이 옮겨지려면 두 번 눌러야 한다. 4.4 의 재량
+    // 안에서 고른 거동이고(탭 한 번이면 언제든 닫힌다), 문서 셋이 한동안
+    // 이것을 "연출 중에도 탭을 옮길 수 있다"로 적고 있었다 — 그 문장을
+    // 사실에 맞추면서 이 자리를 값으로 못 박는다.
+    await _pumpApp(tester);
+    expect(find.byType(StampReveal), findsOneWidget);
 
-      int currentIndex() => tester
-          .widget<BottomNavigationBar>(find.byType(BottomNavigationBar))
-          .currentIndex;
+    int currentIndex() => tester
+        .widget<BottomNavigationBar>(find.byType(BottomNavigationBar))
+        .currentIndex;
 
-      expect(currentIndex(), 0, reason: '연출은 홈 위에 떴다');
+    expect(currentIndex(), 0, reason: '연출은 홈 위에 떴다');
 
-      await tester.tap(find.text('배지'));
-      await tester.pumpAndSettle(const Duration(seconds: 5));
-      expect(find.byType(StampReveal), findsNothing, reason: '첫 탭이 연출을 닫는다');
-      expect(currentIndex(), 0, reason: '첫 탭은 탭 바에 닿지 않는다');
+    await tester.tap(find.text('배지'));
+    await tester.pumpAndSettle(const Duration(seconds: 5));
+    expect(find.byType(StampReveal), findsNothing, reason: '첫 탭이 연출을 닫는다');
+    expect(currentIndex(), 0, reason: '첫 탭은 탭 바에 닿지 않는다');
 
-      await tester.tap(find.text('배지'));
-      await tester.pumpAndSettle(const Duration(seconds: 5));
-      expect(currentIndex(), 1, reason: '두 번째 탭에서 비로소 옮겨진다');
-    },
-    timeout: const Timeout(Duration(seconds: 30)),
-  );
+    await tester.tap(find.text('배지'));
+    await tester.pumpAndSettle(const Duration(seconds: 5));
+    expect(currentIndex(), 1, reason: '두 번째 탭에서 비로소 옮겨진다');
+  }, timeout: const Timeout(Duration(seconds: 30)));
 
   testWidgets(
     '통신이 끊긴 구장에서 찍은 도장은 판에도 서고 연출도 그 자리에서 뜬다',

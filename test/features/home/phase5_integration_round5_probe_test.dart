@@ -175,11 +175,7 @@ Future<_Harness> _pump(
   final team = teamId ?? _anchor.teamId;
   await store.createProfile(
     _uid,
-    NewUserProfile(
-      nickname: '원정러',
-      favoriteTeamId: team,
-      profileThemeKey: team,
-    ),
+    NewUserProfile(nickname: '원정러', favoriteTeamId: team),
   );
 
   final teams = _content.teams;
@@ -300,7 +296,8 @@ void main() {
       expect(
         _locationRowStands(),
         isTrue,
-        reason: '배지 탭에서 허용한 권한이 홈 상단까지 와야 5.2 의 "재요청 버튼을 '
+        reason:
+            '배지 탭에서 허용한 권한이 홈 상단까지 와야 5.2 의 "재요청 버튼을 '
             '두지 않는다"가 선다',
       );
       expect(
@@ -438,7 +435,8 @@ void main() {
       expect(
         standsOnFirstFrame,
         isTrue,
-        reason: '실측: 되묻는 답이 오기 전 프레임에서는 `AsyncValue.value` 가 옛 답을 '
+        reason:
+            '실측: 되묻는 답이 오기 전 프레임에서는 `AsyncValue.value` 가 옛 답을 '
             '그대로 돌려주므로 자리가 한 프레임 더 서 있다',
       );
     },

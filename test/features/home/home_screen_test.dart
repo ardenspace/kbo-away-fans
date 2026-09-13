@@ -114,8 +114,8 @@ void main() {
     final result = homeScore > awayScore
         ? GameResult.homeWin
         : homeScore < awayScore
-            ? GameResult.awayWin
-            : GameResult.draw;
+        ? GameResult.awayWin
+        : GameResult.draw;
     return Game(
       id: '$date-$stadium-$away-$home-finished',
       date: date,
@@ -154,8 +154,10 @@ void main() {
     // 거기서는 이 게이트웨이가 아예 구독되지 않는다.
     LocationPermissionGateway? locationGateway,
   }) {
-    final scheduleDoc =
-        ScheduleDocument(generatedAt: DateTime.utc(2026), games: games);
+    final scheduleDoc = ScheduleDocument(
+      generatedAt: DateTime.utc(2026),
+      games: games,
+    );
     return ProviderScope(
       overrides: [
         clockProvider.overrideWithValue(() => now),
@@ -205,46 +207,75 @@ void main() {
   // 기준 시각: 2026-08-25 (화) 낮, KST.
   final now = DateTime.parse('2026-08-25T14:00:00+09:00');
 
+  testWidgets('홈 헤더는 화면 배경과 같은 오프화이트를 쓴다', (tester) async {
+    await tester.pumpWidget(home(teamId: 'lotte', games: const [], now: now));
+    await tester.pumpAndSettle();
+
+    final appBar = tester.widget<AppBar>(find.byType(AppBar));
+    expect(appBar.backgroundColor, ColorTokens.background);
+    expect(appBar.surfaceTintColor, ColorTokens.background);
+    expect(appBar.foregroundColor, ColorTokens.textPrimary);
+    expect(appBar.scrolledUnderElevation, 0);
+  });
+
   testWidgets('오늘 원정 경기가 있으면 "오늘" 상태가 뜬다', (tester) async {
-    await tester.pumpWidget(home(
-      teamId: 'lotte',
-      games: [
-        game(date: '2026-08-25', home: 'lg', away: 'lotte', stadium: 'jamsil'),
-      ],
-      now: now,
-    ));
+    await tester.pumpWidget(
+      home(
+        teamId: 'lotte',
+        games: [
+          game(
+            date: '2026-08-25',
+            home: 'lg',
+            away: 'lotte',
+            stadium: 'jamsil',
+          ),
+        ],
+        now: now,
+      ),
+    );
     await tester.pumpAndSettle();
 
     expect(find.text('오늘'), findsOneWidget);
   });
 
   testWidgets('오늘 경기가 없으면 다음 원정 D-day와 미리보기가 뜬다', (tester) async {
-    await tester.pumpWidget(home(
-      teamId: 'lotte',
-      games: [
-        game(date: '2026-08-30', home: 'lg', away: 'lotte', stadium: 'jamsil'),
-      ],
-      now: now,
-    ));
+    await tester.pumpWidget(
+      home(
+        teamId: 'lotte',
+        games: [
+          game(
+            date: '2026-08-30',
+            home: 'lg',
+            away: 'lotte',
+            stadium: 'jamsil',
+          ),
+        ],
+        now: now,
+      ),
+    );
     await tester.pumpAndSettle();
 
     expect(find.text('D-5'), findsOneWidget);
     // 목적지(잠실) 장소 미리보기 — 실데이터 places.json 의 잠실 장소가 뜬다.
-    expect(
-      find.text('부농정육식당', skipOffstage: false),
-      findsOneWidget,
-    );
+    expect(find.text('부농정육식당', skipOffstage: false), findsOneWidget);
   });
 
   testWidgets('남은 일정이 없으면(시즌 종료) 명시적 빈 상태가 뜬다', (tester) async {
-    await tester.pumpWidget(home(
-      teamId: 'lotte',
-      games: [
-        // 과거 경기만 남은 일정 소진 픽스처.
-        game(date: '2026-08-10', home: 'lg', away: 'lotte', stadium: 'jamsil'),
-      ],
-      now: now,
-    ));
+    await tester.pumpWidget(
+      home(
+        teamId: 'lotte',
+        games: [
+          // 과거 경기만 남은 일정 소진 픽스처.
+          game(
+            date: '2026-08-10',
+            home: 'lg',
+            away: 'lotte',
+            stadium: 'jamsil',
+          ),
+        ],
+        now: now,
+      ),
+    );
     await tester.pumpAndSettle();
 
     expect(find.text('남은 원정 경기가 없어요'), findsOneWidget);
@@ -252,14 +283,21 @@ void main() {
   });
 
   testWidgets('목적지 구장이 비 오는 날이면 홈 배경에 비 레이어가 뜬다', (tester) async {
-    await tester.pumpWidget(home(
-      teamId: 'lotte',
-      games: [
-        game(date: '2026-08-30', home: 'lg', away: 'lotte', stadium: 'jamsil'),
-      ],
-      now: now,
-      weather: WeatherEffect.rain,
-    ));
+    await tester.pumpWidget(
+      home(
+        teamId: 'lotte',
+        games: [
+          game(
+            date: '2026-08-30',
+            home: 'lg',
+            away: 'lotte',
+            stadium: 'jamsil',
+          ),
+        ],
+        now: now,
+        weather: WeatherEffect.rain,
+      ),
+    );
     // RainLayer 는 repeat 애니메이션이라 pumpAndSettle 대신 고정 pump.
     await tester.pump();
     await tester.pump();
@@ -272,13 +310,20 @@ void main() {
   });
 
   testWidgets('날씨가 비가 아니면(실패 포함 기본값) 비 레이어가 없다', (tester) async {
-    await tester.pumpWidget(home(
-      teamId: 'lotte',
-      games: [
-        game(date: '2026-08-30', home: 'lg', away: 'lotte', stadium: 'jamsil'),
-      ],
-      now: now,
-    ));
+    await tester.pumpWidget(
+      home(
+        teamId: 'lotte',
+        games: [
+          game(
+            date: '2026-08-30',
+            home: 'lg',
+            away: 'lotte',
+            stadium: 'jamsil',
+          ),
+        ],
+        now: now,
+      ),
+    );
     await tester.pumpAndSettle();
 
     expect(find.byType(WeatherBackdrop), findsOneWidget);
@@ -286,21 +331,22 @@ void main() {
     expect(find.text('D-5'), findsOneWidget);
   });
 
-  testWidgets('rain_canceled 픽스처 → 플랜B 배너 + 목록 진입 시 실내 필터 활성',
-      (tester) async {
-    await tester.pumpWidget(home(
-      teamId: 'lotte',
-      games: [
-        game(
-          date: '2026-08-25',
-          home: 'lg',
-          away: 'lotte',
-          stadium: 'jamsil',
-          status: GameStatus.rainCanceled,
-        ),
-      ],
-      now: now,
-    ));
+  testWidgets('rain_canceled 픽스처 → 플랜B 배너 + 목록 진입 시 실내 필터 활성', (tester) async {
+    await tester.pumpWidget(
+      home(
+        teamId: 'lotte',
+        games: [
+          game(
+            date: '2026-08-25',
+            home: 'lg',
+            away: 'lotte',
+            stadium: 'jamsil',
+            status: GameStatus.rainCanceled,
+          ),
+        ],
+        now: now,
+      ),
+    );
     await tester.pumpAndSettle();
 
     // 플랜B 배너 렌더 (우천 문구).
@@ -318,19 +364,21 @@ void main() {
   });
 
   testWidgets('canceled(일반 취소) 픽스처도 플랜B 배너가 뜬다', (tester) async {
-    await tester.pumpWidget(home(
-      teamId: 'lotte',
-      games: [
-        game(
-          date: '2026-08-25',
-          home: 'lg',
-          away: 'lotte',
-          stadium: 'jamsil',
-          status: GameStatus.canceled,
-        ),
-      ],
-      now: now,
-    ));
+    await tester.pumpWidget(
+      home(
+        teamId: 'lotte',
+        games: [
+          game(
+            date: '2026-08-25',
+            home: 'lg',
+            away: 'lotte',
+            stadium: 'jamsil',
+            status: GameStatus.canceled,
+          ),
+        ],
+        now: now,
+      ),
+    );
     await tester.pumpAndSettle();
 
     expect(find.text('오늘 경기가 취소됐어요'), findsOneWidget);
@@ -338,13 +386,20 @@ void main() {
   });
 
   testWidgets('정상(scheduled) 경기에서는 플랜B 배너가 없다 (홈 무변화)', (tester) async {
-    await tester.pumpWidget(home(
-      teamId: 'lotte',
-      games: [
-        game(date: '2026-08-25', home: 'lg', away: 'lotte', stadium: 'jamsil'),
-      ],
-      now: now,
-    ));
+    await tester.pumpWidget(
+      home(
+        teamId: 'lotte',
+        games: [
+          game(
+            date: '2026-08-25',
+            home: 'lg',
+            away: 'lotte',
+            stadium: 'jamsil',
+          ),
+        ],
+        now: now,
+      ),
+    );
     await tester.pumpAndSettle();
 
     expect(find.text('오늘'), findsOneWidget);
@@ -353,22 +408,23 @@ void main() {
     expect(find.text('오늘 경기가 취소됐어요'), findsNothing);
   });
 
-  testWidgets('우천 취소 + 비 오는 날 — 비 연출(4.1)과 플랜B 배너가 함께 뜬다',
-      (tester) async {
-    await tester.pumpWidget(home(
-      teamId: 'lotte',
-      games: [
-        game(
-          date: '2026-08-25',
-          home: 'lg',
-          away: 'lotte',
-          stadium: 'jamsil',
-          status: GameStatus.rainCanceled,
-        ),
-      ],
-      now: now,
-      weather: WeatherEffect.rain,
-    ));
+  testWidgets('우천 취소 + 비 오는 날 — 비 연출(4.1)과 플랜B 배너가 함께 뜬다', (tester) async {
+    await tester.pumpWidget(
+      home(
+        teamId: 'lotte',
+        games: [
+          game(
+            date: '2026-08-25',
+            home: 'lg',
+            away: 'lotte',
+            stadium: 'jamsil',
+            status: GameStatus.rainCanceled,
+          ),
+        ],
+        now: now,
+        weather: WeatherEffect.rain,
+      ),
+    );
     // RainLayer 는 repeat 애니메이션이라 pumpAndSettle 대신 고정 pump.
     await tester.pump();
     await tester.pump();
@@ -390,10 +446,7 @@ void main() {
       await tester.pumpWidget(home(teamId: 'lotte', games: const [], now: now));
       await tester.pumpAndSettle();
 
-      expect(
-        find.byType(StadiumPicker, skipOffstage: false),
-        findsOneWidget,
-      );
+      expect(find.byType(StadiumPicker, skipOffstage: false), findsOneWidget);
       final picker = tester.widget<StadiumPicker>(
         find.byType(StadiumPicker, skipOffstage: false),
       );
@@ -432,19 +485,21 @@ void main() {
     });
 
     testWidgets('잠실 선택 — 당일 경기가 없으면 중립(팀 스코프 없음)', (tester) async {
-      await tester.pumpWidget(home(
-        teamId: 'lotte',
-        games: [
-          // 내일 잠실 경기 — "당일"이 아니므로 중립이어야 한다.
-          game(
-            date: '2026-08-26',
-            home: 'lg',
-            away: 'lotte',
-            stadium: 'jamsil',
-          ),
-        ],
-        now: now,
-      ));
+      await tester.pumpWidget(
+        home(
+          teamId: 'lotte',
+          games: [
+            // 내일 잠실 경기 — "당일"이 아니므로 중립이어야 한다.
+            game(
+              date: '2026-08-26',
+              home: 'lg',
+              away: 'lotte',
+              stadium: 'jamsil',
+            ),
+          ],
+          now: now,
+        ),
+      );
       await tester.pumpAndSettle();
 
       final jamsil = find.text('잠실야구장', skipOffstage: false);
@@ -467,13 +522,20 @@ void main() {
     });
 
     testWidgets('잠실 선택 — 당일 잠실 경기가 있으면 그 경기 홈팀 테마', (tester) async {
-      await tester.pumpWidget(home(
-        teamId: 'lotte',
-        games: [
-          game(date: '2026-08-25', home: 'doosan', away: 'kia', stadium: 'jamsil'),
-        ],
-        now: now,
-      ));
+      await tester.pumpWidget(
+        home(
+          teamId: 'lotte',
+          games: [
+            game(
+              date: '2026-08-25',
+              home: 'doosan',
+              away: 'kia',
+              stadium: 'jamsil',
+            ),
+          ],
+          now: now,
+        ),
+      );
       await tester.pumpAndSettle();
 
       final jamsil = find.text('잠실야구장', skipOffstage: false);
@@ -511,27 +573,37 @@ void main() {
   });
 
   testWidgets('잠실 경기: D-day 영역 테마가 홈팀(LG) 기준으로 적용된다', (tester) async {
-    await tester.pumpWidget(home(
-      teamId: 'lotte',
-      games: [
-        game(date: '2026-08-30', home: 'lg', away: 'lotte', stadium: 'jamsil'),
-      ],
-      now: now,
-    ));
+    await tester.pumpWidget(
+      home(
+        teamId: 'lotte',
+        games: [
+          game(
+            date: '2026-08-30',
+            home: 'lg',
+            away: 'lotte',
+            stadium: 'jamsil',
+          ),
+        ],
+        now: now,
+      ),
+    );
     await tester.pumpAndSettle();
 
     // 바깥 스코프는 응원 팀(lotte), 헤더를 감싼 안쪽 스코프는 홈팀(lg).
-    final scopes =
-        tester.widgetList<TeamThemeScope>(find.byType(TeamThemeScope)).toList();
+    final scopes = tester
+        .widgetList<TeamThemeScope>(find.byType(TeamThemeScope))
+        .toList();
     expect(scopes, hasLength(2));
     expect(scopes.first.theme.primary, TeamThemes.byId['lotte']!.primary);
     expect(scopes.last.theme.primary, TeamThemes.byId['lg']!.primary);
 
     final headerScope = tester.widget<TeamThemeScope>(
-      find.ancestor(
-        of: find.byType(DdayHeader),
-        matching: find.byType(TeamThemeScope),
-      ).first,
+      find
+          .ancestor(
+            of: find.byType(DdayHeader),
+            matching: find.byType(TeamThemeScope),
+          )
+          .first,
     );
     expect(headerScope.theme.primary, TeamThemes.byId['lg']!.primary);
   });
@@ -629,10 +701,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('최근 5경기'), findsOneWidget);
-      expect(
-        find.text('아직 경기 결과가 없어요', skipOffstage: false),
-        findsOneWidget,
-      );
+      expect(find.text('아직 경기 결과가 없어요', skipOffstage: false), findsOneWidget);
       expect(
         find.text('경기가 끝나면 이 자리에 최근 결과가 쌓여요.', skipOffstage: false),
         findsOneWidget,
@@ -740,19 +809,21 @@ void main() {
     // 뿐(새 권한 조회를 만들지 않는다)이기 때문이다 — `current_location.dart`
     // docstring 참조.
     Finder locationRow() => find.byWidgetPredicate(
-      (widget) =>
-          widget is Icon && widget.icon == Icons.location_on_rounded,
+      (widget) => widget is Icon && widget.icon == Icons.location_on_rounded,
       skipOffstage: false,
     );
 
-    testWidgets('판정이 없으면(아직 안 돌았거나 오늘 경기가 없어 후보가 없음) 위치 자리가 없다',
-        (tester) async {
-      await tester.pumpWidget(home(
-        teamId: 'lotte',
-        games: const [],
-        now: now,
-        // stadiumVisit 기본값 null — 아직 판정이 없는 실행.
-      ));
+    testWidgets('판정이 없으면(아직 안 돌았거나 오늘 경기가 없어 후보가 없음) 위치 자리가 없다', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        home(
+          teamId: 'lotte',
+          games: const [],
+          now: now,
+          // stadiumVisit 기본값 null — 아직 판정이 없는 실행.
+        ),
+      );
       await tester.pumpAndSettle();
 
       expect(locationRow(), findsNothing);
@@ -763,14 +834,16 @@ void main() {
     });
 
     testWidgets('권한이 없으면(permissionMissing) 위치 자리가 없다', (tester) async {
-      await tester.pumpWidget(home(
-        teamId: 'lotte',
-        games: const [],
-        now: now,
-        stadiumVisit: const StadiumVisitResult.rejected(
-          StadiumVisitReason.permissionMissing,
+      await tester.pumpWidget(
+        home(
+          teamId: 'lotte',
+          games: const [],
+          now: now,
+          stadiumVisit: const StadiumVisitResult.rejected(
+            StadiumVisitReason.permissionMissing,
+          ),
         ),
-      ));
+      );
       await tester.pumpAndSettle();
 
       expect(locationRow(), findsNothing);
@@ -787,15 +860,17 @@ void main() {
       );
 
       testWidgets('권한이 없으면(denied) 위치 자리가 없다', (tester) async {
-        await tester.pumpWidget(home(
-          teamId: 'lotte',
-          games: const [],
-          now: now,
-          stadiumVisit: rejected,
-          locationGateway: FakeLocationPermissionGateway(
-            initial: LocationPermissionStatus.denied,
+        await tester.pumpWidget(
+          home(
+            teamId: 'lotte',
+            games: const [],
+            now: now,
+            stadiumVisit: rejected,
+            locationGateway: FakeLocationPermissionGateway(
+              initial: LocationPermissionStatus.denied,
+            ),
           ),
-        ));
+        );
         await tester.pumpAndSettle();
 
         expect(locationRow(), findsNothing);
@@ -805,13 +880,15 @@ void main() {
         final gateway = FakeLocationPermissionGateway(
           initial: LocationPermissionStatus.granted,
         );
-        await tester.pumpWidget(home(
-          teamId: 'lotte',
-          games: const [],
-          now: now,
-          stadiumVisit: rejected,
-          locationGateway: gateway,
-        ));
+        await tester.pumpWidget(
+          home(
+            teamId: 'lotte',
+            games: const [],
+            now: now,
+            stadiumVisit: rejected,
+            locationGateway: gateway,
+          ),
+        );
         await tester.pumpAndSettle();
 
         expect(locationRow(), findsOneWidget);
@@ -827,18 +904,24 @@ void main() {
       });
     });
 
-    testWidgets('위치 자리가 없어도 홈의 나머지(D-day·최근 5경기·탐색)는 그대로다',
-        (tester) async {
-      await tester.pumpWidget(home(
-        teamId: 'lotte',
-        games: [
-          game(date: '2026-08-25', home: 'lg', away: 'lotte', stadium: 'jamsil'),
-        ],
-        now: now,
-        stadiumVisit: const StadiumVisitResult.rejected(
-          StadiumVisitReason.permissionMissing,
+    testWidgets('위치 자리가 없어도 홈의 나머지(D-day·최근 5경기·탐색)는 그대로다', (tester) async {
+      await tester.pumpWidget(
+        home(
+          teamId: 'lotte',
+          games: [
+            game(
+              date: '2026-08-25',
+              home: 'lg',
+              away: 'lotte',
+              stadium: 'jamsil',
+            ),
+          ],
+          now: now,
+          stadiumVisit: const StadiumVisitResult.rejected(
+            StadiumVisitReason.permissionMissing,
+          ),
         ),
-      ));
+      );
       await tester.pumpAndSettle();
 
       expect(locationRow(), findsNothing);
@@ -847,22 +930,20 @@ void main() {
       // 최근 5경기 섹션 자체는 상시 렌더(내용이 비어도 안내가 뜬다).
       expect(find.text('최근 5경기'), findsOneWidget);
       // 구장 골라 구경하기(탐색) — 경기 유무와 무관한 상시 섹션.
-      expect(
-        find.byType(StadiumPicker, skipOffstage: false),
-        findsOneWidget,
-      );
+      expect(find.byType(StadiumPicker, skipOffstage: false), findsOneWidget);
     });
 
-    testWidgets('권한은 있는데 지금 구장이 아니면(outsideRadius) 일반 문구가 뜬다',
-        (tester) async {
-      await tester.pumpWidget(home(
-        teamId: 'lotte',
-        games: const [],
-        now: now,
-        stadiumVisit: const StadiumVisitResult.rejected(
-          StadiumVisitReason.outsideRadius,
+    testWidgets('권한은 있는데 지금 구장이 아니면(outsideRadius) 일반 문구가 뜬다', (tester) async {
+      await tester.pumpWidget(
+        home(
+          teamId: 'lotte',
+          games: const [],
+          now: now,
+          stadiumVisit: const StadiumVisitResult.rejected(
+            StadiumVisitReason.outsideRadius,
+          ),
         ),
-      ));
+      );
       await tester.pumpAndSettle();
 
       expect(locationRow(), findsOneWidget);
@@ -873,15 +954,17 @@ void main() {
     });
 
     testWidgets('방문이 확정되면 그 구장 이름이 뜬다 (구장 근접 표시)', (tester) async {
-      await tester.pumpWidget(home(
-        teamId: 'lotte',
-        games: const [],
-        now: now,
-        stadiumVisit: const StadiumVisitResult.visited(
-          stadiumId: 'sajik',
-          gameId: '2026-08-25-sajik-lotte-kt',
+      await tester.pumpWidget(
+        home(
+          teamId: 'lotte',
+          games: const [],
+          now: now,
+          stadiumVisit: const StadiumVisitResult.visited(
+            stadiumId: 'sajik',
+            gameId: '2026-08-25-sajik-lotte-kt',
+          ),
         ),
-      ));
+      );
       await tester.pumpAndSettle();
 
       expect(locationRow(), findsOneWidget);
@@ -903,8 +986,7 @@ void main() {
         gameId: '2026-08-25-sajik-lotte-kt',
       );
 
-      testWidgets('마지막 시도가 건너뛰어졌어도 판정이 낡았으면 구장 이름을 쓰지 않는다',
-          (tester) async {
+      testWidgets('마지막 시도가 건너뛰어졌어도 판정이 낡았으면 구장 이름을 쓰지 않는다', (tester) async {
         // **기대를 사실에 맞춘 자리다.** 이 시험은 원래 "건너뛴 실행 뒤에는
         // 구장 이름을 쓰지 않는다"를 쟀는데, 그때는 건너뛴 실행 하나가
         // 판정의 **나이까지** 지웠기 때문이다(`judged: false` 면 잴 기준점이
@@ -918,23 +1000,25 @@ void main() {
         // (마지막 시도가 판정까지 못 감)는 자리를 그릴지도 권한을 **다시 물어**
         // 정하므로, 대역이 기본값(denied)이면 자리가 통째로 접혀 이 시험이
         // 재려는 것(문구)을 잴 수 없다. 자리가 접히는 쪽은 아래 짝이 잰다.
-        await tester.pumpWidget(home(
-          teamId: 'lotte',
-          games: const [],
-          now: now,
-          stadiumVisit: visited,
-          // 판정은 신선도 상한을 넘긴 것이고, 방금 돈 시도는 게이트에 막혀
-          // 판정까지 가지 못했다 — 그래서 나이가 갱신되지 않았다.
-          stadiumVisitRun: StadiumVisitRun(
-            judged: false,
-            judgedAt: now
-                .subtract(kCurrentLocationFreshness)
-                .subtract(const Duration(minutes: 1)),
+        await tester.pumpWidget(
+          home(
+            teamId: 'lotte',
+            games: const [],
+            now: now,
+            stadiumVisit: visited,
+            // 판정은 신선도 상한을 넘긴 것이고, 방금 돈 시도는 게이트에 막혀
+            // 판정까지 가지 못했다 — 그래서 나이가 갱신되지 않았다.
+            stadiumVisitRun: StadiumVisitRun(
+              judged: false,
+              judgedAt: now
+                  .subtract(kCurrentLocationFreshness)
+                  .subtract(const Duration(minutes: 1)),
+            ),
+            locationGateway: FakeLocationPermissionGateway(
+              initial: LocationPermissionStatus.granted,
+            ),
           ),
-          locationGateway: FakeLocationPermissionGateway(
-            initial: LocationPermissionStatus.granted,
-          ),
-        ));
+        );
         await tester.pumpAndSettle();
 
         expect(find.text('사직야구장 근처예요', skipOffstage: false), findsNothing);
@@ -947,34 +1031,36 @@ void main() {
         );
       });
 
-      testWidgets('건너뛴 실행 하나가 판정의 나이를 지우지는 않는다 (계약 밖 발견 F1)',
-          (tester) async {
+      testWidgets('건너뛴 실행 하나가 판정의 나이를 지우지는 않는다 (계약 밖 발견 F1)', (tester) async {
         // 도장을 받고 구장에 **그대로 선 채** 앱을 한 번 오가면 4.2 의
         // 게이트가 닫혀 `judged: false` 가 기록된다(야구장에서 매우 흔한
         // 행동이다). 그 실행이 나이까지 지우면 구장 이름이 곧바로 일반
         // 문구로 내려가, 15분 신선도가 실제로 쓰이는 구간이 "도장을 못 받은
         // 갈래"로 좁아진다(실측: 도장 5분 뒤 복귀에 구장명 1 → 0).
-        await tester.pumpWidget(home(
-          teamId: 'lotte',
-          games: const [],
-          now: now,
-          stadiumVisit: visited,
-          // 판정은 5분 전 것이고, 방금 돈 시도는 게이트에 막혔다.
-          stadiumVisitRun: StadiumVisitRun(
-            judged: false,
-            judgedAt: now.subtract(const Duration(minutes: 5)),
+        await tester.pumpWidget(
+          home(
+            teamId: 'lotte',
+            games: const [],
+            now: now,
+            stadiumVisit: visited,
+            // 판정은 5분 전 것이고, 방금 돈 시도는 게이트에 막혔다.
+            stadiumVisitRun: StadiumVisitRun(
+              judged: false,
+              judgedAt: now.subtract(const Duration(minutes: 5)),
+            ),
+            locationGateway: FakeLocationPermissionGateway(
+              initial: LocationPermissionStatus.granted,
+            ),
           ),
-          locationGateway: FakeLocationPermissionGateway(
-            initial: LocationPermissionStatus.granted,
-          ),
-        ));
+        );
         await tester.pumpAndSettle();
 
         expect(find.text('사직야구장 근처예요', skipOffstage: false), findsOneWidget);
       });
 
-      testWidgets('그 갈래에서 권한이 꺼져 있으면 자리가 접힌다 (round 3 의 REJECT)',
-          (tester) async {
+      testWidgets('그 갈래에서 권한이 꺼져 있으면 자리가 접힌다 (round 3 의 REJECT)', (
+        tester,
+      ) async {
         // 도장을 받은 뒤 4.2 의 게이트가 닫혀 있는 동안에는 손에 든 `visited`
         // 가 **권한이 있던 시절**의 답이다. 그것을 "권한이 있다"로 읽어 자리를
         // 계속 세우던 것이 phase 5 통합 검증 round 3 의 REJECT 사유였다
@@ -983,14 +1069,16 @@ void main() {
         final gateway = FakeLocationPermissionGateway(
           initial: LocationPermissionStatus.denied,
         );
-        await tester.pumpWidget(home(
-          teamId: 'lotte',
-          games: const [],
-          now: now,
-          stadiumVisit: visited,
-          stadiumVisitRun: StadiumVisitRun(judged: false, judgedAt: now),
-          locationGateway: gateway,
-        ));
+        await tester.pumpWidget(
+          home(
+            teamId: 'lotte',
+            games: const [],
+            now: now,
+            stadiumVisit: visited,
+            stadiumVisitRun: StadiumVisitRun(judged: false, judgedAt: now),
+            locationGateway: gateway,
+          ),
+        );
         await tester.pumpAndSettle();
 
         expect(locationRow(), findsNothing);
@@ -1007,20 +1095,21 @@ void main() {
         );
       });
 
-      testWidgets('판정이 새로 갱신되지 않은 채 오래되면 구장 이름을 쓰지 않는다',
-          (tester) async {
-        await tester.pumpWidget(home(
-          teamId: 'lotte',
-          games: const [],
-          now: now,
-          stadiumVisit: visited,
-          stadiumVisitRun: StadiumVisitRun(
-            judged: true,
-            judgedAt: now.subtract(kCurrentLocationFreshness).subtract(
-              const Duration(minutes: 1),
+      testWidgets('판정이 새로 갱신되지 않은 채 오래되면 구장 이름을 쓰지 않는다', (tester) async {
+        await tester.pumpWidget(
+          home(
+            teamId: 'lotte',
+            games: const [],
+            now: now,
+            stadiumVisit: visited,
+            stadiumVisitRun: StadiumVisitRun(
+              judged: true,
+              judgedAt: now
+                  .subtract(kCurrentLocationFreshness)
+                  .subtract(const Duration(minutes: 1)),
             ),
           ),
-        ));
+        );
         await tester.pumpAndSettle();
 
         expect(find.text('사직야구장 근처예요', skipOffstage: false), findsNothing);
@@ -1031,38 +1120,41 @@ void main() {
       });
 
       testWidgets('상한 안의 판정은 그대로 그 구장 이름이다', (tester) async {
-        await tester.pumpWidget(home(
-          teamId: 'lotte',
-          games: const [],
-          now: now,
-          stadiumVisit: visited,
-          stadiumVisitRun: StadiumVisitRun(
-            judged: true,
-            judgedAt: now.subtract(kCurrentLocationFreshness),
+        await tester.pumpWidget(
+          home(
+            teamId: 'lotte',
+            games: const [],
+            now: now,
+            stadiumVisit: visited,
+            stadiumVisitRun: StadiumVisitRun(
+              judged: true,
+              judgedAt: now.subtract(kCurrentLocationFreshness),
+            ),
           ),
-        ));
+        );
         await tester.pumpAndSettle();
 
         expect(find.text('사직야구장 근처예요', skipOffstage: false), findsOneWidget);
       });
     });
 
-    testWidgets('콘텐츠를 못 얻어 판정이 없어도, 트리거가 돌았고 권한이 있으면 자리가 뜬다',
-        (tester) async {
+    testWidgets('콘텐츠를 못 얻어 판정이 없어도, 트리거가 돌았고 권한이 있으면 자리가 뜬다', (tester) async {
       // 통합 검증 탐침 E 가 잰 자리 — 판정 자체가 콘텐츠 문서 위에 서므로
       // 일정을 못 얻으면 판정이 아예 돌지 못하는데, 그때 권한이 있는 사람의
       // 위치 자리까지 통째로 접히면 acceptance 첫 문장을 어긴다.
       final gateway = FakeLocationPermissionGateway(
         initial: LocationPermissionStatus.granted,
       );
-      await tester.pumpWidget(home(
-        teamId: 'lotte',
-        games: const [],
-        now: now,
-        // 판정 결과는 없고(null), 트리거는 돌아 기록만 남았다.
-        stadiumVisitRun: StadiumVisitRun(judged: false, judgedAt: now),
-        locationGateway: gateway,
-      ));
+      await tester.pumpWidget(
+        home(
+          teamId: 'lotte',
+          games: const [],
+          now: now,
+          // 판정 결과는 없고(null), 트리거는 돌아 기록만 남았다.
+          stadiumVisitRun: StadiumVisitRun(judged: false, judgedAt: now),
+          locationGateway: gateway,
+        ),
+      );
       await tester.pumpAndSettle();
 
       expect(locationRow(), findsOneWidget);
@@ -1073,16 +1165,17 @@ void main() {
       expect(gateway.requestCalls, 0, reason: '홈은 OS 다이얼로그를 띄우지 않는다');
     });
 
-    testWidgets('판정도 없고 트리거도 안 돌았으면 권한이 있어도 자리가 없다',
-        (tester) async {
-      await tester.pumpWidget(home(
-        teamId: 'lotte',
-        games: const [],
-        now: now,
-        locationGateway: FakeLocationPermissionGateway(
-          initial: LocationPermissionStatus.granted,
+    testWidgets('판정도 없고 트리거도 안 돌았으면 권한이 있어도 자리가 없다', (tester) async {
+      await tester.pumpWidget(
+        home(
+          teamId: 'lotte',
+          games: const [],
+          now: now,
+          locationGateway: FakeLocationPermissionGateway(
+            initial: LocationPermissionStatus.granted,
+          ),
         ),
-      ));
+      );
       await tester.pumpAndSettle();
 
       expect(locationRow(), findsNothing);
@@ -1094,17 +1187,24 @@ void main() {
       // 그래서 자리 자체를 본다: 목록의 **첫 자식**이어야 한다. 화면 밖으로
       // 밀려나 우연히 안 잡히는 것에 기대지 않으려고 위젯 목록을 직접 읽는다
       // (ListView(children:) 는 화면 밖 자식도 위젯으로는 다 지어 둔다).
-      await tester.pumpWidget(home(
-        teamId: 'lotte',
-        games: [
-          game(date: '2026-08-25', home: 'lg', away: 'lotte', stadium: 'jamsil'),
-        ],
-        now: now,
-        stadiumVisit: const StadiumVisitResult.visited(
-          stadiumId: 'sajik',
-          gameId: '2026-08-25-sajik-lotte-kt',
+      await tester.pumpWidget(
+        home(
+          teamId: 'lotte',
+          games: [
+            game(
+              date: '2026-08-25',
+              home: 'lg',
+              away: 'lotte',
+              stadium: 'jamsil',
+            ),
+          ],
+          now: now,
+          stadiumVisit: const StadiumVisitResult.visited(
+            stadiumId: 'sajik',
+            gameId: '2026-08-25-sajik-lotte-kt',
+          ),
         ),
-      ));
+      );
       await tester.pumpAndSettle();
 
       final listView = tester.widgetList<ListView>(find.byType(ListView)).first;
@@ -1123,28 +1223,31 @@ void main() {
       );
     });
 
-    testWidgets('위치 자리가 있어도 홈의 나머지(D-day·최근 5경기·탐색)는 그대로다',
-        (tester) async {
-      await tester.pumpWidget(home(
-        teamId: 'lotte',
-        games: [
-          game(date: '2026-08-25', home: 'lg', away: 'lotte', stadium: 'jamsil'),
-        ],
-        now: now,
-        stadiumVisit: const StadiumVisitResult.visited(
-          stadiumId: 'jamsil',
-          gameId: '2026-08-25-jamsil-lotte-lg',
+    testWidgets('위치 자리가 있어도 홈의 나머지(D-day·최근 5경기·탐색)는 그대로다', (tester) async {
+      await tester.pumpWidget(
+        home(
+          teamId: 'lotte',
+          games: [
+            game(
+              date: '2026-08-25',
+              home: 'lg',
+              away: 'lotte',
+              stadium: 'jamsil',
+            ),
+          ],
+          now: now,
+          stadiumVisit: const StadiumVisitResult.visited(
+            stadiumId: 'jamsil',
+            gameId: '2026-08-25-jamsil-lotte-lg',
+          ),
         ),
-      ));
+      );
       await tester.pumpAndSettle();
 
       expect(locationRow(), findsOneWidget);
       expect(find.text('오늘'), findsOneWidget);
       expect(find.text('최근 5경기'), findsOneWidget);
-      expect(
-        find.byType(StadiumPicker, skipOffstage: false),
-        findsOneWidget,
-      );
+      expect(find.byType(StadiumPicker, skipOffstage: false), findsOneWidget);
     });
   });
 }

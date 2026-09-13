@@ -118,11 +118,7 @@ Future<_Harness> _pump(
   addTearDown(store.dispose);
   await store.createProfile(
     _uid,
-    NewUserProfile(
-      nickname: '원정러',
-      favoriteTeamId: _anchor.teamId,
-      profileThemeKey: _anchor.teamId,
-    ),
+    NewUserProfile(nickname: '원정러', favoriteTeamId: _anchor.teamId),
   );
 
   final teams = _content.teams;
@@ -242,7 +238,8 @@ void main() {
       expect(
         find.text(_anchor.nearbyLabel),
         findsNothing,
-        reason: '구장에서 한참 떨어진 곳에서 "${_anchor.nearbyLabel}"가 뜨면 '
+        reason:
+            '구장에서 한참 떨어진 곳에서 "${_anchor.nearbyLabel}"가 뜨면 '
             '홈 상단이 말하는 것은 현재 위치가 아니다',
       );
     },
@@ -325,11 +322,7 @@ void main() {
       addTearDown(store.dispose);
       await store.createProfile(
         _uid,
-        NewUserProfile(
-          nickname: '원정러',
-          favoriteTeamId: _anchor.teamId,
-          profileThemeKey: _anchor.teamId,
-        ),
+        NewUserProfile(nickname: '원정러', favoriteTeamId: _anchor.teamId),
       );
       final stadiums = _content.stadiums;
       const issue = ContentIssue(ContentIssueKind.network, 'fixture');
@@ -351,7 +344,9 @@ void main() {
             teamsProvider.overrideWith(
               (ref) async => const ContentUnavailable<TeamsDocument>(issue),
             ),
-            stadiumsProvider.overrideWith((ref) async => ContentFresh(stadiums)),
+            stadiumsProvider.overrideWith(
+              (ref) async => ContentFresh(stadiums),
+            ),
             placesProvider.overrideWith(
               (ref) async => const ContentUnavailable<PlacesDocument>(issue),
             ),
