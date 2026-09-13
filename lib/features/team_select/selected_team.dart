@@ -362,7 +362,13 @@ class SelectedTeamNotifier extends Notifier<AsyncValue<String?>> {
 
   // 설정 등 다른 필드의 스냅샷은 저장 중인 최신 팀 선택을 덮지 않는다.
   // null도 정상 선택이므로 선택 자체의 유무와 팀 id를 구분한다.
-  ({Object token, String? uid, String? teamId})? _pendingSelection;
+  ({
+    Object token,
+    String? uid,
+    String? teamId,
+    bool mayReplaceProfile,
+    bool protectFromSnapshots,
+  })? _pendingSelection;
 
   @override
   AsyncValue<String?> build() {
@@ -370,11 +376,12 @@ class SelectedTeamNotifier extends Notifier<AsyncValue<String?>> {
     final profile = ref.watch(userProfileProvider);
     final pending = _pendingSelection;
     if (pending != null) {
-      if (pending.uid == ownerUid) {
+      if (pending.uid != ownerUid) {
+        _pendingSelection = null;
+      } else if (pending.protectFromSnapshots) {
         _hasProfile = true;
         return AsyncData(pending.teamId);
       }
-      _pendingSelection = null;
     }
     if (profile case AsyncData(:final value)) {
       _hasProfile = value != null;
@@ -473,7 +480,13 @@ class SelectedTeamNotifier extends Notifier<AsyncValue<String?>> {
     // 되돌릴 자리 — 아직 아무것도 바뀌지 않은 지금의 화면이다.
     final rollback = state;
     final rollbackHasProfile = _hasProfile;
-    final selection = (token: Object(), uid: owner?.uid, teamId: teamId);
+    final selection = (
+      token: Object(),
+      uid: owner?.uid,
+      teamId: teamId,
+      mayReplaceProfile: isChange || documentSeen,
+      protectFromSnapshots: true,
+    );
     _pendingSelection = selection;
     _hasProfile = true;
     state = AsyncData(teamId);
@@ -593,6 +606,21 @@ class SelectedTeamNotifier extends Notifier<AsyncValue<String?>> {
       }
       // 만들지 못했다 = 이미 문서가 있다.
       if (!isChange) {
+        // 원본이 있음을 확인했으므로 같은 사정으로 줄에 선 온보딩 선택도
+        // 물러난다. 수렴 읽기보다 먼저 온 스냅샷이 원본을 보여 줘도 된다.
+        // 명시적인 팀 변경이나 문서를 보고 누른 최신 선택은 계속 보호한다.
+        final pending = _pendingSelection;
+        if (pending != null &&
+            pending.uid == owner.uid &&
+            !pending.mayReplaceProfile) {
+          _pendingSelection = (
+            token: pending.token,
+            uid: pending.uid,
+            teamId: pending.teamId,
+            mayReplaceProfile: pending.mayReplaceProfile,
+            protectFromSnapshots: false,
+          );
+        }
         // 온보딩으로 뜬 화면에서 고른 선택이다. 이 선택이 줄에 설 때 스냅샷은
         // 문서를 보여 주지 않았으므로 게이트는 이 사람을 "팀이 없는 사람"으로
         // 다루었고, 사람은 "처음 고르는 중"이라고 믿고 눌렀다. 여기서 수정으로
