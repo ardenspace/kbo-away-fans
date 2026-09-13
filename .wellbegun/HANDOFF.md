@@ -1,5 +1,32 @@
 # 핸드오프 — 원정러 응원팀 컬러 기반 실시간 디자인
 
+## 2026-09-13 다음 세션 재개 체크포인트
+
+일반 개발 방식으로 계속한다. wellbegin/wellspec/wellplan/wellrun을 다시 시작하지
+않는다. 승인된 명세와 계획은 참고 계약으로 유지하고, 실제 코드·검사 결과를 기준으로
+남은 결함을 닫는다. HTML은 보존하고 원격 push는 사용자 지시 전까지 하지 않는다.
+
+- 시작 HEAD: `494ca0e` (`fix(theme): isolate cached settings by account`).
+- 브랜치 상태: `main`은 `origin/main` 대비 ahead 51, behind 2. 작업 트리가 많이
+  변경되어 있으므로 pull/rebase/merge 전에 원격 2개 커밋의 내용과 충돌 범위를 먼저
+  읽는다. 기존 변경을 stash/reset/checkout으로 치우지 않는다.
+- 방금 완료: 계정별 테마 캐시 소유권, 스플래시 중 프로필 조기 조회, historical
+  unknown-team 마이페이지 assertion 수정. 독립 probe 8/8과 관련 회귀 30/30 통과.
+- 전체 검사: analyze 0 issues, Firebase 80/80, content 61/61, JSON 4종 validate,
+  hooks 4종, diff-check 통과.
+- 전체 Flutter 상태: 1074 pass, 1 skip, 3 fail. 실패를 완료로 처리하지 않는다.
+- 다음 우선순위 1: `test/features/profile/cycle3_phase2_round3_independent_probe_test.dart`
+  — A→B→A 전환 중 A의 오래된 테마 쓰기가 A의 최신 성공 쓰기 뒤에 완료되는 순서 문제.
+- 다음 우선순위 2: `test/features/home/cycle3_phase4_fresh_integration_probe_test.dart`
+  — 5시간 지난 방문 판정이 도착 상태를 계속 주장하는 문제.
+- 다음 우선순위 3: `test/features/home/cycle3_phase4_round3_verifier_probe_test.dart`
+  — legacy 폭의 독립 `PlaceCard` 전화번호 overflow.
+- 위 셋을 각각 재현·수정·관련 검사한 뒤 전체 `flutter test`를 다시 실행한다.
+- 이후 Android SDK 37/compileSdk 36 불일치를 해결하고 릴리스 빌드를 실제 검증한다.
+- 미커밋 변경과 untracked verifier probe는 이전 세션에서 보존한 작업이다. 출처와
+  필요성을 확인해 논리 단위로 정리하며, 무더기 삭제나 무관한 커밋을 하지 않는다.
+- `visualizations/`의 HTML은 디자인 기준 자료이므로 삭제·재생성·포맷하지 않는다.
+
 ## 2026-09-13 wellrun 종료 및 일반 개발 전환
 
 사용자 지시에 따라 cycle 3 wellrun은 전체 fresh review round 2 REJECT 지점에서
