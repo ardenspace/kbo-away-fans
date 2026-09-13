@@ -3,9 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kbo_away_fans/app.dart';
 import 'package:kbo_away_fans/backend/auth.dart';
+import 'package:kbo_away_fans/backend/user_data.dart';
 import 'package:kbo_away_fans/content/content_loader.dart';
 import 'package:kbo_away_fans/content/content_providers.dart';
 import 'package:kbo_away_fans/content/models.dart';
+import 'package:kbo_away_fans/features/home/next_away_game.dart';
+import 'package:kbo_away_fans/features/profile/theme_settings.dart';
 import 'package:kbo_away_fans/features/splash/splash_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -33,8 +36,7 @@ void main() {
     expect(find.byType(MaterialApp), findsOneWidget);
   });
 
-  testWidgets('포그라운드 복귀(resumed) 시 콘텐츠 provider 가 다시 로드된다',
-      (tester) async {
+  testWidgets('포그라운드 복귀(resumed) 시 콘텐츠 provider 가 다시 로드된다', (tester) async {
     const issue = ContentIssue(ContentIssueKind.network, 'test fixture');
     var teamLoads = 0;
     final container = ProviderContainer(
@@ -81,8 +83,48 @@ void main() {
     expect(teamLoads, 2);
   });
 
-  testWidgets('앱은 스플래시로 시작하고, 연출이 끝나면 루트 게이트로 넘어간다',
-      (tester) async {
+  testWidgets('pause에서 취소한 자동 밝기 경계 타이머를 resume에서 다시 건다', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    const uid = 'theme-boundary-user';
+    var now = DateTime.parse('2026-09-12T06:59:59+09:00');
+    final auth = fakeAuth(signedIn: const AuthUser(uid: uid));
+    final store = FakeUserDataStore();
+    addTearDown(store.dispose);
+    await store.createProfile(
+      uid,
+      const NewUserProfile(
+        nickname: '원정러',
+        favoriteTeamId: null,
+        defaultThemeFamily: DefaultThemeFamily.a,
+        brightnessPreference: BrightnessPreference.auto,
+      ),
+    );
+    final container = ProviderContainer(
+      overrides: [
+        authServiceProvider.overrideWithValue(auth),
+        userDataStoreProvider.overrideWithValue(store),
+        clockProvider.overrideWithValue(() => now),
+      ],
+    );
+    addTearDown(container.dispose);
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const KboAwayFansApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(container.read(resolvedThemeBrightnessProvider), Brightness.dark);
+
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    now = DateTime.parse('2026-09-12T07:00:00+09:00');
+    await tester.pump(const Duration(seconds: 1));
+
+    expect(container.read(resolvedThemeBrightnessProvider), Brightness.light);
+  });
+
+  testWidgets('앱은 스플래시로 시작하고, 연출이 끝나면 루트 게이트로 넘어간다', (tester) async {
     SharedPreferences.setMockInitialValues({});
     const issue = ContentIssue(ContentIssueKind.network, 'test fixture');
 

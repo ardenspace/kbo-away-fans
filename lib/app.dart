@@ -5,7 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'backend/auth.dart';
 import 'content/content_providers.dart';
-import 'design/app_theme.dart';
 import 'design/tokens.dart';
 import 'features/auth/sign_in_screen.dart';
 import 'features/home/next_away_game.dart' show clockProvider;
@@ -56,6 +55,9 @@ class _KboAwayFansAppState extends ConsumerState<KboAwayFansApp>
     if (state == AppLifecycleState.resumed) {
       invalidateContent(ref);
       ref.invalidate(resolvedThemeBrightnessProvider);
+      // invalidation 결과가 같은 밝기면 build가 다시 오지 않을 수 있다. 그때도
+      // pause에서 취소한 다음 자동 경계 타이머는 반드시 다시 세운다.
+      _scheduleThemeBoundaryRefresh();
     } else {
       _themeBoundaryTimer?.cancel();
       _themeBoundaryTimer = null;
@@ -64,13 +66,7 @@ class _KboAwayFansAppState extends ConsumerState<KboAwayFansApp>
 
   @override
   Widget build(BuildContext context) {
-    final visualTheme = _profileThemeEnabled
-        ? ref.watch(appVisualThemeProvider)
-        : AppVisualTheme.resolve(
-            favoriteTeamId: null,
-            defaultFamily: AppThemeFamily.a,
-            brightness: automaticThemeBrightness(ref.watch(clockProvider)()),
-          );
+    final visualTheme = ref.watch(appVisualThemeProvider);
     _scheduleThemeBoundaryRefresh();
     return MaterialApp(
       title: 'KBO 원정러',

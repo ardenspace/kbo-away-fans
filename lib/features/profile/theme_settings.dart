@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../backend/auth.dart';
 import '../../backend/user_data.dart';
@@ -25,6 +28,75 @@ class ThemeSettings {
         family: family ?? this.family,
         brightnessMode: brightnessMode ?? this.brightnessMode,
       );
+
+  @override
+  bool operator ==(Object other) =>
+      other is ThemeSettings &&
+      other.family == family &&
+      other.brightnessMode == brightnessMode;
+
+  @override
+  int get hashCode => Object.hash(family, brightnessMode);
+}
+
+const String kThemeSettingsPrefsKey = 'theme_settings';
+const String _themeCacheSeparator = '|';
+
+/// 첫 프레임에 쓸 계정 귀속 테마 사본.
+class ThemeSettingsStore {
+  const ThemeSettingsStore();
+
+  Future<ThemeSettings?> read(String uid) async {
+    final prefs = await SharedPreferences.getInstance();
+    final parts = prefs
+        .getString(kThemeSettingsPrefsKey)
+        ?.split(_themeCacheSeparator);
+    if (parts == null || parts.length != 3 || parts.first != uid) return null;
+    final family = AppThemeFamily.values.where((v) => v.name == parts[1]);
+    final mode = ThemeMode.values.where((v) => v.name == parts[2]);
+    if (family.length != 1 || mode.length != 1) return null;
+    return ThemeSettings(family: family.single, brightnessMode: mode.single);
+  }
+
+  Future<void> write(String uid, ThemeSettings settings) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      kThemeSettingsPrefsKey,
+      '$uid$_themeCacheSeparator${settings.family.name}'
+      '$_themeCacheSeparator${settings.brightnessMode.name}',
+    );
+  }
+}
+
+final themeSettingsStoreProvider = Provider<ThemeSettingsStore>(
+  (_) => const ThemeSettingsStore(),
+);
+
+final cachedThemeSettingsProvider =
+    AsyncNotifierProvider<CachedThemeSettings, ThemeSettings?>(
+      CachedThemeSettings.new,
+      retry: (retryCount, error) => null,
+    );
+
+class CachedThemeSettings extends AsyncNotifier<ThemeSettings?> {
+  ({String uid, ThemeSettings settings})? _written;
+
+  @override
+  Future<ThemeSettings?> build() async {
+    final user = ref.watch(authStateProvider).value;
+    if (user == null) return null;
+    final stored = await ref.watch(themeSettingsStoreProvider).read(user.uid);
+    final written = _written;
+    return written?.uid == user.uid ? written!.settings : stored;
+  }
+
+  Future<void> write(String uid, ThemeSettings settings) async {
+    final entry = (uid: uid, settings: settings);
+    if (_written == entry) return;
+    await ref.read(themeSettingsStoreProvider).write(uid, settings);
+    _written = entry;
+    state = AsyncData(settings);
+  }
 }
 
 /// 프로필의 테마 설정을 화면에 즉시 반영하고 원본 사용자 문서에 남긴다.
@@ -53,6 +125,7 @@ class ThemeSettingsNotifier extends Notifier<ThemeSettings> {
   ThemeSettings build() {
     final ownerUid = ref.watch(authStateProvider).value?.uid;
     final profile = ref.watch(userProfileProvider).value;
+    final cached = ref.watch(cachedThemeSettingsProvider).value;
 
     if (_ownerUid != ownerUid) {
       _ownerUid = ownerUid;
@@ -65,7 +138,7 @@ class ThemeSettingsNotifier extends Notifier<ThemeSettings> {
       _queue = Future<void>.value();
     }
     if (profile == null || profile.uid != ownerUid) {
-      return const ThemeSettings.defaults();
+      return cached ?? const ThemeSettings.defaults();
     }
 
     final storedFamily = AppThemeFamily.values.byName(
@@ -82,10 +155,14 @@ class ThemeSettingsNotifier extends Notifier<ThemeSettings> {
       _pendingBrightnessMode = null;
       _pendingBrightnessRevision = null;
     }
-    return ThemeSettings(
+    final resolved = ThemeSettings(
       family: _pendingFamily ?? storedFamily,
       brightnessMode: _pendingBrightnessMode ?? storedBrightnessMode,
     );
+    if (_pendingFamily == null && _pendingBrightnessMode == null) {
+      unawaited(_writeThemeCache(profile.uid, resolved));
+    }
+    return resolved;
   }
 
   Future<void> setFamily(AppThemeFamily family) {
@@ -119,6 +196,7 @@ class ThemeSettingsNotifier extends Notifier<ThemeSettings> {
         _pendingFamilyRevision = null;
         state = state.copyWith(family: previous);
       },
+      cacheSettings: state.copyWith(family: family),
     );
   }
 
@@ -153,6 +231,7 @@ class ThemeSettingsNotifier extends Notifier<ThemeSettings> {
         _pendingBrightnessRevision = null;
         state = state.copyWith(brightnessMode: previous);
       },
+      cacheSettings: state.copyWith(brightnessMode: mode),
     );
   }
 
@@ -170,6 +249,7 @@ class ThemeSettingsNotifier extends Notifier<ThemeSettings> {
     required UserProfilePatch patch,
     required VoidCallback onCompleted,
     required VoidCallback rollback,
+    required ThemeSettings cacheSettings,
   }) async {
     Future<void> write() async {
       if (ref.read(authStateProvider).value?.uid != profile.uid) return;
@@ -180,10 +260,22 @@ class ThemeSettingsNotifier extends Notifier<ThemeSettings> {
     _queue = task;
     try {
       await task;
-      if (_ownerUid == profile.uid) onCompleted();
+      if (_ownerUid == profile.uid) {
+        onCompleted();
+        await _writeThemeCache(profile.uid, cacheSettings);
+      }
     } on Object {
       if (_ownerUid == profile.uid) rollback();
       rethrow;
+    }
+  }
+
+  Future<void> _writeThemeCache(String uid, ThemeSettings settings) async {
+    try {
+      await ref.read(cachedThemeSettingsProvider.notifier).write(uid, settings);
+    } on Object {
+      // 원본 프로필 저장이 성공한 뒤 보조 캐시 실패로 화면을 되돌리지 않는다.
+      // 다음 서버 스냅샷 또는 다음 설정 저장에서 다시 갱신한다.
     }
   }
 }

@@ -119,6 +119,9 @@ void main() {
     await tester.pumpAndSettle();
     expect(visualOf(tester).brightness, Brightness.dark);
     expect(store.documents[_uid]![UserFields.brightnessPreference], 'dark');
+    final cached = await const ThemeSettingsStore().read(_uid);
+    expect(cached?.family, AppThemeFamily.b);
+    expect(cached?.brightnessMode, ThemeMode.dark);
 
     await tester.tap(find.text('자동'));
     await tester.pumpAndSettle();
@@ -165,6 +168,53 @@ void main() {
     expect(
       automaticThemeBrightness(DateTime.parse('2026-09-12T19:00:00+09:00')),
       Brightness.dark,
+    );
+  });
+
+  test('서버 프로필이 늦어도 같은 계정의 B/dark 캐시를 즉시 복원한다', () async {
+    SharedPreferences.setMockInitialValues({
+      kThemeSettingsPrefsKey: '$_uid|b|dark',
+    });
+    final container = ProviderContainer(
+      overrides: [
+        authStateProvider.overrideWithValue(
+          const AsyncData(AuthUser(uid: _uid)),
+        ),
+        userProfileProvider.overrideWithValue(
+          const AsyncLoading<UserProfile?>(),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await container.read(cachedThemeSettingsProvider.future);
+
+    final restored = container.read(themeSettingsProvider);
+    expect(restored.family, AppThemeFamily.b);
+    expect(restored.brightnessMode, ThemeMode.dark);
+  });
+
+  test('다른 계정이 남긴 테마 캐시는 복원하지 않는다', () async {
+    SharedPreferences.setMockInitialValues({
+      kThemeSettingsPrefsKey: 'other-user|b|dark',
+    });
+    final container = ProviderContainer(
+      overrides: [
+        authStateProvider.overrideWithValue(
+          const AsyncData(AuthUser(uid: _uid)),
+        ),
+        userProfileProvider.overrideWithValue(
+          const AsyncLoading<UserProfile?>(),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await container.read(cachedThemeSettingsProvider.future);
+
+    expect(
+      container.read(themeSettingsProvider),
+      const ThemeSettings.defaults(),
     );
   });
 }

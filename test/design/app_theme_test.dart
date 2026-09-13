@@ -75,15 +75,18 @@ void main() {
       }
     });
 
-    test('알 수 없는 non-null 팀 id를 기본 계열로 가장하지 않는다', () {
-      expect(
-        () => AppVisualTheme.resolve(
-          favoriteTeamId: 'unknown',
-          defaultFamily: AppThemeFamily.a,
-          brightness: Brightness.light,
-        ),
-        throwsArgumentError,
+    test('과거 서버의 알 수 없는 팀 id는 공통 뉴트럴 테마로 저하한다', () {
+      final visual = AppVisualTheme.resolve(
+        favoriteTeamId: 'historical-team',
+        defaultFamily: AppThemeFamily.b,
+        brightness: Brightness.dark,
       );
+
+      expect(visual.background, NeutralTokens.darkBackground);
+      expect(visual.surface, NeutralTokens.darkSurface);
+      expect(visual.primary, NeutralTokens.darkInk);
+      expect(visual.secondary, NeutralTokens.darkMuted);
+      expect(visual.background, isNot(DefaultThemeTokens.bDarkBackground));
     });
 
     test('시맨틱 색은 모든 팀·계열·밝기에서 고정된다', () {

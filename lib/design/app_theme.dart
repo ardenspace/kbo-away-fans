@@ -34,8 +34,8 @@ class AppVisualTheme extends ThemeExtension<AppVisualTheme> {
 
   /// 유효한 팀 id가 있으면 팀 색을, 없으면 A/B 계열의 밝기별 얼굴을 고른다.
   ///
-  /// 알 수 없는 non-null id는 조용히 기본 테마로 떨어뜨리지 않는다. 사용자 문서와
-  /// 팀 로스터가 어긋난 상태이므로 호출자가 경계에서 복구할 수 있게 예외로 알린다.
+  /// 과거 서버 문서의 알 수 없는 non-null id는 팀 선택 자체는 보존하되, 화면은
+  /// 공통 뉴트럴 역할로 저하한다. 새 쓰기의 id 검증은 백엔드 모델 경계가 맡는다.
   factory AppVisualTheme.resolve({
     required String? favoriteTeamId,
     required AppThemeFamily defaultFamily,
@@ -44,13 +44,7 @@ class AppVisualTheme extends ThemeExtension<AppVisualTheme> {
     final team = favoriteTeamId == null
         ? null
         : TeamThemes.byId[favoriteTeamId];
-    if (favoriteTeamId != null && team == null) {
-      throw ArgumentError.value(
-        favoriteTeamId,
-        'favoriteTeamId',
-        '등록된 KBO 팀 id여야 합니다',
-      );
-    }
+    final unknownTeam = favoriteTeamId != null && team == null;
 
     final isDark = brightness == Brightness.dark;
     final neutralBackground = isDark
@@ -82,15 +76,21 @@ class AppVisualTheme extends ThemeExtension<AppVisualTheme> {
 
     return AppVisualTheme._(
       brightness: brightness,
-      background: team == null ? defaultBackground : neutralBackground,
+      background: favoriteTeamId == null
+          ? defaultBackground
+          : neutralBackground,
       surface: surface,
       textPrimary: ink,
       textSecondary: muted,
       outline: outline,
-      primary: team?.primary ?? defaultPrimary,
-      onPrimary: team?.onPrimary ?? _onColor(defaultPrimary),
-      secondary: team?.secondary ?? defaultSecondary,
-      onSecondary: team?.onSecondary ?? _onColor(defaultSecondary),
+      primary: unknownTeam ? ink : team?.primary ?? defaultPrimary,
+      onPrimary: unknownTeam
+          ? neutralBackground
+          : team?.onPrimary ?? _onColor(defaultPrimary),
+      secondary: unknownTeam ? muted : team?.secondary ?? defaultSecondary,
+      onSecondary: unknownTeam
+          ? neutralBackground
+          : team?.onSecondary ?? _onColor(defaultSecondary),
       success: ColorTokens.success,
       warning: ColorTokens.warning,
       danger: ColorTokens.danger,
