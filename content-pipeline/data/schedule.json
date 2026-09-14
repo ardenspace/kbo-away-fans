@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-09-13T17:11:16.749Z",
+  "generatedAt": "2026-09-14T10:10:59.787Z",
   "games": [
     {
       "id": "20260901HHKT02026",
@@ -1227,15 +1227,6 @@
       "status": "scheduled"
     },
     {
-      "id": "20261004LTKT02026",
-      "date": "2026-10-04",
-      "startTime": "14:00",
-      "homeTeamId": "kt",
-      "awayTeamId": "lotte",
-      "stadiumId": "suwon",
-      "status": "scheduled"
-    },
-    {
       "id": "20261004OBSS02026",
       "date": "2026-10-04",
       "startTime": "14:00",
@@ -1260,6 +1251,15 @@
       "homeTeamId": "hanwha",
       "awayTeamId": "kiwoom",
       "stadiumId": "daejeon",
+      "status": "scheduled"
+    },
+    {
+      "id": "20261004LTKT02026",
+      "date": "2026-10-04",
+      "startTime": "17:00",
+      "homeTeamId": "kt",
+      "awayTeamId": "lotte",
+      "stadiumId": "suwon",
       "status": "scheduled"
     },
     {
