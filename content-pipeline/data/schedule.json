@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-09-17T18:30:08.734Z",
+  "generatedAt": "2026-09-18T13:38:02.485Z",
   "games": [
     {
       "id": "20260904HHLT02026",
@@ -609,7 +609,10 @@
       "homeTeamId": "kt",
       "awayTeamId": "lg",
       "stadiumId": "suwon",
-      "status": "scheduled"
+      "status": "finished",
+      "homeScore": 1,
+      "awayScore": 12,
+      "result": "away_win"
     },
     {
       "id": "20260918NCLT02026",
@@ -618,7 +621,10 @@
       "homeTeamId": "lotte",
       "awayTeamId": "nc",
       "stadiumId": "sajik",
-      "status": "scheduled"
+      "status": "finished",
+      "homeScore": 9,
+      "awayScore": 6,
+      "result": "home_win"
     },
     {
       "id": "20260918SSHH02026",
@@ -627,7 +633,10 @@
       "homeTeamId": "hanwha",
       "awayTeamId": "samsung",
       "stadiumId": "daejeon",
-      "status": "scheduled"
+      "status": "finished",
+      "homeScore": 4,
+      "awayScore": 10,
+      "result": "away_win"
     },
     {
       "id": "20260918WOOB02026",
