@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-09-20T09:30:22.826Z",
+  "generatedAt": "2026-09-20T13:40:23.903Z",
   "games": [
     {
       "id": "20260906NCWO02026",
@@ -597,7 +597,10 @@
       "homeTeamId": "nc",
       "awayTeamId": "kia",
       "stadiumId": "changwon",
-      "status": "scheduled"
+      "status": "finished",
+      "homeScore": 6,
+      "awayScore": 8,
+      "result": "away_win"
     },
     {
       "id": "20260920OBKT02026",
