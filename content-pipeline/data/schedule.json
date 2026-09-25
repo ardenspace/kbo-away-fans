@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-09-24T18:37:44.152Z",
+  "generatedAt": "2026-09-25T09:54:01.361Z",
   "games": [
     {
       "id": "20260911KTLT02026",
@@ -558,7 +558,7 @@
       "homeTeamId": "doosan",
       "awayTeamId": "lotte",
       "stadiumId": "jamsil",
-      "status": "scheduled"
+      "status": "canceled"
     },
     {
       "id": "20260925SSSK02026",
@@ -567,7 +567,7 @@
       "homeTeamId": "ssg",
       "awayTeamId": "samsung",
       "stadiumId": "munhak",
-      "status": "scheduled"
+      "status": "canceled"
     },
     {
       "id": "20260926HHNC02026",
