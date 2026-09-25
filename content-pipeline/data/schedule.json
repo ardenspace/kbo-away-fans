@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-09-25T09:54:01.361Z",
+  "generatedAt": "2026-09-25T14:50:15.185Z",
   "games": [
     {
       "id": "20260911KTLT02026",
@@ -549,7 +549,10 @@
       "homeTeamId": "nc",
       "awayTeamId": "hanwha",
       "stadiumId": "changwon",
-      "status": "scheduled"
+      "status": "finished",
+      "homeScore": 8,
+      "awayScore": 7,
+      "result": "home_win"
     },
     {
       "id": "20260925LTOB02026",
