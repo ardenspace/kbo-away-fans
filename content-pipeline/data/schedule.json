@@ -1,55 +1,7 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-09-27T15:10:19.564Z",
+  "generatedAt": "2026-09-29T16:46:18.985Z",
   "games": [
-    {
-      "id": "20260915HTSK02026",
-      "date": "2026-09-15",
-      "startTime": "18:30",
-      "homeTeamId": "ssg",
-      "awayTeamId": "kia",
-      "stadiumId": "munhak",
-      "status": "finished",
-      "homeScore": 6,
-      "awayScore": 3,
-      "result": "home_win"
-    },
-    {
-      "id": "20260915KTHH02026",
-      "date": "2026-09-15",
-      "startTime": "18:30",
-      "homeTeamId": "hanwha",
-      "awayTeamId": "kt",
-      "stadiumId": "daejeon",
-      "status": "finished",
-      "homeScore": 3,
-      "awayScore": 13,
-      "result": "away_win"
-    },
-    {
-      "id": "20260915LGNC02026",
-      "date": "2026-09-15",
-      "startTime": "18:30",
-      "homeTeamId": "nc",
-      "awayTeamId": "lg",
-      "stadiumId": "changwon",
-      "status": "finished",
-      "homeScore": 2,
-      "awayScore": 3,
-      "result": "away_win"
-    },
-    {
-      "id": "20260915LTSS02026",
-      "date": "2026-09-15",
-      "startTime": "18:30",
-      "homeTeamId": "samsung",
-      "awayTeamId": "lotte",
-      "stadiumId": "daegu",
-      "status": "finished",
-      "homeScore": 7,
-      "awayScore": 3,
-      "result": "home_win"
-    },
     {
       "id": "20260916KTHH02026",
       "date": "2026-09-16",
@@ -516,7 +468,10 @@
       "homeTeamId": "samsung",
       "awayTeamId": "hanwha",
       "stadiumId": "daegu",
-      "status": "scheduled"
+      "status": "finished",
+      "homeScore": 10,
+      "awayScore": 5,
+      "result": "home_win"
     },
     {
       "id": "20260929KTHT02026",
@@ -525,7 +480,10 @@
       "homeTeamId": "kia",
       "awayTeamId": "kt",
       "stadiumId": "gwangju",
-      "status": "scheduled"
+      "status": "finished",
+      "homeScore": 5,
+      "awayScore": 8,
+      "result": "away_win"
     },
     {
       "id": "20260929LGSK02026",
@@ -534,7 +492,10 @@
       "homeTeamId": "ssg",
       "awayTeamId": "lg",
       "stadiumId": "munhak",
-      "status": "scheduled"
+      "status": "finished",
+      "homeScore": 7,
+      "awayScore": 1,
+      "result": "home_win"
     },
     {
       "id": "20260929NCOB02026",
@@ -543,7 +504,10 @@
       "homeTeamId": "doosan",
       "awayTeamId": "nc",
       "stadiumId": "jamsil",
-      "status": "scheduled"
+      "status": "finished",
+      "homeScore": 5,
+      "awayScore": 2,
+      "result": "home_win"
     },
     {
       "id": "20260929WOLT02026",
@@ -552,7 +516,10 @@
       "homeTeamId": "lotte",
       "awayTeamId": "kiwoom",
       "stadiumId": "sajik",
-      "status": "scheduled"
+      "status": "finished",
+      "homeScore": 4,
+      "awayScore": 2,
+      "result": "home_win"
     },
     {
       "id": "20260930HHSS02026",
