@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-09-29T16:46:18.985Z",
+  "generatedAt": "2026-09-30T10:48:06.294Z",
   "games": [
     {
       "id": "20260916KTHH02026",
@@ -825,6 +825,105 @@
       "homeTeamId": "kt",
       "awayTeamId": "samsung",
       "stadiumId": "suwon",
+      "status": "scheduled"
+    },
+    {
+      "id": "20261009HTNC02026",
+      "date": "2026-10-09",
+      "startTime": "14:00",
+      "homeTeamId": "nc",
+      "awayTeamId": "kia",
+      "stadiumId": "changwon",
+      "status": "scheduled"
+    },
+    {
+      "id": "20261009LGLT02026",
+      "date": "2026-10-09",
+      "startTime": "14:00",
+      "homeTeamId": "lotte",
+      "awayTeamId": "lg",
+      "stadiumId": "sajik",
+      "status": "scheduled"
+    },
+    {
+      "id": "20261009SSSK02026",
+      "date": "2026-10-09",
+      "startTime": "14:00",
+      "homeTeamId": "ssg",
+      "awayTeamId": "samsung",
+      "stadiumId": "munhak",
+      "status": "scheduled"
+    },
+    {
+      "id": "20261010LGLT02026",
+      "date": "2026-10-10",
+      "startTime": "17:00",
+      "homeTeamId": "lotte",
+      "awayTeamId": "lg",
+      "stadiumId": "sajik",
+      "status": "scheduled"
+    },
+    {
+      "id": "20261010NCHH02026",
+      "date": "2026-10-10",
+      "startTime": "17:00",
+      "homeTeamId": "hanwha",
+      "awayTeamId": "nc",
+      "stadiumId": "daejeon",
+      "status": "scheduled"
+    },
+    {
+      "id": "20261010SKHT02026",
+      "date": "2026-10-10",
+      "startTime": "17:00",
+      "homeTeamId": "kia",
+      "awayTeamId": "ssg",
+      "stadiumId": "gwangju",
+      "status": "scheduled"
+    },
+    {
+      "id": "20261011KTSS02026",
+      "date": "2026-10-11",
+      "startTime": "14:00",
+      "homeTeamId": "samsung",
+      "awayTeamId": "kt",
+      "stadiumId": "daegu",
+      "status": "scheduled"
+    },
+    {
+      "id": "20261011LTHT02026",
+      "date": "2026-10-11",
+      "startTime": "14:00",
+      "homeTeamId": "kia",
+      "awayTeamId": "lotte",
+      "stadiumId": "gwangju",
+      "status": "scheduled"
+    },
+    {
+      "id": "20261012KTSS02026",
+      "date": "2026-10-12",
+      "startTime": "18:30",
+      "homeTeamId": "samsung",
+      "awayTeamId": "kt",
+      "stadiumId": "daegu",
+      "status": "scheduled"
+    },
+    {
+      "id": "20261012LGHT02026",
+      "date": "2026-10-12",
+      "startTime": "18:30",
+      "homeTeamId": "kia",
+      "awayTeamId": "lg",
+      "stadiumId": "gwangju",
+      "status": "scheduled"
+    },
+    {
+      "id": "20261012LTOB02026",
+      "date": "2026-10-12",
+      "startTime": "18:30",
+      "homeTeamId": "doosan",
+      "awayTeamId": "lotte",
+      "stadiumId": "jamsil",
       "status": "scheduled"
     }
   ]
