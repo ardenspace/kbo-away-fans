@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-01T17:22:51.628Z",
+  "generatedAt": "2026-10-02T10:47:10.382Z",
   "games": [
     {
       "id": "20260918LGKT02026",
@@ -812,7 +812,7 @@
     {
       "id": "20261010LGLT02026",
       "date": "2026-10-10",
-      "startTime": "17:00",
+      "startTime": "14:00",
       "homeTeamId": "lotte",
       "awayTeamId": "lg",
       "stadiumId": "sajik",
