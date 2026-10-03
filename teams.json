@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "teams": [
+    { "id": "lg", "name": "LG 트윈스", "shortName": "LG", "themeKey": "lg" },
+    { "id": "doosan", "name": "두산 베어스", "shortName": "두산", "themeKey": "doosan" },
+    { "id": "kiwoom", "name": "키움 히어로즈", "shortName": "키움", "themeKey": "kiwoom" },
+    { "id": "ssg", "name": "SSG 랜더스", "shortName": "SSG", "themeKey": "ssg" },
+    { "id": "kt", "name": "kt wiz", "shortName": "KT", "themeKey": "kt" },
+    { "id": "kia", "name": "KIA 타이거즈", "shortName": "KIA", "themeKey": "kia" },
+    { "id": "samsung", "name": "삼성 라이온즈", "shortName": "삼성", "themeKey": "samsung" },
+    { "id": "lotte", "name": "롯데 자이언츠", "shortName": "롯데", "themeKey": "lotte" },
+    { "id": "nc", "name": "NC 다이노스", "shortName": "NC", "themeKey": "nc" },
+    { "id": "hanwha", "name": "한화 이글스", "shortName": "한화", "themeKey": "hanwha" }
+  ]
+}

@@ -1,0 +1,153 @@
+{
+  "schemaVersion": 1,
+  "places": [
+    {
+      "id": "jamsil-bunong",
+      "stadiumId": "jamsil",
+      "name": "부농정육식당",
+      "category": "food",
+      "indoor": true,
+      "source": "curated",
+      "lat": 37.504,
+      "lng": 127.0893,
+      "address": "서울 송파구 백제고분로28길 29",
+      "description": "30년 넘은 한우 정육식당 노포. 특수부위 모둠과 된장라면으로 유명하고, 입구부터 선수들 사인볼이 가득하다.",
+      "shoutout": "LG·두산 선수들 단골 — 에스콰이어 '선수 Pick' 소개"
+    },
+    {
+      "id": "jamsil-gobaksa",
+      "stadiumId": "jamsil",
+      "name": "잠실고박사 찰떡생고기",
+      "category": "food",
+      "indoor": true,
+      "source": "curated",
+      "lat": 37.5098,
+      "lng": 127.0838,
+      "address": "서울 송파구 백제고분로7길 8",
+      "description": "잠실새내 생고기·김치찌개 집. 숨은 메뉴 '이대형 세트'(김치찌개+버터 간장 계란밥)가 시그니처.",
+      "shoutout": "LG 선수단 단골, 우승 뒤 선수단 방문 — 에스콰이어 소개"
+    },
+    {
+      "id": "jamsil-sincheon-saengtae",
+      "stadiumId": "jamsil",
+      "name": "신천생태찌개",
+      "category": "food",
+      "indoor": true,
+      "source": "curated",
+      "lat": 37.5117,
+      "lng": 127.0871,
+      "address": "서울 송파구 올림픽로8길 32",
+      "description": "잠실새내 먹자골목 안쪽의 생태찌개 전문점. 경기 끝나고 해장 겸 저녁으로 좋다.",
+      "shoutout": "LG 차명석 단장·선수들이 경기 후 찾는 집 — 에스콰이어 소개"
+    },
+    {
+      "id": "jamsil-unjip",
+      "stadiumId": "jamsil",
+      "name": "운집 방이본점",
+      "category": "food",
+      "indoor": true,
+      "source": "curated",
+      "lat": 37.51295,
+      "lng": 127.11097,
+      "address": "서울 송파구 올림픽로32길 41 1층",
+      "description": "방이동 먹자골목의 우대갈비 전문점. 주말엔 사장님이 직접 고기를 구워 준다.",
+      "shoutout": "전 두산 이현승 선수가 운영, 현역 선수들도 찾는 집"
+    },
+    {
+      "id": "jamsil-crestown",
+      "stadiumId": "jamsil",
+      "name": "크레스타운 잠실점",
+      "category": "cafe",
+      "indoor": true,
+      "source": "curated",
+      "lat": 37.5104,
+      "lng": 127.0846,
+      "address": "서울 송파구 백제고분로 63 1층",
+      "description": "잠실새내역 앞 브런치 카페. 아침 7시부터 열어서 낮 경기 전에 들르기 좋다."
+    },
+    {
+      "id": "jamsil-london-bagel",
+      "stadiumId": "jamsil",
+      "name": "런던베이글뮤지엄 잠실점",
+      "category": "cafe",
+      "indoor": true,
+      "source": "curated",
+      "lat": 37.5133,
+      "lng": 127.1042,
+      "address": "서울 송파구 올림픽로 300 롯데월드몰 1층",
+      "description": "롯데월드몰의 베이글 명소. 웨이팅이 길어서 여유 있는 날 도전할 것."
+    },
+    {
+      "id": "jamsil-masterkey",
+      "stadiumId": "jamsil",
+      "name": "마스터키 잠실새내점",
+      "category": "escape_room",
+      "indoor": true,
+      "source": "curated",
+      "lat": 37.5121,
+      "lng": 127.0868,
+      "address": "서울 송파구 잠실동 177-5",
+      "description": "잠실새내역 근처 방탈출 카페. 우천 취소된 날 실내 플랜B로 제격."
+    },
+    {
+      "id": "jamsil-cube-escape",
+      "stadiumId": "jamsil",
+      "name": "큐브이스케이프 잠실점",
+      "category": "escape_room",
+      "indoor": true,
+      "source": "curated",
+      "lat": 37.5125,
+      "lng": 127.088,
+      "address": "서울 송파구 잠실동 40-1",
+      "description": "잠실새내의 방탈출 카페. 테마 난이도 폭이 넓어 초심자도 무난하다."
+    },
+    {
+      "id": "jamsil-lotte-world",
+      "stadiumId": "jamsil",
+      "name": "롯데월드 어드벤처",
+      "category": "activity",
+      "indoor": true,
+      "source": "curated",
+      "lat": 37.5111,
+      "lng": 127.0982,
+      "address": "서울 송파구 올림픽로 240",
+      "description": "실내 테마파크. 비 오는 날에도 하루 종일 놀 수 있는 잠실의 대표 플랜B."
+    },
+    {
+      "id": "jamsil-hangang-park",
+      "stadiumId": "jamsil",
+      "name": "잠실한강공원",
+      "category": "activity",
+      "indoor": false,
+      "source": "curated",
+      "lat": 37.5178,
+      "lng": 127.0819,
+      "address": "서울 송파구 한가람로 65",
+      "description": "구장에서 걸어갈 수 있는 한강공원. 경기 전 산책과 돗자리 피크닉 코스."
+    },
+    {
+      "id": "jamsil-seoul-sky",
+      "stadiumId": "jamsil",
+      "name": "롯데월드타워 서울스카이",
+      "category": "landmark",
+      "indoor": true,
+      "source": "curated",
+      "lat": 37.5125,
+      "lng": 127.1025,
+      "address": "서울 송파구 올림픽로 300",
+      "description": "국내 최고층 전망대. 잠실 원정 왔다면 서울 전경 한 번 보고 가자."
+    },
+    {
+      "id": "jamsil-seokchon-lake",
+      "stadiumId": "jamsil",
+      "name": "석촌호수",
+      "category": "landmark",
+      "indoor": false,
+      "source": "curated",
+      "lat": 37.5088,
+      "lng": 127.1,
+      "address": "서울 송파구 잠실동 47",
+      "description": "롯데월드를 끼고 도는 호수 산책로. 야간 경기 전 시간 보내기 좋다."
+    }
+  ]
+}
