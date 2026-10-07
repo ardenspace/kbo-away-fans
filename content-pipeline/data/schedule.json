@@ -1,43 +1,7 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-06T17:23:05.391Z",
+  "generatedAt": "2026-10-07T17:56:50.901Z",
   "games": [
-    {
-      "id": "20260923HTOB02026",
-      "date": "2026-09-23",
-      "startTime": "18:30",
-      "homeTeamId": "doosan",
-      "awayTeamId": "kia",
-      "stadiumId": "jamsil",
-      "status": "finished",
-      "homeScore": 3,
-      "awayScore": 2,
-      "result": "home_win"
-    },
-    {
-      "id": "20260923LTHH02026",
-      "date": "2026-09-23",
-      "startTime": "18:30",
-      "homeTeamId": "hanwha",
-      "awayTeamId": "lotte",
-      "stadiumId": "daejeon",
-      "status": "finished",
-      "homeScore": 5,
-      "awayScore": 9,
-      "result": "away_win"
-    },
-    {
-      "id": "20260923NCKT02026",
-      "date": "2026-09-23",
-      "startTime": "18:30",
-      "homeTeamId": "kt",
-      "awayTeamId": "nc",
-      "stadiumId": "suwon",
-      "status": "finished",
-      "homeScore": 3,
-      "awayScore": 10,
-      "result": "away_win"
-    },
     {
       "id": "20260924LTLG02026",
       "date": "2026-09-24",
@@ -600,7 +564,10 @@
       "homeTeamId": "kiwoom",
       "awayTeamId": "hanwha",
       "stadiumId": "gocheok",
-      "status": "scheduled"
+      "status": "finished",
+      "homeScore": 5,
+      "awayScore": 3,
+      "result": "home_win"
     },
     {
       "id": "20261007HTLT02026",
@@ -609,7 +576,10 @@
       "homeTeamId": "lotte",
       "awayTeamId": "kia",
       "stadiumId": "sajik",
-      "status": "scheduled"
+      "status": "finished",
+      "homeScore": 4,
+      "awayScore": 12,
+      "result": "away_win"
     },
     {
       "id": "20261007NCSK02026",
@@ -618,7 +588,10 @@
       "homeTeamId": "ssg",
       "awayTeamId": "nc",
       "stadiumId": "munhak",
-      "status": "scheduled"
+      "status": "finished",
+      "homeScore": 6,
+      "awayScore": 3,
+      "result": "home_win"
     },
     {
       "id": "20261007OBLG02026",
@@ -627,7 +600,10 @@
       "homeTeamId": "lg",
       "awayTeamId": "doosan",
       "stadiumId": "jamsil",
-      "status": "scheduled"
+      "status": "finished",
+      "homeScore": 7,
+      "awayScore": 5,
+      "result": "home_win"
     },
     {
       "id": "20261007SSKT02026",
@@ -636,7 +612,10 @@
       "homeTeamId": "kt",
       "awayTeamId": "samsung",
       "stadiumId": "suwon",
-      "status": "scheduled"
+      "status": "finished",
+      "homeScore": 9,
+      "awayScore": 3,
+      "result": "home_win"
     },
     {
       "id": "20261009HTNC02026",
