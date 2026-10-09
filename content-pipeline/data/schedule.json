@@ -1,37 +1,7 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-09T11:33:46.279Z",
+  "generatedAt": "2026-10-09T17:31:53.754Z",
   "games": [
-    {
-      "id": "20260925HHNC02026",
-      "date": "2026-09-25",
-      "startTime": "17:00",
-      "homeTeamId": "nc",
-      "awayTeamId": "hanwha",
-      "stadiumId": "changwon",
-      "status": "finished",
-      "homeScore": 8,
-      "awayScore": 7,
-      "result": "home_win"
-    },
-    {
-      "id": "20260925LTOB02026",
-      "date": "2026-09-25",
-      "startTime": "17:00",
-      "homeTeamId": "doosan",
-      "awayTeamId": "lotte",
-      "stadiumId": "jamsil",
-      "status": "canceled"
-    },
-    {
-      "id": "20260925SSSK02026",
-      "date": "2026-09-25",
-      "startTime": "17:00",
-      "homeTeamId": "ssg",
-      "awayTeamId": "samsung",
-      "stadiumId": "munhak",
-      "status": "canceled"
-    },
     {
       "id": "20260926HHNC02026",
       "date": "2026-09-26",
