@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-09T17:31:53.754Z",
+  "generatedAt": "2026-10-10T10:51:46.663Z",
   "games": [
     {
       "id": "20260926HHNC02026",
@@ -594,7 +594,10 @@
       "homeTeamId": "lotte",
       "awayTeamId": "lg",
       "stadiumId": "sajik",
-      "status": "scheduled"
+      "status": "finished",
+      "homeScore": 3,
+      "awayScore": 4,
+      "result": "away_win"
     },
     {
       "id": "20261010NCHH02026",
