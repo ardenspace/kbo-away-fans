@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-10T15:58:38.538Z",
+  "generatedAt": "2026-10-11T11:04:35.933Z",
   "games": [
     {
       "id": "20260927HHLT02026",
@@ -594,7 +594,10 @@
       "homeTeamId": "samsung",
       "awayTeamId": "kt",
       "stadiumId": "daegu",
-      "status": "scheduled"
+      "status": "finished",
+      "homeScore": 3,
+      "awayScore": 12,
+      "result": "away_win"
     },
     {
       "id": "20261011LTHT02026",
@@ -603,7 +606,10 @@
       "homeTeamId": "kia",
       "awayTeamId": "lotte",
       "stadiumId": "gwangju",
-      "status": "scheduled"
+      "status": "finished",
+      "homeScore": 1,
+      "awayScore": 4,
+      "result": "away_win"
     },
     {
       "id": "20261012KTSS02026",
