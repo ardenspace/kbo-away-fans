@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-12T12:35:37.158Z",
+  "generatedAt": "2026-10-12T21:23:14.576Z",
   "games": [
     {
       "id": "20260929HHSS02026",
@@ -573,7 +573,10 @@
       "homeTeamId": "samsung",
       "awayTeamId": "kt",
       "stadiumId": "daegu",
-      "status": "scheduled"
+      "status": "finished",
+      "homeScore": 2,
+      "awayScore": 4,
+      "result": "away_win"
     },
     {
       "id": "20261012LGHT02026",
@@ -593,6 +596,27 @@
       "startTime": "18:30",
       "homeTeamId": "doosan",
       "awayTeamId": "lotte",
+      "stadiumId": "jamsil",
+      "status": "finished",
+      "homeScore": 4,
+      "awayScore": 7,
+      "result": "away_win"
+    },
+    {
+      "id": "44441014OBLG02026",
+      "date": "2026-10-14",
+      "startTime": "18:30",
+      "homeTeamId": "lg",
+      "awayTeamId": "doosan",
+      "stadiumId": "jamsil",
+      "status": "scheduled"
+    },
+    {
+      "id": "44441015OBLG02026",
+      "date": "2026-10-15",
+      "startTime": "18:30",
+      "homeTeamId": "lg",
+      "awayTeamId": "doosan",
       "stadiumId": "jamsil",
       "status": "scheduled"
     }
