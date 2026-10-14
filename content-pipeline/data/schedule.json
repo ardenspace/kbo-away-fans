@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-13T19:19:23.120Z",
+  "generatedAt": "2026-10-14T14:45:35.808Z",
   "games": [
     {
       "id": "20260930HHSS02026",
@@ -549,15 +549,54 @@
       "homeTeamId": "lg",
       "awayTeamId": "doosan",
       "stadiumId": "jamsil",
+      "status": "finished",
+      "homeScore": 4,
+      "awayScore": 1,
+      "result": "home_win"
+    },
+    {
+      "id": "33331017LGHT02026",
+      "date": "2026-10-17",
+      "startTime": "14:00",
+      "homeTeamId": "kia",
+      "awayTeamId": "lg",
+      "stadiumId": "gwangju",
       "status": "scheduled"
     },
     {
-      "id": "44441015OBLG02026",
-      "date": "2026-10-15",
+      "id": "33331018LGHT02026",
+      "date": "2026-10-18",
+      "startTime": "14:00",
+      "homeTeamId": "kia",
+      "awayTeamId": "lg",
+      "stadiumId": "gwangju",
+      "status": "scheduled"
+    },
+    {
+      "id": "33331020HTLG02026",
+      "date": "2026-10-20",
       "startTime": "18:30",
       "homeTeamId": "lg",
-      "awayTeamId": "doosan",
+      "awayTeamId": "kia",
       "stadiumId": "jamsil",
+      "status": "scheduled"
+    },
+    {
+      "id": "33331021HTLG02026",
+      "date": "2026-10-21",
+      "startTime": "18:30",
+      "homeTeamId": "lg",
+      "awayTeamId": "kia",
+      "stadiumId": "jamsil",
+      "status": "scheduled"
+    },
+    {
+      "id": "33331023LGHT02026",
+      "date": "2026-10-23",
+      "startTime": "18:30",
+      "homeTeamId": "kia",
+      "awayTeamId": "lg",
+      "stadiumId": "gwangju",
       "status": "scheduled"
     }
   ]
