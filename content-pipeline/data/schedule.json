@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-17T15:54:00.779Z",
+  "generatedAt": "2026-10-18T09:12:35.126Z",
   "games": [
     {
       "id": "20261004HTLG02026",
@@ -405,7 +405,10 @@
       "homeTeamId": "kia",
       "awayTeamId": "lg",
       "stadiumId": "gwangju",
-      "status": "scheduled"
+      "status": "finished",
+      "homeScore": 6,
+      "awayScore": 3,
+      "result": "home_win"
     },
     {
       "id": "33331020HTLG02026",
