@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-19T17:08:02.357Z",
+  "generatedAt": "2026-10-20T14:33:18.972Z",
   "games": [
     {
       "id": "20261006KTWO02026",
@@ -297,24 +297,54 @@
       "homeTeamId": "lg",
       "awayTeamId": "kia",
       "stadiumId": "jamsil",
-      "status": "scheduled"
+      "status": "finished",
+      "homeScore": 1,
+      "awayScore": 13,
+      "result": "away_win"
     },
     {
-      "id": "33331021HTLG02026",
-      "date": "2026-10-21",
-      "startTime": "18:30",
-      "homeTeamId": "lg",
+      "id": "55551025HTSS02026",
+      "date": "2026-10-25",
+      "startTime": "14:00",
+      "homeTeamId": "samsung",
       "awayTeamId": "kia",
-      "stadiumId": "jamsil",
+      "stadiumId": "daegu",
       "status": "scheduled"
     },
     {
-      "id": "33331023LGHT02026",
-      "date": "2026-10-23",
+      "id": "55551026HTSS02026",
+      "date": "2026-10-26",
+      "startTime": "18:30",
+      "homeTeamId": "samsung",
+      "awayTeamId": "kia",
+      "stadiumId": "daegu",
+      "status": "scheduled"
+    },
+    {
+      "id": "55551028SSHT02026",
+      "date": "2026-10-28",
       "startTime": "18:30",
       "homeTeamId": "kia",
-      "awayTeamId": "lg",
+      "awayTeamId": "samsung",
       "stadiumId": "gwangju",
+      "status": "scheduled"
+    },
+    {
+      "id": "55551029SSHT02026",
+      "date": "2026-10-29",
+      "startTime": "18:30",
+      "homeTeamId": "kia",
+      "awayTeamId": "samsung",
+      "stadiumId": "gwangju",
+      "status": "scheduled"
+    },
+    {
+      "id": "55551031HTSS02026",
+      "date": "2026-10-31",
+      "startTime": "14:00",
+      "homeTeamId": "samsung",
+      "awayTeamId": "kia",
+      "stadiumId": "daegu",
       "status": "scheduled"
     }
   ]
