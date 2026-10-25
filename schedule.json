@@ -1,0 +1,168 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-25T09:28:57.249Z",
+  "games": [
+    {
+      "id": "20261011KTSS02026",
+      "date": "2026-10-11",
+      "startTime": "14:00",
+      "homeTeamId": "samsung",
+      "awayTeamId": "kt",
+      "stadiumId": "daegu",
+      "status": "finished",
+      "homeScore": 3,
+      "awayScore": 12,
+      "result": "away_win"
+    },
+    {
+      "id": "20261011LTHT02026",
+      "date": "2026-10-11",
+      "startTime": "14:00",
+      "homeTeamId": "kia",
+      "awayTeamId": "lotte",
+      "stadiumId": "gwangju",
+      "status": "finished",
+      "homeScore": 1,
+      "awayScore": 4,
+      "result": "away_win"
+    },
+    {
+      "id": "20261012KTSS02026",
+      "date": "2026-10-12",
+      "startTime": "18:30",
+      "homeTeamId": "samsung",
+      "awayTeamId": "kt",
+      "stadiumId": "daegu",
+      "status": "finished",
+      "homeScore": 2,
+      "awayScore": 4,
+      "result": "away_win"
+    },
+    {
+      "id": "20261012LGHT02026",
+      "date": "2026-10-12",
+      "startTime": "18:30",
+      "homeTeamId": "kia",
+      "awayTeamId": "lg",
+      "stadiumId": "gwangju",
+      "status": "finished",
+      "homeScore": 4,
+      "awayScore": 2,
+      "result": "home_win"
+    },
+    {
+      "id": "20261012LTOB02026",
+      "date": "2026-10-12",
+      "startTime": "18:30",
+      "homeTeamId": "doosan",
+      "awayTeamId": "lotte",
+      "stadiumId": "jamsil",
+      "status": "finished",
+      "homeScore": 4,
+      "awayScore": 7,
+      "result": "away_win"
+    },
+    {
+      "id": "44441014OBLG02026",
+      "date": "2026-10-14",
+      "startTime": "18:30",
+      "homeTeamId": "lg",
+      "awayTeamId": "doosan",
+      "stadiumId": "jamsil",
+      "status": "finished",
+      "homeScore": 4,
+      "awayScore": 1,
+      "result": "home_win"
+    },
+    {
+      "id": "33331017LGHT02026",
+      "date": "2026-10-17",
+      "startTime": "14:00",
+      "homeTeamId": "kia",
+      "awayTeamId": "lg",
+      "stadiumId": "gwangju",
+      "status": "finished",
+      "homeScore": 5,
+      "awayScore": 1,
+      "result": "home_win"
+    },
+    {
+      "id": "33331018LGHT02026",
+      "date": "2026-10-18",
+      "startTime": "14:00",
+      "homeTeamId": "kia",
+      "awayTeamId": "lg",
+      "stadiumId": "gwangju",
+      "status": "finished",
+      "homeScore": 6,
+      "awayScore": 3,
+      "result": "home_win"
+    },
+    {
+      "id": "33331020HTLG02026",
+      "date": "2026-10-20",
+      "startTime": "18:30",
+      "homeTeamId": "lg",
+      "awayTeamId": "kia",
+      "stadiumId": "jamsil",
+      "status": "finished",
+      "homeScore": 1,
+      "awayScore": 13,
+      "result": "away_win"
+    },
+    {
+      "id": "55551025HTSS02026",
+      "date": "2026-10-25",
+      "startTime": "14:00",
+      "homeTeamId": "samsung",
+      "awayTeamId": "kia",
+      "stadiumId": "daegu",
+      "status": "canceled"
+    },
+    {
+      "id": "55551026HTSS02026",
+      "date": "2026-10-26",
+      "startTime": "18:30",
+      "homeTeamId": "samsung",
+      "awayTeamId": "kia",
+      "stadiumId": "daegu",
+      "status": "scheduled"
+    },
+    {
+      "id": "55551027HTSS02026",
+      "date": "2026-10-27",
+      "startTime": "18:30",
+      "homeTeamId": "samsung",
+      "awayTeamId": "kia",
+      "stadiumId": "daegu",
+      "status": "scheduled"
+    },
+    {
+      "id": "55551029SSHT02026",
+      "date": "2026-10-29",
+      "startTime": "18:30",
+      "homeTeamId": "kia",
+      "awayTeamId": "samsung",
+      "stadiumId": "gwangju",
+      "status": "scheduled"
+    },
+    {
+      "id": "55551030SSHT02026",
+      "date": "2026-10-30",
+      "startTime": "18:30",
+      "homeTeamId": "kia",
+      "awayTeamId": "samsung",
+      "stadiumId": "gwangju",
+      "status": "scheduled"
+    },
+    {
+      "id": "55551101HTSS02026",
+      "date": "2026-11-01",
+      "startTime": "14:00",
+      "homeTeamId": "samsung",
+      "awayTeamId": "kia",
+      "stadiumId": "daegu",
+      "status": "scheduled"
+    }
+  ]
+}
